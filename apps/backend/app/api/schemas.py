@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.domain.enums import TradeSide, TradeStatus
+from app.domain.enums import CandleSource, TradeSide, TradeStatus
 
 
 class ApiErrorDetail(BaseModel):
@@ -43,6 +43,7 @@ class CandleCreate(BaseModel):
 class CandleResponse(CandleCreate):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
+    source: CandleSource
 
 
 class AccountCreate(BaseModel):

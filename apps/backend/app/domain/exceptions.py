@@ -13,3 +13,8 @@ class NotFoundError(DomainError):
 class ConflictError(DomainError):
     code = "conflict"
     status_code = 409
+
+
+class SynchronizationError(DomainError):
+    code = "synchronization_error"
+    status_code = 503

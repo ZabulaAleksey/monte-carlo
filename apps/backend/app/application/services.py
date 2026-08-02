@@ -12,7 +12,7 @@ from app.application.ports import (
     TradeRepository,
 )
 from app.domain.entities import Account, Candle, Symbol, Trade
-from app.domain.enums import TradeSide, TradeStatus
+from app.domain.enums import CandleSource, TradeSide, TradeStatus
 from app.domain.exceptions import ConflictError, DomainError, NotFoundError
 
 
@@ -77,13 +77,23 @@ class CandleService:
         low: Decimal,
         close: Decimal,
         volume: Decimal,
+        source: CandleSource = CandleSource.API,
     ) -> Candle:
         if await self._symbols.get(symbol_id) is None:
             raise NotFoundError("Symbol not found")
         if high < max(open_price, close) or low > min(open_price, close) or low > high:
             raise DomainError("Invalid OHLC price range")
         candle = Candle(
-            uuid4(), symbol_id, timeframe.upper(), open_time, open_price, high, low, close, volume
+            uuid4(),
+            symbol_id,
+            timeframe.upper(),
+            open_time,
+            open_price,
+            high,
+            low,
+            close,
+            volume,
+            source,
         )
         return await self._repository.add(candle)
 

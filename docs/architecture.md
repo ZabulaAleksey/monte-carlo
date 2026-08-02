@@ -44,7 +44,8 @@ application layer.
 
 - `symbols` is the normalized instrument catalog.
 - `candles` belongs to a symbol and is unique by symbol, timeframe and opening
-  time.
+  time. Its typed `source` field (`demo`, `mt5`, or `api`) prevents
+  synthetic MVP prices from being mixed into a connected terminal view.
 - `accounts` identifies an external trading account.
 - `trades` belongs to an account and symbol and is unique by account and
   external ticket.
@@ -65,3 +66,15 @@ Domain errors are mapped to stable JSON error codes. Validation errors use the
 same envelope, while unexpected exceptions return a generic message and are
 logged with a request ID. Every request emits a structured JSON log record with
 method, path, status and duration.
+
+## MetaTrader bridge
+
+MT5 synchronization is isolated behind an application-level gateway. Protected
+write routes validate the bridge API key before calling `Mt5SyncService`; the
+SQLAlchemy adapter performs one transaction per payload. There are no backend
+ports or MQL functions for trading commands.
+
+`mt5_terminals` stores heartbeat and synchronization timestamps. `positions`
+stores the latest open-position snapshot. Existing candle and trade uniqueness
+constraints are reused for retry-safe batch upserts. See
+[`mt5-bridge.md`](mt5-bridge.md) for the complete contract.

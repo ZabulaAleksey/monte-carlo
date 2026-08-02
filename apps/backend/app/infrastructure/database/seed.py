@@ -8,7 +8,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 
 from app.application.services import AccountService, CandleService, SymbolService, TradeService
-from app.domain.enums import TradeSide, TradeStatus
+from app.domain.enums import CandleSource, TradeSide, TradeStatus
 from app.infrastructure.config import get_settings
 from app.infrastructure.database.models import CandleModel, TradeModel
 from app.infrastructure.database.repositories import (
@@ -65,6 +65,7 @@ async def seed() -> None:
                     min(previous, close) - Decimal("0.00028"),
                     close,
                     Decimal(820 + index * 13),
+                    source=CandleSource.DEMO,
                 )
                 previous = close
 

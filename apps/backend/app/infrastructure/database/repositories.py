@@ -6,7 +6,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.entities import Account, Candle, Symbol, Trade
-from app.domain.enums import TradeSide, TradeStatus
+from app.domain.enums import CandleSource, TradeSide, TradeStatus
 from app.infrastructure.database.models import AccountModel, CandleModel, SymbolModel, TradeModel
 
 
@@ -25,6 +25,7 @@ def _candle(model: CandleModel) -> Candle:
         model.low,
         model.close,
         model.volume,
+        CandleSource(model.source),
     )
 
 
@@ -120,6 +121,7 @@ class SqlAlchemyCandleRepository:
                 low=candle.low,
                 close=candle.close,
                 volume=candle.volume,
+                source=candle.source.value,
             )
         )
         await self._session.commit()

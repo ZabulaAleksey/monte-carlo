@@ -2,6 +2,7 @@ import type {
   AccountRecord,
   ApiInfo,
   CandleRecord,
+  Mt5Status,
   SymbolRecord,
   TradeRecord,
 } from "./types";
@@ -48,6 +49,8 @@ export const apiClient = {
   getAccounts: (): Promise<AccountRecord[]> => request<AccountRecord[]>("/api/v1/accounts"),
   getTrades: (limit = 100): Promise<TradeRecord[]> =>
     request<TradeRecord[]>(`/api/v1/trades?limit=${limit}`),
+  getMt5Status: (): Promise<Mt5Status> =>
+    request<Mt5Status>("/api/v1/mt5/status"),
 };
 
 export { API_URL };

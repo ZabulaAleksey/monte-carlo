@@ -28,8 +28,8 @@ export default function MarketDataPage(): React.JSX.Element {
         <section className="panel table-panel">
           <div className="panel-heading"><div><span className="eyebrow">Stored candles</span><h2>Latest observations</h2></div><span className="count-badge">{candles.length} rows</span></div>
           <div className="table-scroll">
-            <table><thead><tr><th>Symbol</th><th>Time</th><th>TF</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr></thead>
-              <tbody>{candles.map((candle) => <tr key={candle.id}><td><strong>{symbols.find((item) => item.id === candle.symbol_id)?.name ?? "—"}</strong></td><td>{new Date(candle.open_time).toLocaleString()}</td><td><span className="tag">{candle.timeframe}</span></td><td>{candle.open}</td><td>{candle.high}</td><td>{candle.low}</td><td>{candle.close}</td><td>{Number(candle.volume).toLocaleString()}</td></tr>)}</tbody>
+            <table><thead><tr><th>Source</th><th>Symbol</th><th>Time</th><th>TF</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr></thead>
+              <tbody>{candles.map((candle) => <tr key={candle.id}><td><span className={`tag source-${candle.source}`}>{candle.source}</span></td><td><strong>{symbols.find((item) => item.id === candle.symbol_id)?.name ?? "—"}</strong></td><td>{new Date(candle.open_time).toLocaleString()}</td><td><span className="tag">{candle.timeframe}</span></td><td>{candle.open}</td><td>{candle.high}</td><td>{candle.low}</td><td>{candle.close}</td><td>{Number(candle.volume).toLocaleString()}</td></tr>)}</tbody>
             </table>
           </div>
         </section>

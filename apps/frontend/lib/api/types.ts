@@ -16,6 +16,7 @@ export interface CandleRecord {
   low: string;
   close: string;
   volume: string;
+  source: "api" | "demo" | "mt5";
 }
 
 export interface AccountRecord {
@@ -51,4 +52,21 @@ export interface ApiInfo {
   name: string;
   version: string;
   environment: string;
+}
+
+export interface Mt5TerminalStatus {
+  terminal_id: string;
+  terminal_name: string;
+  terminal_build: number;
+  last_heartbeat_at: string | null;
+  terminal_time: string | null;
+  last_sync_at: string | null;
+}
+
+export interface Mt5Status {
+  configured: boolean;
+  connected: boolean;
+  stale: boolean;
+  stale_after_seconds: number;
+  terminal: Mt5TerminalStatus | null;
 }

@@ -1,0 +1,6 @@
+# Copy this file to config.local as a private configuration checklist.
+# The Expert Advisor does not read this file: copy the same three values into
+# its Inputs tab when attaching MonteCarloBridge.mq5 to a chart.
+BridgeBaseUrl=http://127.0.0.1:8000
+BridgeTerminalId=mt5-terminal-01
+MT5_API_KEY=replace-with-at-least-32-random-characters

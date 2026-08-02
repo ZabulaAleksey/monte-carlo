@@ -1,6 +1,12 @@
 from enum import StrEnum
 
 
+class CandleSource(StrEnum):
+    API = "api"
+    DEMO = "demo"
+    MT5 = "mt5"
+
+
 class TradeSide(StrEnum):
     BUY = "buy"
     SELL = "sell"

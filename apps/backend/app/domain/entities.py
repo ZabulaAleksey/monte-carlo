@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from app.domain.enums import TradeSide, TradeStatus
+from app.domain.enums import CandleSource, TradeSide, TradeStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +28,7 @@ class Candle:
     low: Decimal
     close: Decimal
     volume: Decimal
+    source: CandleSource
 
 
 @dataclass(frozen=True, slots=True)

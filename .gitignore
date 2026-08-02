@@ -11,3 +11,4 @@ node_modules/
 .next/
 coverage/
 htmlcov/
+mt5/config.local

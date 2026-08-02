@@ -72,6 +72,7 @@ async def test_save_candle(client: AsyncClient) -> None:
     candles = await client.get(f"/api/v1/candles?symbol_id={symbol['id']}")
     assert len(candles.json()) == 1
     assert candles.json()[0]["timeframe"] == "H1"
+    assert candles.json()[0]["source"] == "api"
 
 
 @pytest.mark.asyncio

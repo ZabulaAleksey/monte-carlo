@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +17,17 @@ class Settings(BaseSettings):
     )
     cors_origins: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
     seed_demo_data: bool = Field(default=True, alias="SEED_DEMO_DATA")
+    mt5_api_key: SecretStr | None = Field(default=None, alias="MT5_API_KEY")
+    mt5_heartbeat_timeout_seconds: int = Field(
+        default=90, ge=10, le=3600, alias="MT5_HEARTBEAT_TIMEOUT_SECONDS"
+    )
+
+    @field_validator("mt5_api_key")
+    @classmethod
+    def validate_mt5_api_key(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value()) < 32:
+            raise ValueError("MT5_API_KEY must contain at least 32 characters")
+        return value
 
     @property
     def cors_origin_list(self) -> list[str]:
