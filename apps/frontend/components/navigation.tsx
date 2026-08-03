@@ -10,6 +10,10 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { usePollingQuery } from "@/hooks/use-polling-query";
+import { deriveDataEnvironment } from "@/lib/data-environment";
+import { loadEnvironmentData } from "@/lib/page-data";
+
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/market-data", label: "Market Data", icon: ChartCandlestick },
@@ -20,6 +24,19 @@ const links = [
 
 export function Navigation(): React.JSX.Element {
   const pathname = usePathname();
+  const { data, error } = usePollingQuery(loadEnvironmentData);
+  const environment = data ? deriveDataEnvironment(data.accounts, data.mt5) : null;
+  const environmentClass = error && !data
+    ? "unavailable"
+    : environment?.online
+      ? "online"
+      : environment?.kind ?? "loading";
+  const environmentTitle = error && !data
+    ? "Environment unavailable"
+    : environment?.title ?? "Checking environment";
+  const environmentDescription = error && !data
+    ? error
+    : environment?.description ?? "Loading data source";
 
   return (
     <aside className="sidebar">
@@ -41,11 +58,11 @@ export function Navigation(): React.JSX.Element {
           );
         })}
       </nav>
-      <div className="sidebar-status">
+      <div className={`sidebar-status ${environmentClass}`}>
         <span className="status-dot" />
         <div>
-          <strong>Demo environment</strong>
-          <small>Sample market feed</small>
+          <strong>{environmentTitle}</strong>
+          <small>{environmentDescription}</small>
         </div>
       </div>
     </aside>

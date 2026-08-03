@@ -30,6 +30,9 @@ button, input, select { font: inherit; }
 .nav-link.active { color: #102c23; background: var(--lime); font-weight: 650; }
 .sidebar-status { margin-top: auto; padding: 14px 12px; display: flex; gap: 10px; align-items: flex-start; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; background: rgba(255,255,255,.04); }
 .status-dot { flex: 0 0 auto; width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: #75df9a; box-shadow: 0 0 0 4px rgba(117,223,154,.12); }
+.sidebar-status.demo .status-dot { background: #efb95e; box-shadow: 0 0 0 4px rgba(239,185,94,.12); }
+.sidebar-status.loading .status-dot { background: #9db3a9; box-shadow: none; }
+.sidebar-status.unavailable .status-dot { background: #e36c64; box-shadow: 0 0 0 4px rgba(227,108,100,.12); }
 .sidebar-status strong { font-size: 11px; }
 .sidebar-status small { margin-top: 4px; color: #91a89d; font-size: 10px; }
 
