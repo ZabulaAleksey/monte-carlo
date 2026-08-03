@@ -1,7 +1,13 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import DashboardPage from "./page";
+
+vi.mock("@/components/candlestick-chart", () => ({
+  CandlestickChart: ({ label }: { label: string }) => (
+    <div role="img" aria-label={`${label} Japanese candlestick chart`} />
+  ),
+}));
 
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
@@ -14,9 +20,11 @@ vi.mock("@/lib/api/client", () => ({
 }));
 
 import { apiClient } from "@/lib/api/client";
+import { MARKET_SELECTION_STORAGE_KEY } from "@/hooks/use-persisted-market-selection";
 
 describe("DashboardPage", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     vi.mocked(apiClient.getAccounts).mockResolvedValue([]);
     vi.mocked(apiClient.getCandles).mockResolvedValue([]);
     vi.mocked(apiClient.getMt5Status).mockResolvedValue({
@@ -41,6 +49,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     expect(screen.getByRole("heading", { name: "Trading performance, in focus." })).toBeInTheDocument();
+    expect(screen.queryByText("Demo data")).not.toBeInTheDocument();
     expect(await screen.findByText("Portfolio balance")).toBeInTheDocument();
     expect(screen.getByText("No account data")).toBeInTheDocument();
   });
@@ -90,5 +99,62 @@ describe("DashboardPage", () => {
     expect(screen.getByText("XAUUSD · H1")).toBeInTheDocument();
     expect(screen.getByText("4055.00")).toBeInTheDocument();
     expect(screen.getByText("MT5 candles")).toBeInTheDocument();
+  });
+
+  it("restores the selected symbol and timeframe from localStorage", async () => {
+    vi.mocked(apiClient.getAccounts).mockResolvedValue([
+      {
+        id: "mt5-account",
+        external_id: "10011992327",
+        name: "MT5 Account",
+        currency: "USD",
+        balance: "10000",
+        created_at: "2026-08-02T12:00:00Z",
+      },
+    ]);
+    vi.mocked(apiClient.getSymbols).mockResolvedValue([
+      { id: "xauusd", name: "XAUUSD", description: "Gold", digits: 2, is_active: true },
+      { id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true },
+    ]);
+    vi.mocked(apiClient.getCandles).mockResolvedValue([
+      {
+        id: "xau-h1",
+        symbol_id: "xauusd",
+        timeframe: "H1",
+        open_time: "2026-08-04T12:00:00Z",
+        open: "2400",
+        high: "2410",
+        low: "2390",
+        close: "2405",
+        volume: "100",
+        source: "mt5",
+      },
+      {
+        id: "eur-m15",
+        symbol_id: "eurusd",
+        timeframe: "M15",
+        open_time: "2026-08-04T11:45:00Z",
+        open: "1.15000",
+        high: "1.15100",
+        low: "1.14900",
+        close: "1.15050",
+        volume: "200",
+        source: "mt5",
+      },
+    ]);
+
+    const firstRender = render(<DashboardPage />);
+    const selector = await screen.findByRole("combobox", { name: "Market pulse instrument" });
+    fireEvent.change(selector, { target: { value: "eurusd:M15" } });
+
+    expect(window.localStorage.getItem(MARKET_SELECTION_STORAGE_KEY)).toBe("eurusd:M15");
+    expect(selector).toHaveValue("eurusd:M15");
+
+    firstRender.unmount();
+    render(<DashboardPage />);
+    const restoredSelector = await screen.findByRole("combobox", {
+      name: "Market pulse instrument",
+    });
+    await waitFor(() => expect(restoredSelector).toHaveValue("eurusd:M15"));
   });
 });

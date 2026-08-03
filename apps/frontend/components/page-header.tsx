@@ -12,9 +12,6 @@ export function PageHeader({ eyebrow, title, description }: PageHeaderProps): Re
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
-      <div className="live-pill">
-        <span className="status-dot" /> Demo data
-      </div>
     </header>
   );
 }

@@ -1,13 +1,14 @@
 "use client";
 
 import { ArrowDownRight, ArrowUpRight, Landmark, LineChart, WalletCards } from "lucide-react";
-import { useState } from "react";
+import { CandlestickChart } from "@/components/candlestick-chart";
 
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { Mt5ConnectionCard } from "@/components/mt5-connection-card";
 import { PageHeader } from "@/components/page-header";
 import { useDashboardData } from "@/hooks/use-dashboard-data";
+import { usePersistedMarketSelection } from "@/hooks/use-persisted-market-selection";
 import {
   buildMarketSeries,
   getDashboardSource,
@@ -26,7 +27,7 @@ function money(value: number, currency = "USD"): string {
 
 export default function DashboardPage(): React.JSX.Element {
   const { data, error } = useDashboardData();
-  const [selectedSeriesKey, setSelectedSeriesKey] = useState<string | null>(null);
+  const { selectedSeriesKey, selectSeries } = usePersistedMarketSelection();
   const account = selectPortfolioAccount(data?.accounts ?? []);
   const source = getDashboardSource(account);
   const accountTrades = selectAccountTrades(data?.trades ?? [], account);
@@ -117,7 +118,7 @@ export default function DashboardPage(): React.JSX.Element {
                     <select
                       aria-label="Market pulse instrument"
                       value={activeSeries?.key ?? ""}
-                      onChange={(event) => setSelectedSeriesKey(event.target.value)}
+                      onChange={(event) => selectSeries(event.target.value)}
                     >
                       {marketSeries.map((series) => (
                         <option key={series.key} value={series.key}>
@@ -138,14 +139,12 @@ export default function DashboardPage(): React.JSX.Element {
                       ).toLocaleString()}
                     </span>
                   </div>
-                  <div className="mini-chart" aria-label="Recent close price visualization">
-                    {activeSeries.candles.slice(0, 24).reverse().map((candle, index) => {
-                      const range = Number(candle.high) - Number(candle.low) || 1;
-                      const body = Math.abs(Number(candle.close) - Number(candle.open));
-                      const height = Math.max(14, Math.min(88, (body / range) * 100));
-                      return <span className={Number(candle.close) >= Number(candle.open) ? "bar up" : "bar down"} key={candle.id} style={{ height: `${height}%` }} title={`Period ${index + 1}: ${candle.close}`} />;
-                    })}
-                  </div>
+                  <CandlestickChart
+                    key={activeSeries.key}
+                    candles={activeSeries.candles}
+                    digits={activeSeries.symbol.digits}
+                    label={`${activeSeries.symbol.name} ${activeSeries.timeframe}`}
+                  />
                 </>
               ) : (
                 <div className="panel-empty">

@@ -21,6 +21,8 @@ docker-compose.yml
 ```
 
 Подробности слоёв и модели данных: [docs/architecture.md](docs/architecture.md).
+Канонические требования этапов для продолжения разработки:
+[docs/project-context.md](docs/project-context.md).
 
 ## Быстрый запуск
 
@@ -91,6 +93,11 @@ Dashboard обновляет данные каждые 15 секунд. При �
 только как fallback. Свечи имеют явный источник `demo`, `mt5` или `api`;
 Dashboard реального счёта не смешивает их с demo-серией. Источник данных и
 состояние MT5 явно показаны в интерфейсе.
+
+Market Pulse использует TradingView Lightweight Charts и показывает настоящие
+OHLC-свечи: зелёные бычьи и красные медвежьи тела с тенями `high/low`. Выбранная
+комбинация символа и таймфрейма хранится в браузере под ключом
+`montecarlo.market-pulse.series` и восстанавливается после обновления страницы.
 
 Navigation, Market Data и Trades используют тот же источник состояния. Пока API
 загружается, sidebar показывает `Checking environment`. При наличии online
