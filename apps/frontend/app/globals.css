@@ -132,7 +132,7 @@ tbody tr:hover { background: #f7f9f5; }
 .setting-card small { margin-top: 8px; color: var(--muted); font-size: 10px; }
 
 .backtest-workbench { max-width: 1380px; margin: 0 auto; display: grid; grid-template-columns: minmax(330px, 390px) minmax(0, 1fr); gap: 14px; align-items: start; }
-.backtest-sidebar, .backtest-results { min-width: 0; display: grid; gap: 14px; }
+.backtest-sidebar, .backtest-results { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .backtest-sidebar { position: sticky; top: 24px; }
 .backtest-form { padding: 20px; }
 .backtest-form .panel-heading { margin-bottom: 18px; }
@@ -145,7 +145,7 @@ tbody tr:hover { background: #f7f9f5; }
 .primary-button { width: 100%; min-height: 44px; margin-top: 16px; border: 0; border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 9px; color: white; background: var(--green); font-size: 11px; font-weight: 650; cursor: pointer; transition: 160ms ease; }
 .primary-button:hover:not(:disabled) { background: #104b37; transform: translateY(-1px); }
 .primary-button:disabled { opacity: .55; cursor: wait; }
-.backtest-runs { max-height: 430px; overflow: auto; }
+.backtest-runs { width: 100%; min-width: 0; max-height: 430px; overflow: auto; }
 .backtest-runs .panel-heading { position: sticky; top: 0; z-index: 2; background: var(--panel); }
 .backtest-runs td { padding: 12px; font-size: 10px; }
 .backtest-runs td small { display: block; margin-top: 4px; color: var(--muted); font-size: 8px; }
@@ -186,7 +186,7 @@ tbody tr:hover { background: #f7f9f5; }
 .run-settings span, .run-settings strong { display: block; }
 .run-settings span { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; }
 .run-settings strong { margin-top: 7px; font-family: var(--font-mono); font-size: 10px; overflow-wrap: anywhere; }
-.backtest-trades { max-width: none; }
+.backtest-trades { width: 100%; min-width: 0; max-width: none; }
 
 @media (max-width: 1050px) {
   .metric-grid { grid-template-columns: repeat(2, 1fr); }
