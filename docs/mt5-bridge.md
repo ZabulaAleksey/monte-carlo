@@ -20,6 +20,7 @@ endpoint reveals connection timestamps but never authentication material.
 | `POST` | `/api/v1/mt5/account` | Upsert account metrics |
 | `POST` | `/api/v1/mt5/symbols` | Upsert the symbol catalog |
 | `POST` | `/api/v1/mt5/candles/batch` | Upsert up to 1,000 candles |
+| `POST` | `/api/v1/mt5/quotes` | Upsert the latest Bid/Ask per symbol |
 | `POST` | `/api/v1/mt5/positions` | Replace an account's open-position snapshot |
 | `POST` | `/api/v1/mt5/trades/batch` | Upsert up to 1,000 history records |
 | `GET` | `/api/v1/mt5/status` | Read connection state for the frontend |
@@ -33,6 +34,8 @@ consistent.
 
 - Symbols use their normalized uppercase name.
 - Candles use `(symbol_id, timeframe, open_time)`.
+- Quotes keep one latest Bid/Ask record per symbol. An observation older than
+  the stored quote is ignored.
 - A successful MT5 candle upsert sets `source=mt5`, including when it replaces
   a matching candle that was previously marked as demo data.
 - Trades use `(account_id, external_id)`.
@@ -53,8 +56,9 @@ uploads update `last_sync_at`; heartbeat updates `last_heartbeat_at`.
 
 ## Expert Advisor setup
 
-See [`mt5/README.md`](../mt5/README.md). The EA sends only completed candles,
-account state, open-position snapshots and history deals. It retries network
+See [`mt5/README.md`](../mt5/README.md). The EA sends live Bid/Ask every two
+seconds by default, plus completed candles, account state, open-position
+snapshots and history deals. It retries network
 errors, HTTP 408, 429 and 5xx responses. Client errors are not retried because
 they require configuration or payload correction.
 

@@ -19,6 +19,16 @@ export interface CandleRecord {
   source: "api" | "demo" | "mt5";
 }
 
+export interface QuoteRecord {
+  symbol_id: string;
+  terminal_id: string;
+  bid: string;
+  ask: string;
+  observed_at: string;
+  received_at: string;
+  source: "api" | "demo" | "mt5";
+}
+
 export interface AccountRecord {
   id: string;
   external_id: string;

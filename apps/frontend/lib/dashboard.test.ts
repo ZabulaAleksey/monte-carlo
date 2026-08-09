@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { AccountRecord } from "./api/types";
+import type { AccountRecord, CandleRecord, QuoteRecord } from "./api/types";
 import {
   getDashboardSource,
+  mergeLiveQuotes,
   selectPortfolioAccount,
   selectSourceCandles,
 } from "./dashboard";
@@ -60,5 +61,75 @@ describe("dashboard data selection", () => {
     expect(selectSourceCandles(candles, "mt5").map((candle) => candle.id)).toEqual([
       "mt5-candle",
     ]);
+  });
+
+  it("builds and updates only the current H1 candle from sequential quotes", () => {
+    const candle: CandleRecord = {
+      id: "stored",
+      symbol_id: "eurusd",
+      timeframe: "H1",
+      open_time: "2026-08-01T11:00:00.000Z",
+      open: "1.08000",
+      high: "1.08500",
+      low: "1.07900",
+      close: "1.08200",
+      volume: "100",
+      source: "mt5",
+    };
+    const quote = (bid: string, ask: string, observed_at: string): QuoteRecord => ({
+      symbol_id: "eurusd",
+      terminal_id: "terminal",
+      bid,
+      ask,
+      observed_at,
+      received_at: observed_at,
+      source: "mt5",
+    });
+
+    const first = mergeLiveQuotes(
+      [candle],
+      [quote("1.08300", "1.08320", "2026-08-01T12:15:00.000Z")],
+    );
+    const second = mergeLiveQuotes(
+      first,
+      [quote("1.08600", "1.08620", "2026-08-01T12:20:00.000Z")],
+    );
+    const live = second.find((item) => item.id.startsWith("live:"));
+
+    expect(live).toMatchObject({
+      open_time: "2026-08-01T12:00:00.000Z",
+      open: "1.08200",
+      high: "1.0861",
+      low: "1.082",
+      close: "1.08610",
+    });
+  });
+
+  it("does not apply a quote to a future candle", () => {
+    const candle: CandleRecord = {
+      id: "stored",
+      symbol_id: "eurusd",
+      timeframe: "H1",
+      open_time: "2026-08-01T12:00:00.000Z",
+      open: "1.08000",
+      high: "1.08500",
+      low: "1.07900",
+      close: "1.08200",
+      volume: "100",
+      source: "mt5",
+    };
+    const result = mergeLiveQuotes([candle], [
+      {
+        symbol_id: "eurusd",
+        terminal_id: "terminal",
+        bid: "1.09000",
+        ask: "1.09020",
+        observed_at: "2026-08-01T11:59:59.000Z",
+        received_at: "2026-08-01T12:00:00.000Z",
+        source: "mt5",
+      },
+    ]);
+
+    expect(result).toEqual([candle]);
   });
 });

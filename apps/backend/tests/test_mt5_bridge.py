@@ -163,6 +163,79 @@ async def test_candle_and_trade_batches_are_idempotent(client: AsyncClient) -> N
 
 
 @pytest.mark.asyncio
+async def test_live_quote_is_public_idempotent_and_rejects_older_updates(
+    client: AsyncClient,
+) -> None:
+    await sync_account_and_symbol(client)
+    observed_at = datetime.now(UTC) - timedelta(seconds=2)
+
+    def quote_payload(bid: str, ask: str, timestamp: datetime) -> dict[str, object]:
+        return {
+            "terminal_id": TERMINAL_ID,
+            "sent_at": now_iso(),
+            "quotes": [
+                {
+                    "symbol": "EURUSD",
+                    "bid": bid,
+                    "ask": ask,
+                    "observed_at": timestamp.isoformat(),
+                }
+            ],
+        }
+
+    first = await client.post(
+        "/api/v1/mt5/quotes",
+        headers=HEADERS,
+        json=quote_payload("1.08300", "1.08312", observed_at),
+    )
+    second = await client.post(
+        "/api/v1/mt5/quotes",
+        headers=HEADERS,
+        json=quote_payload("1.08310", "1.08322", observed_at),
+    )
+    older = await client.post(
+        "/api/v1/mt5/quotes",
+        headers=HEADERS,
+        json=quote_payload("1.00000", "1.00010", observed_at - timedelta(seconds=1)),
+    )
+    public = await client.get("/api/v1/quotes")
+
+    assert first.status_code == 200
+    assert first.json()["created"] == 1
+    assert second.json()["updated"] == 1
+    assert older.status_code == 200
+    assert older.json()["created"] == 0
+    assert older.json()["updated"] == 0
+    assert public.status_code == 200
+    assert public.json()[0]["bid"] == "1.08310000"
+    assert public.json()[0]["ask"] == "1.08322000"
+    assert public.json()[0]["source"] == "mt5"
+
+
+@pytest.mark.asyncio
+async def test_live_quote_rejects_inverted_spread(client: AsyncClient) -> None:
+    response = await client.post(
+        "/api/v1/mt5/quotes",
+        headers=HEADERS,
+        json={
+            "terminal_id": TERMINAL_ID,
+            "sent_at": now_iso(),
+            "quotes": [
+                {
+                    "symbol": "EURUSD",
+                    "bid": "1.08320",
+                    "ask": "1.08310",
+                    "observed_at": now_iso(),
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+@pytest.mark.asyncio
 async def test_position_snapshot_replaces_stale_positions(
     client: AsyncClient, session: AsyncSession
 ) -> None:

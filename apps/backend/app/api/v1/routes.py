@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, Response, status
 from app.api.dependencies import (
     AccountServiceDependency,
     CandleServiceDependency,
+    QuoteServiceDependency,
     SymbolServiceDependency,
     TradeServiceDependency,
 )
@@ -15,6 +16,7 @@ from app.api.schemas import (
     CandleCreate,
     CandleResponse,
     InfoResponse,
+    QuoteResponse,
     SymbolCreate,
     SymbolResponse,
     TradeCreate,
@@ -96,6 +98,14 @@ async def save_candle(payload: CandleCreate, service: CandleServiceDependency) -
         volume=payload.volume,
     )
     return CandleResponse.model_validate(candle)
+
+
+@router.get("/quotes", response_model=list[QuoteResponse], tags=["market-data"])
+async def list_quotes(
+    service: QuoteServiceDependency,
+    symbol_id: UUID | None = None,
+) -> list[QuoteResponse]:
+    return [QuoteResponse.model_validate(item) for item in await service.list(symbol_id)]
 
 
 @router.get("/accounts", response_model=list[AccountResponse], tags=["accounts"])

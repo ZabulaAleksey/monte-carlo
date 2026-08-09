@@ -3,10 +3,17 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.services import AccountService, CandleService, SymbolService, TradeService
+from app.application.services import (
+    AccountService,
+    CandleService,
+    QuoteService,
+    SymbolService,
+    TradeService,
+)
 from app.infrastructure.database.repositories import (
     SqlAlchemyAccountRepository,
     SqlAlchemyCandleRepository,
+    SqlAlchemyQuoteRepository,
     SqlAlchemySymbolRepository,
     SqlAlchemyTradeRepository,
 )
@@ -23,6 +30,10 @@ def get_candle_service(session: SessionDependency) -> CandleService:
     return CandleService(SqlAlchemyCandleRepository(session), SqlAlchemySymbolRepository(session))
 
 
+def get_quote_service(session: SessionDependency) -> QuoteService:
+    return QuoteService(SqlAlchemyQuoteRepository(session))
+
+
 def get_account_service(session: SessionDependency) -> AccountService:
     return AccountService(SqlAlchemyAccountRepository(session))
 
@@ -37,5 +48,6 @@ def get_trade_service(session: SessionDependency) -> TradeService:
 
 SymbolServiceDependency = Annotated[SymbolService, Depends(get_symbol_service)]
 CandleServiceDependency = Annotated[CandleService, Depends(get_candle_service)]
+QuoteServiceDependency = Annotated[QuoteService, Depends(get_quote_service)]
 AccountServiceDependency = Annotated[AccountService, Depends(get_account_service)]
 TradeServiceDependency = Annotated[TradeService, Depends(get_trade_service)]

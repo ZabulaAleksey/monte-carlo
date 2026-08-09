@@ -9,7 +9,7 @@ export function PageHeader({
   eyebrow,
   title,
   description,
-  badge = "Demo data",
+  badge,
 }: PageHeaderProps): React.JSX.Element {
   return (
     <header className="page-header">
@@ -18,9 +18,11 @@ export function PageHeader({
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
-      <div className="live-pill">
-        <span className="status-dot" /> {badge}
-      </div>
+      {badge ? (
+        <div className="live-pill">
+          <span className="status-dot" /> {badge}
+        </div>
+      ) : null}
     </header>
   );
 }

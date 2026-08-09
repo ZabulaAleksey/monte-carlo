@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 import { apiClient } from "@/lib/api/client";
+import { mergeDashboardSnapshot, mergeLiveQuotes } from "@/lib/dashboard";
 import type { DashboardSnapshot } from "@/lib/dashboard";
 
 const REFRESH_INTERVAL_MS = 15_000;
+const QUOTE_REFRESH_INTERVAL_MS = 2_000;
 
 export interface DashboardQuery {
   data: DashboardSnapshot | null;
@@ -13,14 +15,15 @@ export interface DashboardQuery {
 }
 
 async function loadDashboard(): Promise<DashboardSnapshot> {
-  const [accounts, candles, symbols, trades, mt5] = await Promise.all([
+  const [accounts, candles, symbols, trades, mt5, quotes] = await Promise.all([
     apiClient.getAccounts(),
     apiClient.getCandles(500),
     apiClient.getSymbols(),
     apiClient.getTrades(),
     apiClient.getMt5Status(),
+    apiClient.getQuotes(),
   ]);
-  return { accounts, candles, symbols, trades, mt5 };
+  return { accounts, candles, symbols, trades, mt5, quotes };
 }
 
 export function useDashboardData(): DashboardQuery {
@@ -34,7 +37,7 @@ export function useDashboardData(): DashboardQuery {
       try {
         const snapshot = await loadDashboard();
         if (active) {
-          setData(snapshot);
+          setData((previous) => mergeDashboardSnapshot(previous, snapshot));
           setError(null);
         }
       } catch (reason: unknown) {
@@ -46,9 +49,21 @@ export function useDashboardData(): DashboardQuery {
 
     void refresh();
     const intervalId = window.setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
+    const quoteIntervalId = window.setInterval(() => {
+      void apiClient.getQuotes().then((quotes) => {
+        if (active) {
+          setData((current) =>
+            current
+              ? { ...current, quotes, candles: mergeLiveQuotes(current.candles, quotes) }
+              : current,
+          );
+        }
+      }).catch(() => undefined);
+    }, QUOTE_REFRESH_INTERVAL_MS);
     return () => {
       active = false;
       window.clearInterval(intervalId);
+      window.clearInterval(quoteIntervalId);
     };
   }, []);
 

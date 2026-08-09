@@ -46,6 +46,17 @@ class CandleResponse(CandleCreate):
     source: CandleSource
 
 
+class QuoteResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    symbol_id: UUID
+    terminal_id: str
+    bid: Decimal
+    ask: Decimal
+    observed_at: datetime
+    received_at: datetime
+    source: CandleSource
+
+
 class AccountCreate(BaseModel):
     external_id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=128)

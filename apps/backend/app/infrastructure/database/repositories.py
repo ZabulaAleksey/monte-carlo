@@ -6,9 +6,19 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.entities import Account, Candle, Symbol, Trade
+from app.domain.entities import Account, Candle, MarketQuote, Symbol, Trade
 from app.domain.enums import CandleSource, TradeSide, TradeStatus
-from app.infrastructure.database.models import AccountModel, CandleModel, SymbolModel, TradeModel
+from app.infrastructure.database.models import (
+    AccountModel,
+    CandleModel,
+    MarketQuoteModel,
+    SymbolModel,
+    TradeModel,
+)
+
+
+def _utc(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _symbol(model: SymbolModel) -> Symbol:
@@ -20,16 +30,24 @@ def _candle(model: CandleModel) -> Candle:
         model.id,
         model.symbol_id,
         model.timeframe,
-        (
-            model.open_time
-            if model.open_time.tzinfo is not None
-            else model.open_time.replace(tzinfo=UTC)
-        ),
+        _utc(model.open_time),
         model.open,
         model.high,
         model.low,
         model.close,
         model.volume,
+        CandleSource(model.source),
+    )
+
+
+def _quote(model: MarketQuoteModel) -> MarketQuote:
+    return MarketQuote(
+        model.symbol_id,
+        model.terminal_id,
+        model.bid,
+        model.ask,
+        _utc(model.observed_at),
+        _utc(model.received_at),
         CandleSource(model.source),
     )
 
@@ -144,6 +162,18 @@ class SqlAlchemyCandleRepository:
         )
         await self._session.commit()
         return candle
+
+
+class SqlAlchemyQuoteRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list(self, symbol_id: UUID | None = None) -> list[MarketQuote]:
+        query = select(MarketQuoteModel).order_by(MarketQuoteModel.observed_at.desc())
+        if symbol_id is not None:
+            query = query.where(MarketQuoteModel.symbol_id == symbol_id)
+        result = await self._session.scalars(query)
+        return [_quote(item) for item in result.all()]
 
 
 class SqlAlchemyAccountRepository:

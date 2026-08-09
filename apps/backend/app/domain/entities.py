@@ -32,6 +32,17 @@ class Candle:
 
 
 @dataclass(frozen=True, slots=True)
+class MarketQuote:
+    symbol_id: UUID
+    terminal_id: str
+    bid: Decimal
+    ask: Decimal
+    observed_at: datetime
+    received_at: datetime
+    source: CandleSource
+
+
+@dataclass(frozen=True, slots=True)
 class Account:
     id: UUID
     external_id: str

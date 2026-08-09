@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
+import { MarketCandlestickChart } from "@/components/market-candlestick-chart";
 import { Mt5ConnectionCard } from "@/components/mt5-connection-card";
 import { PageHeader } from "@/components/page-header";
 import { useDashboardData } from "@/hooks/use-dashboard-data";
@@ -14,7 +15,19 @@ import {
   selectAccountTrades,
   selectPortfolioAccount,
   selectSourceCandles,
+  selectSourceQuotes,
 } from "@/lib/dashboard";
+
+const MARKET_SERIES_STORAGE_KEY = "montecarlo.dashboard.market-series.v1";
+
+function storedMarketSeries(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(MARKET_SERIES_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
 
 function money(value: number, currency = "USD"): string {
   try {
@@ -26,11 +39,14 @@ function money(value: number, currency = "USD"): string {
 
 export default function DashboardPage(): React.JSX.Element {
   const { data, error } = useDashboardData();
-  const [selectedSeriesKey, setSelectedSeriesKey] = useState<string | null>(null);
+  const [selectedSeriesKey, setSelectedSeriesKey] = useState<string | null>(
+    storedMarketSeries,
+  );
   const account = selectPortfolioAccount(data?.accounts ?? []);
   const source = getDashboardSource(account);
   const accountTrades = selectAccountTrades(data?.trades ?? [], account);
   const sourceCandles = selectSourceCandles(data?.candles ?? [], source);
+  const sourceQuotes = selectSourceQuotes(data?.quotes ?? [], source);
   const preferredSymbols = accountTrades.map((trade) => trade.symbol_id);
   const marketSeries = buildMarketSeries(
     sourceCandles,
@@ -41,18 +57,22 @@ export default function DashboardPage(): React.JSX.Element {
     marketSeries.find((series) => series.key === selectedSeriesKey) ??
     marketSeries[0] ??
     null;
+  const activeQuote =
+    sourceQuotes.find((quote) => quote.symbol_id === activeSeries?.symbol.id) ?? null;
   const profit = accountTrades.reduce((total, trade) => total + Number(trade.profit), 0);
   const winners = accountTrades.filter((trade) => Number(trade.profit) > 0).length;
   const winRate = accountTrades.length ? (winners / accountTrades.length) * 100 : 0;
   const balance = Number(account?.balance ?? 0);
-  const sourceLabel =
-    source === "mt5"
-      ? data?.mt5.connected
-        ? "MT5 account · online"
-        : "MT5 account · cached"
-      : source === "demo"
-        ? "Demo seed data"
-        : "No account data";
+  const sourceLabel = account?.external_id ?? "No account data";
+
+  const selectSeries = (key: string): void => {
+    setSelectedSeriesKey(key);
+    try {
+      window.localStorage.setItem(MARKET_SERIES_STORAGE_KEY, key);
+    } catch {
+      // The selection remains usable when storage is unavailable.
+    }
+  };
 
   return (
     <>
@@ -73,7 +93,7 @@ export default function DashboardPage(): React.JSX.Element {
               <strong>{money(balance, account?.currency)}</strong>
               <small className="metric-source">
                 <span className={`source-dot ${source}`} />
-                {sourceLabel}{account ? ` · ${account.external_id}` : ""}
+                {sourceLabel}
               </small>
             </article>
             <article className="metric-card">
@@ -91,7 +111,7 @@ export default function DashboardPage(): React.JSX.Element {
             <article className="metric-card">
               <span>Market coverage</span>
               <strong>{data.symbols.length}</strong>
-              <small>{sourceCandles.length} {source.toUpperCase()} candles loaded</small>
+              <small>{sourceCandles.length} candles loaded</small>
             </article>
           </section>
           <section className="content-grid">
@@ -106,18 +126,11 @@ export default function DashboardPage(): React.JSX.Element {
                   <h2>Market pulse</h2>
                 </div>
                 <div className="market-controls">
-                  <span className={`source-badge ${activeSeries?.candles[0]?.source ?? "stored"}`}>
-                    {activeSeries?.candles[0]?.source === "mt5"
-                      ? "MT5 candles"
-                      : activeSeries?.candles[0]?.source === "demo"
-                        ? "Demo candles"
-                        : "API data"}
-                  </span>
                   {marketSeries.length > 1 ? (
                     <select
                       aria-label="Market pulse instrument"
                       value={activeSeries?.key ?? ""}
-                      onChange={(event) => setSelectedSeriesKey(event.target.value)}
+                      onChange={(event) => selectSeries(event.target.value)}
                     >
                       {marketSeries.map((series) => (
                         <option key={series.key} value={series.key}>
@@ -130,22 +143,35 @@ export default function DashboardPage(): React.JSX.Element {
               </div>
               {activeSeries ? (
                 <>
-                  <div className="latest-quote">
-                    <strong>{activeSeries.candles[0]?.close}</strong>
-                    <span>
-                      Latest stored close · {new Date(
-                        activeSeries.candles[0]?.open_time ?? "",
-                      ).toLocaleString()}
-                    </span>
+                  <div className="live-quote-strip">
+                    <div className="quote-chip bid">
+                      <span>Bid</span>
+                      <strong>
+                        {activeQuote
+                          ? Number(activeQuote.bid).toFixed(activeSeries.symbol.digits)
+                          : "—"}
+                      </strong>
+                    </div>
+                    <div className="quote-chip ask">
+                      <span>Ask</span>
+                      <strong>
+                        {activeQuote
+                          ? Number(activeQuote.ask).toFixed(activeSeries.symbol.digits)
+                          : "—"}
+                      </strong>
+                    </div>
+                    <small>
+                      {activeQuote
+                        ? `Live · ${new Date(activeQuote.observed_at).toLocaleTimeString()}`
+                        : "Waiting for Bid/Ask"}
+                    </small>
                   </div>
-                  <div className="mini-chart" aria-label="Recent close price visualization">
-                    {activeSeries.candles.slice(0, 24).reverse().map((candle, index) => {
-                      const range = Number(candle.high) - Number(candle.low) || 1;
-                      const body = Math.abs(Number(candle.close) - Number(candle.open));
-                      const height = Math.max(14, Math.min(88, (body / range) * 100));
-                      return <span className={Number(candle.close) >= Number(candle.open) ? "bar up" : "bar down"} key={candle.id} style={{ height: `${height}%` }} title={`Period ${index + 1}: ${candle.close}`} />;
-                    })}
-                  </div>
+                  <MarketCandlestickChart
+                    candles={activeSeries.candles}
+                    digits={activeSeries.symbol.digits}
+                    quote={activeQuote}
+                    symbol={activeSeries.symbol.name}
+                  />
                 </>
               ) : (
                 <div className="panel-empty">

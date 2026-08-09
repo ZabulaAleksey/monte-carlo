@@ -9,6 +9,7 @@ from app.api.mt5_schemas import (
     Mt5CandlesRequest,
     Mt5HeartbeatRequest,
     Mt5PositionsRequest,
+    Mt5QuotesRequest,
     Mt5StatusResponse,
     Mt5SymbolsRequest,
     Mt5TradesRequest,
@@ -19,6 +20,7 @@ from app.application.mt5 import (
     CandleSyncCommand,
     HeartbeatCommand,
     PositionSyncCommand,
+    QuoteSyncCommand,
     SymbolSyncCommand,
     TradeSyncCommand,
 )
@@ -65,6 +67,17 @@ async def candles(
 ) -> SyncResultResponse:
     commands = [CandleSyncCommand(**item.model_dump()) for item in payload.candles]
     result = await service.candles(payload.terminal_id, commands)
+    return SyncResultResponse.model_validate(result, from_attributes=True)
+
+
+@router.post("/quotes", response_model=SyncResultResponse)
+async def quotes(
+    payload: Mt5QuotesRequest,
+    service: Mt5SyncServiceDependency,
+    _auth: Mt5AuthDependency,
+) -> SyncResultResponse:
+    commands = [QuoteSyncCommand(**item.model_dump()) for item in payload.quotes]
+    result = await service.quotes(payload.terminal_id, commands)
     return SyncResultResponse.model_validate(result, from_attributes=True)
 
 

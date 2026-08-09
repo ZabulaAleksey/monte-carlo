@@ -77,6 +77,7 @@ button, input, select { font: inherit; }
 
 .content-grid { grid-template-columns: minmax(0, 1.65fr) minmax(300px, .85fr); margin-top: 14px; }
 .panel { padding: 22px; }
+.chart-panel { min-width: 0; overflow: hidden; }
 .panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
 .panel-heading h2 { margin: 0; font-size: 16px; letter-spacing: -.02em; }
 .muted { color: var(--muted); font-size: 10px; }
@@ -94,6 +95,27 @@ button, input, select { font: inherit; }
 .mini-chart .bar { flex: 1; min-width: 3px; border-radius: 2px 2px 0 0; opacity: .88; }
 .mini-chart .bar.up { background: var(--green); }
 .mini-chart .bar.down { background: #d77a66; }
+.live-quote-strip { display: flex; align-items: center; gap: 8px; margin: -8px 0 12px; }
+.live-quote-strip > small { margin-left: auto; color: var(--muted); font-family: var(--font-mono); font-size: 9px; }
+.quote-chip { min-width: 112px; border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; background: #f7f9f6; }
+.quote-chip span, .quote-chip strong { display: block; }
+.quote-chip span { color: var(--muted); font-size: 8px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+.quote-chip strong { margin-top: 4px; font-family: var(--font-mono); font-size: 15px; }
+.quote-chip.bid { border-color: #b9d9ca; background: #edf7f1; }
+.quote-chip.ask { border-color: #eccbc4; background: #fff3ef; }
+.market-chart-frame { min-width: 0; overflow-x: auto; }
+.market-candlestick-chart { width: 100%; min-width: 620px; height: auto; display: block; border: 1px solid var(--line); border-radius: 10px; background: #f8faf7; }
+.market-grid-line line { stroke: #dfe6df; stroke-width: 1; }
+.market-grid-line text, .market-time-label { fill: var(--muted); font-family: var(--font-mono); font-size: 8px; }
+.market-candle line { stroke-width: 1.3; }
+.market-candle.up line, .market-candle.up rect { fill: #168259; stroke: #168259; }
+.market-candle.down line, .market-candle.down rect { fill: #d66b59; stroke: #d66b59; }
+.live-price-line line { stroke-width: 1; stroke-dasharray: 4 3; }
+.live-price-line text { font-family: var(--font-mono); font-size: 8px; font-weight: 700; }
+.live-price-line.bid line { stroke: #168259; }
+.live-price-line.bid text { fill: #168259; }
+.live-price-line.ask line { stroke: #d66b59; }
+.live-price-line.ask text { fill: #d66b59; }
 .trade-list { display: grid; }
 .trade-row { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); font-family: var(--font-mono); font-size: 12px; }
 .trade-row:first-child { border-top: 0; padding-top: 0; }
@@ -212,6 +234,9 @@ tbody tr:hover { background: #f7f9f5; }
   .metric-card { min-height: 145px; }
   .mt5-connection { align-items: flex-start; flex-wrap: wrap; }
   .mt5-sync-time { width: 100%; margin: 4px 0 0 54px; }
+  .live-quote-strip { flex-wrap: wrap; }
+  .live-quote-strip > small { width: 100%; margin-left: 0; }
+  .quote-chip { flex: 1; min-width: 100px; }
   .form-fields { grid-template-columns: 1fr; }
   .form-field-wide { grid-column: auto; }
   .result-heading { display: block; }

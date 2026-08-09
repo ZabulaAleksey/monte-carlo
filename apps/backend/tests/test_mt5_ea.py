@@ -24,6 +24,9 @@ def test_mql5_bridge_exposes_documented_connection_inputs() -> None:
     assert "input string BridgeBaseUrl" in source
     assert "input string BridgeTerminalId" in source
     assert "input string MT5_API_KEY" in source
+    assert "input int    QuoteSeconds" in source
+    assert 'HttpPost("/api/v1/mt5/quotes"' in source
+    assert "SymbolInfoTick(symbol,tick)" in source
     assert "BridgeApiKey" not in source
 
 

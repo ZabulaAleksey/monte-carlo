@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -34,6 +35,9 @@ class SymbolModel(Base):
     positions: Mapped[list[PositionModel]] = relationship(back_populates="symbol")
     trades: Mapped[list[TradeModel]] = relationship(back_populates="symbol")
     backtest_runs: Mapped[list[BacktestRunModel]] = relationship(back_populates="symbol")
+    quote: Mapped[MarketQuoteModel | None] = relationship(
+        back_populates="symbol", uselist=False
+    )
 
 
 class CandleModel(Base):
@@ -57,6 +61,26 @@ class CandleModel(Base):
     )
 
     symbol: Mapped[SymbolModel] = relationship(back_populates="candles")
+
+
+class MarketQuoteModel(Base):
+    __tablename__ = "market_quotes"
+    __table_args__ = (
+        CheckConstraint("ask >= bid", name="ck_market_quotes_ask_gte_bid"),
+        Index("ix_market_quotes_observed_at", "observed_at"),
+    )
+
+    symbol_id: Mapped[UUID] = mapped_column(
+        ForeignKey("symbols.id", ondelete="CASCADE"), primary_key=True
+    )
+    terminal_id: Mapped[str] = mapped_column(String(128))
+    bid: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    ask: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(16))
+
+    symbol: Mapped[SymbolModel] = relationship(back_populates="quote")
 
 
 class AccountModel(Base):

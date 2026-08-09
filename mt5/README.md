@@ -1,7 +1,8 @@
 # MetaTrader 5 bridge
 
 `Experts/MonteCarloBridge.mq5` is a read-only Expert Advisor. It sends account,
-symbol, closed-candle, open-position and deal-history snapshots to FastAPI. It
+symbol, live Bid/Ask, closed-candle, open-position and deal-history snapshots
+to FastAPI. It
 does not import `CTrade`, call `OrderSend`, or expose any command endpoint.
 
 ## Installation
@@ -34,6 +35,7 @@ prints request headers, bodies, or the key. Temporary network errors, HTTP 408,
 ## Operational notes
 
 - Only completed candles are sent (`CopyRates` starts at bar 1).
+- Live Bid/Ask observations are sent every `QuoteSeconds` (two seconds by default).
 - Initial startup sends a bounded lookback; later calls send new data only.
 - Deal and candle batches are safe to resend because backend uniqueness keys
   make the write idempotent.

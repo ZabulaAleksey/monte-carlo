@@ -2,6 +2,7 @@ import type {
   AccountRecord,
   CandleRecord,
   Mt5Status,
+  QuoteRecord,
   SymbolRecord,
   TradeRecord,
 } from "./api/types";
@@ -10,6 +11,7 @@ export interface DashboardSnapshot {
   accounts: AccountRecord[];
   candles: CandleRecord[];
   mt5: Mt5Status;
+  quotes: QuoteRecord[];
   symbols: SymbolRecord[];
   trades: TradeRecord[];
 }
@@ -54,6 +56,108 @@ export function selectSourceCandles(
   if (source === "mt5") return candles.filter((candle) => candle.source === "mt5");
   if (source === "demo") return candles.filter((candle) => candle.source === "demo");
   return candles.filter((candle) => candle.source === "api");
+}
+
+export function selectSourceQuotes(
+  quotes: QuoteRecord[],
+  source: DashboardSource,
+): QuoteRecord[] {
+  if (source === "mt5") return quotes.filter((quote) => quote.source === "mt5");
+  if (source === "demo") return quotes.filter((quote) => quote.source === "demo");
+  return quotes.filter((quote) => quote.source === "api");
+}
+
+const TIMEFRAME_MILLISECONDS: Record<string, number> = {
+  M1: 60_000,
+  M5: 5 * 60_000,
+  M15: 15 * 60_000,
+  M30: 30 * 60_000,
+  H1: 60 * 60_000,
+  H4: 4 * 60 * 60_000,
+  D1: 24 * 60 * 60_000,
+};
+
+function decimalPlaces(value: string): number {
+  return value.includes(".") ? value.length - value.indexOf(".") - 1 : 0;
+}
+
+function quoteMid(quote: QuoteRecord): string {
+  const precision = Math.max(decimalPlaces(quote.bid), decimalPlaces(quote.ask));
+  return ((Number(quote.bid) + Number(quote.ask)) / 2).toFixed(precision);
+}
+
+function candleKey(candle: CandleRecord): string {
+  return `${candle.symbol_id}:${candle.timeframe}:${candle.open_time}`;
+}
+
+export function mergeLiveQuotes(
+  candles: CandleRecord[],
+  quotes: QuoteRecord[],
+): CandleRecord[] {
+  const byKey = new Map(candles.map((candle) => [candleKey(candle), candle]));
+  const timeframesBySymbol = new Map<string, Set<string>>();
+  for (const candle of candles) {
+    if (candle.source !== quotes.find((quote) => quote.symbol_id === candle.symbol_id)?.source) {
+      continue;
+    }
+    const timeframes = timeframesBySymbol.get(candle.symbol_id) ?? new Set<string>();
+    timeframes.add(candle.timeframe);
+    timeframesBySymbol.set(candle.symbol_id, timeframes);
+  }
+
+  for (const quote of quotes) {
+    for (const timeframe of timeframesBySymbol.get(quote.symbol_id) ?? []) {
+      const duration = TIMEFRAME_MILLISECONDS[timeframe.toUpperCase()];
+      if (!duration) continue;
+      const observed = Date.parse(quote.observed_at);
+      if (!Number.isFinite(observed)) continue;
+      const bucketTime = new Date(Math.floor(observed / duration) * duration).toISOString();
+      const relevant = [...byKey.values()].filter(
+        (candle) =>
+          candle.symbol_id === quote.symbol_id &&
+          candle.timeframe === timeframe &&
+          candle.source === quote.source,
+      );
+      const latestTime = Math.max(
+        ...relevant.map((candle) => Date.parse(candle.open_time)),
+        Number.NEGATIVE_INFINITY,
+      );
+      if (Date.parse(bucketTime) < latestTime) continue;
+
+      const key = `${quote.symbol_id}:${timeframe}:${bucketTime}`;
+      const existing = byKey.get(key);
+      const mid = quoteMid(quote);
+      const open = existing?.open ?? relevant[0]?.close ?? mid;
+      byKey.set(key, {
+        id: existing?.id ?? `live:${key}`,
+        symbol_id: quote.symbol_id,
+        timeframe,
+        open_time: bucketTime,
+        open,
+        high: String(Math.max(Number(existing?.high ?? open), Number(mid))),
+        low: String(Math.min(Number(existing?.low ?? open), Number(mid))),
+        close: mid,
+        volume: existing?.volume ?? "0",
+        source: quote.source,
+      });
+    }
+  }
+
+  return [...byKey.values()];
+}
+
+export function mergeDashboardSnapshot(
+  previous: DashboardSnapshot | null,
+  next: DashboardSnapshot,
+): DashboardSnapshot {
+  const retainedLive = previous?.candles.filter((candle) => candle.id.startsWith("live:")) ?? [];
+  const merged = new Map(
+    [...retainedLive, ...next.candles].map((candle) => [candleKey(candle), candle]),
+  );
+  return {
+    ...next,
+    candles: mergeLiveQuotes([...merged.values()], next.quotes),
+  };
 }
 
 export function buildMarketSeries(

@@ -13,6 +13,7 @@ from app.application.mt5 import (
     CandleSyncCommand,
     HeartbeatCommand,
     PositionSyncCommand,
+    QuoteSyncCommand,
     SymbolSyncCommand,
     SyncResult,
     TerminalSnapshot,
@@ -23,6 +24,7 @@ from app.domain.exceptions import NotFoundError, SynchronizationError
 from app.infrastructure.database.models import (
     AccountModel,
     CandleModel,
+    MarketQuoteModel,
     Mt5TerminalModel,
     PositionModel,
     SymbolModel,
@@ -203,6 +205,50 @@ class SqlAlchemyMt5SyncGateway:
             model.volume = command.volume
             model.source = CandleSource.MT5.value
         await self._commit("candles", terminal_id)
+        return SyncResult(len(commands), created, updated)
+
+    async def upsert_quotes(
+        self, terminal_id: str, commands: list[QuoteSyncCommand]
+    ) -> SyncResult:
+        await self._touch_sync(terminal_id)
+        symbol_names = {command.symbol.strip().upper() for command in commands}
+        symbol_result = await self._session.scalars(
+            select(SymbolModel).where(SymbolModel.name.in_(symbol_names))
+        )
+        symbols = {model.name: model for model in symbol_result.all()}
+        missing = symbol_names.difference(symbols)
+        if missing:
+            raise NotFoundError(f"Unknown symbols: {', '.join(sorted(missing))}")
+
+        symbol_ids = {model.id for model in symbols.values()}
+        quote_result = await self._session.scalars(
+            select(MarketQuoteModel).where(MarketQuoteModel.symbol_id.in_(symbol_ids))
+        )
+        existing = {model.symbol_id: model for model in quote_result.all()}
+        now = datetime.now(UTC)
+        created = 0
+        updated = 0
+        for command in commands:
+            symbol_id = symbols[command.symbol.strip().upper()].id
+            model = existing.get(symbol_id)
+            if model is not None and _datetime_key(command.observed_at) < _datetime_key(
+                model.observed_at
+            ):
+                continue
+            if model is None:
+                model = MarketQuoteModel(symbol_id=symbol_id)
+                self._session.add(model)
+                existing[symbol_id] = model
+                created += 1
+            else:
+                updated += 1
+            model.terminal_id = terminal_id
+            model.bid = command.bid
+            model.ask = command.ask
+            model.observed_at = command.observed_at
+            model.received_at = now
+            model.source = CandleSource.MT5.value
+        await self._commit("quotes", terminal_id)
         return SyncResult(len(commands), created, updated)
 
     async def replace_positions(

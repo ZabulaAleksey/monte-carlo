@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.domain.entities import Account, Candle, Symbol, Trade
+from app.domain.entities import Account, Candle, MarketQuote, Symbol, Trade
 
 
 class SymbolRepository(Protocol):
@@ -26,6 +26,10 @@ class CandleRepository(Protocol):
         end_at: datetime | None = None,
     ) -> list[Candle]: ...
     async def add(self, candle: Candle) -> Candle: ...
+
+
+class QuoteRepository(Protocol):
+    async def list(self, symbol_id: UUID | None = None) -> list[MarketQuote]: ...
 
 
 class AccountRepository(Protocol):

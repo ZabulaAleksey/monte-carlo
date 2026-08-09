@@ -7,6 +7,7 @@ import type {
   CandleQuery,
   CandleRecord,
   Mt5Status,
+  QuoteRecord,
   StrategyDefinition,
   SymbolRecord,
   TradeRecord,
@@ -64,6 +65,10 @@ export const apiClient = {
     request<TradeRecord[]>(`/api/v1/trades?limit=${limit}`),
   getMt5Status: (): Promise<Mt5Status> =>
     request<Mt5Status>("/api/v1/mt5/status"),
+  getQuotes: (symbolId?: string): Promise<QuoteRecord[]> => {
+    const suffix = symbolId ? `?symbol_id=${encodeURIComponent(symbolId)}` : "";
+    return request<QuoteRecord[]>(`/api/v1/quotes${suffix}`);
+  },
   getBacktestStrategies: (): Promise<StrategyDefinition[]> =>
     request<StrategyDefinition[]>("/api/v1/backtests/strategies"),
   createBacktest: (payload: BacktestCreateRequest): Promise<BacktestResultRecord> =>

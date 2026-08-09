@@ -54,6 +54,14 @@ class CandleSyncCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class QuoteSyncCommand:
+    symbol: str
+    bid: Decimal
+    ask: Decimal
+    observed_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class PositionSyncCommand:
     external_id: str
     symbol: str
@@ -126,6 +134,10 @@ class Mt5SyncGateway(Protocol):
         self, terminal_id: str, commands: list[CandleSyncCommand]
     ) -> SyncResult: ...
 
+    async def upsert_quotes(
+        self, terminal_id: str, commands: list[QuoteSyncCommand]
+    ) -> SyncResult: ...
+
     async def replace_positions(
         self,
         terminal_id: str,
@@ -165,6 +177,9 @@ class Mt5SyncService:
 
     async def candles(self, terminal_id: str, commands: list[CandleSyncCommand]) -> SyncResult:
         return await self._gateway.upsert_candles(terminal_id, commands)
+
+    async def quotes(self, terminal_id: str, commands: list[QuoteSyncCommand]) -> SyncResult:
+        return await self._gateway.upsert_quotes(terminal_id, commands)
 
     async def positions(
         self,

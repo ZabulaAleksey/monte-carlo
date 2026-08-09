@@ -10,6 +10,7 @@ input string BridgeBaseUrl       = "http://127.0.0.1:8000";
 input string BridgeTerminalId    = "mt5-terminal-01";
 input string MT5_API_KEY         = "replace-with-at-least-32-random-characters";
 input int    HeartbeatSeconds    = 30;
+input int    QuoteSeconds        = 2;
 input int    SynchronizeSeconds  = 60;
 input int    RequestTimeoutMs    = 5000;
 input int    RetryCount          = 3;
@@ -19,6 +20,8 @@ input int    TradeBatchSize      = 200;
 input int    TradeLookbackDays   = 30;
 
 datetime g_last_sync_at = 0;
+datetime g_last_heartbeat_at = 0;
+datetime g_last_quote_at = 0;
 datetime g_last_trade_at = 0;
 string   g_symbol_names[];
 datetime g_last_candle_at[];
@@ -180,6 +183,35 @@ bool SendSymbols()
    if(StringLen(items)==0)
       return true;
    return HttpPost("/api/v1/mt5/symbols",RequestPrefix()+",\"symbols\":["+items+"]}");
+  }
+
+bool SendQuotes()
+  {
+   RefreshSymbolState();
+   string items="";
+   int accepted=0;
+   for(int i=0;i<ArraySize(g_symbol_names);i++)
+     {
+      string symbol=g_symbol_names[i];
+      MqlTick tick;
+      if(!SymbolInfoTick(symbol,tick) || tick.bid<=0.0 || tick.ask<=0.0)
+         continue;
+      int digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
+      if(accepted>0)
+         items+=",";
+      items+="{\"symbol\":"+JsonString(symbol)+
+             ",\"bid\":"+JsonNumber(tick.bid,digits)+
+             ",\"ask\":"+JsonNumber(tick.ask,digits)+
+             ",\"observed_at\":"+JsonString(ServerIsoUtc((datetime)tick.time))+"}";
+      accepted++;
+     }
+   if(accepted==0)
+      return true;
+   bool sent=HttpPost("/api/v1/mt5/quotes",
+                      RequestPrefix()+",\"quotes\":["+items+"]}");
+   if(sent)
+      g_last_quote_at=TimeLocal();
+   return sent;
   }
 
 bool SendCandlesForSymbol(const int symbol_index)
@@ -347,6 +379,7 @@ bool SynchronizeAll()
    bool success=true;
    if(!SendAccount())   success=false;
    if(!SendSymbols())   success=false;
+   if(!SendQuotes())    success=false;
    if(!SendCandles())   success=false;
    if(!SendPositions()) success=false;
    if(!SendTrades())    success=false;
@@ -360,13 +393,13 @@ int OnInit()
       Print("MonteCarlo bridge configuration is incomplete. API key value is not logged.");
       return INIT_PARAMETERS_INCORRECT;
      }
-   int timer_seconds=MathMax(5,HeartbeatSeconds);
-   if(!EventSetTimer(timer_seconds))
+   if(!EventSetTimer(1))
      {
       PrintFormat("MonteCarlo bridge could not start timer: error=%d",GetLastError());
       return INIT_FAILED;
      }
-   SendHeartbeat();
+   if(SendHeartbeat())
+      g_last_heartbeat_at=TimeLocal();
    if(SynchronizeAll())
       g_last_sync_at=TimeLocal();
    return INIT_SUCCEEDED;
@@ -379,11 +412,18 @@ void OnDeinit(const int reason)
 
 void OnTimer()
   {
-   SendHeartbeat();
-   if(g_last_sync_at==0 || TimeLocal()-g_last_sync_at>=MathMax(10,SynchronizeSeconds))
+   datetime now=TimeLocal();
+   if(g_last_heartbeat_at==0 || now-g_last_heartbeat_at>=MathMax(5,HeartbeatSeconds))
+     {
+      if(SendHeartbeat())
+         g_last_heartbeat_at=now;
+     }
+   if(g_last_quote_at==0 || now-g_last_quote_at>=MathMax(1,QuoteSeconds))
+      SendQuotes();
+   if(g_last_sync_at==0 || now-g_last_sync_at>=MathMax(10,SynchronizeSeconds))
      {
       if(SynchronizeAll())
-         g_last_sync_at=TimeLocal();
+         g_last_sync_at=now;
      }
   }
 

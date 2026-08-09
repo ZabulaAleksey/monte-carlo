@@ -89,6 +89,28 @@ class Mt5CandlesRequest(Mt5RequestBase):
     candles: list[Mt5CandleItem] = Field(min_length=1, max_length=1000)
 
 
+class Mt5QuoteItem(BaseModel):
+    symbol: str = Field(min_length=1, max_length=32)
+    bid: Decimal = Field(gt=0)
+    ask: Decimal = Field(gt=0)
+    observed_at: datetime
+
+    @field_validator("observed_at")
+    @classmethod
+    def validate_observed_at(cls, value: datetime) -> datetime:
+        return _validate_timestamp(value)
+
+    @model_validator(mode="after")
+    def validate_spread(self) -> Mt5QuoteItem:
+        if self.ask < self.bid:
+            raise ValueError("Quote ask cannot be below bid")
+        return self
+
+
+class Mt5QuotesRequest(Mt5RequestBase):
+    quotes: list[Mt5QuoteItem] = Field(min_length=1, max_length=2000)
+
+
 class Mt5PositionItem(BaseModel):
     external_id: str = Field(min_length=1, max_length=64)
     symbol: str = Field(min_length=1, max_length=32)
