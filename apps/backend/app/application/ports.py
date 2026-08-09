@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -16,7 +17,14 @@ class SymbolRepository(Protocol):
 
 
 class CandleRepository(Protocol):
-    async def list(self, symbol_id: UUID | None = None, limit: int = 200) -> list[Candle]: ...
+    async def list(
+        self,
+        symbol_id: UUID | None = None,
+        limit: int = 200,
+        timeframe: str | None = None,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+    ) -> list[Candle]: ...
     async def add(self, candle: Candle) -> Candle: ...
 
 

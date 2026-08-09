@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -102,10 +103,23 @@ class SqlAlchemyCandleRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def list(self, symbol_id: UUID | None = None, limit: int = 200) -> list[Candle]:
+    async def list(
+        self,
+        symbol_id: UUID | None = None,
+        limit: int = 200,
+        timeframe: str | None = None,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+    ) -> list[Candle]:
         query = select(CandleModel).order_by(CandleModel.open_time.desc()).limit(limit)
         if symbol_id is not None:
             query = query.where(CandleModel.symbol_id == symbol_id)
+        if timeframe is not None:
+            query = query.where(CandleModel.timeframe == timeframe.upper())
+        if start_at is not None:
+            query = query.where(CandleModel.open_time >= start_at)
+        if end_at is not None:
+            query = query.where(CandleModel.open_time <= end_at)
         result = await self._session.scalars(query)
         return [_candle(item) for item in result.all()]
 

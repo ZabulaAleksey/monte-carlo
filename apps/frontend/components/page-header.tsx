@@ -2,9 +2,15 @@ interface PageHeaderProps {
   eyebrow: string;
   title: string;
   description: string;
+  badge?: string;
 }
 
-export function PageHeader({ eyebrow, title, description }: PageHeaderProps): React.JSX.Element {
+export function PageHeader({
+  eyebrow,
+  title,
+  description,
+  badge = "Demo data",
+}: PageHeaderProps): React.JSX.Element {
   return (
     <header className="page-header">
       <div>
@@ -13,7 +19,7 @@ export function PageHeader({ eyebrow, title, description }: PageHeaderProps): Re
         <p>{description}</p>
       </div>
       <div className="live-pill">
-        <span className="status-dot" /> Demo data
+        <span className="status-dot" /> {badge}
       </div>
     </header>
   );

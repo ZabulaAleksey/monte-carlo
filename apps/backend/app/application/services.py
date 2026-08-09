@@ -64,8 +64,15 @@ class CandleService:
         self._repository = repository
         self._symbols = symbols
 
-    async def list(self, symbol_id: UUID | None, limit: int) -> list[Candle]:
-        return await self._repository.list(symbol_id, limit)
+    async def list(
+        self,
+        symbol_id: UUID | None,
+        limit: int,
+        timeframe: str | None = None,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+    ) -> list[Candle]:
+        return await self._repository.list(symbol_id, limit, timeframe, start_at, end_at)
 
     async def save(
         self,

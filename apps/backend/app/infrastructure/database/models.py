@@ -4,7 +4,17 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Numeric, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.enums import CandleSource
@@ -23,6 +33,7 @@ class SymbolModel(Base):
     candles: Mapped[list[CandleModel]] = relationship(back_populates="symbol")
     positions: Mapped[list[PositionModel]] = relationship(back_populates="symbol")
     trades: Mapped[list[TradeModel]] = relationship(back_populates="symbol")
+    backtest_runs: Mapped[list[BacktestRunModel]] = relationship(back_populates="symbol")
 
 
 class CandleModel(Base):
@@ -136,3 +147,79 @@ class TradeModel(Base):
 
     account: Mapped[AccountModel] = relationship(back_populates="trades")
     symbol: Mapped[SymbolModel] = relationship(back_populates="trades")
+
+
+class BacktestRunModel(Base):
+    __tablename__ = "backtest_runs"
+    __table_args__ = (Index("ix_backtest_runs_created_at", "created_at"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    symbol_id: Mapped[UUID] = mapped_column(ForeignKey("symbols.id", ondelete="RESTRICT"))
+    strategy_name: Mapped[str] = mapped_column(String(64))
+    strategy_version: Mapped[str] = mapped_column(String(32))
+    timeframe: Mapped[str] = mapped_column(String(16))
+    requested_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    requested_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    data_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    data_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    candle_count: Mapped[int] = mapped_column(Integer)
+    initial_capital: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    final_balance: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    settings: Mapped[dict[str, object]] = mapped_column(JSON)
+    parameters: Mapped[dict[str, object]] = mapped_column(JSON)
+    metrics: Mapped[dict[str, object]] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(16), default="completed")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    symbol: Mapped[SymbolModel] = relationship(back_populates="backtest_runs")
+    trades: Mapped[list[BacktestTradeModel]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="BacktestTradeModel.sequence",
+    )
+    equity_points: Mapped[list[BacktestEquityPointModel]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="BacktestEquityPointModel.sequence",
+    )
+
+
+class BacktestTradeModel(Base):
+    __tablename__ = "backtest_trades"
+    __table_args__ = (Index("ix_backtest_trades_run_sequence", "run_id", "sequence"),)
+
+    run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("backtest_runs.id", ondelete="CASCADE"), primary_key=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer, primary_key=True)
+    side: Mapped[str] = mapped_column(String(8))
+    volume: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    open_price: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    close_price: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    stop_loss: Mapped[Decimal | None] = mapped_column(Numeric(24, 8), nullable=True)
+    take_profit: Mapped[Decimal | None] = mapped_column(Numeric(24, 8), nullable=True)
+    exit_reason: Mapped[str] = mapped_column(String(24))
+    gross_profit: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    commission: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    swap: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    net_profit: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+
+    run: Mapped[BacktestRunModel] = relationship(back_populates="trades")
+
+
+class BacktestEquityPointModel(Base):
+    __tablename__ = "backtest_equity_points"
+    __table_args__ = (Index("ix_backtest_equity_run_sequence", "run_id", "sequence"),)
+
+    run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("backtest_runs.id", ondelete="CASCADE"), primary_key=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer, primary_key=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    balance: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    equity: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    drawdown_pct: Mapped[Decimal] = mapped_column(Numeric(16, 8))
+
+    run: Mapped[BacktestRunModel] = relationship(back_populates="equity_points")

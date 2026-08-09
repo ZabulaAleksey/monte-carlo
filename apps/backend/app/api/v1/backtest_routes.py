@@ -1,0 +1,113 @@
+from uuid import UUID
+
+from fastapi import APIRouter, Query, status
+
+from app.api.backtest_dependencies import BacktestServiceDependency
+from app.api.backtest_schemas import (
+    BacktestCreate,
+    BacktestMetricsResponse,
+    BacktestResultResponse,
+    BacktestRunSummaryResponse,
+    BacktestSettingsResponse,
+    EquityPointResponse,
+    StrategyDefinitionResponse,
+    VirtualTradeResponse,
+)
+from app.application.backtesting import BacktestRunRequest
+from app.domain.backtesting.models import BacktestSettings, StoredBacktestResult
+
+router = APIRouter(prefix="/backtests", tags=["backtests"])
+
+
+def _result_response(stored: StoredBacktestResult) -> BacktestResultResponse:
+    result = stored.result
+    return BacktestResultResponse(
+        id=stored.id,
+        created_at=stored.created_at,
+        symbol_id=result.symbol_id,
+        timeframe=result.timeframe,
+        requested_start=result.requested_start,
+        requested_end=result.requested_end,
+        data_start=result.data_start,
+        data_end=result.data_end,
+        candle_count=result.candle_count,
+        strategy_name=result.strategy_name,
+        strategy_version=result.strategy_version,
+        parameters=dict(result.parameters),
+        settings=BacktestSettingsResponse.model_validate(result.settings),
+        trades=[VirtualTradeResponse.model_validate(item) for item in result.trades],
+        equity_curve=[
+            EquityPointResponse.model_validate(item) for item in result.equity_curve
+        ],
+        metrics=BacktestMetricsResponse.model_validate(result.metrics),
+    )
+
+
+@router.get("/strategies", response_model=list[StrategyDefinitionResponse])
+async def list_strategies(
+    service: BacktestServiceDependency,
+) -> list[StrategyDefinitionResponse]:
+    return [
+        StrategyDefinitionResponse.model_validate(strategy)
+        for strategy in service.strategies()
+    ]
+
+
+@router.post(
+    "",
+    response_model=BacktestResultResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def run_backtest(
+    payload: BacktestCreate,
+    service: BacktestServiceDependency,
+) -> BacktestResultResponse:
+    stored = await service.run(
+        BacktestRunRequest(
+            strategy_name=payload.strategy_name,
+            symbol_id=payload.symbol_id,
+            timeframe=payload.timeframe,
+            start_at=payload.start_at,
+            end_at=payload.end_at,
+            parameters=dict(payload.parameters),
+            settings=BacktestSettings(
+                initial_capital=payload.initial_capital,
+                position_size=payload.position_size,
+                stop_loss_pct=payload.stop_loss_pct,
+                take_profit_pct=payload.take_profit_pct,
+                commission_per_fill=payload.commission_per_fill,
+                swap_per_day=payload.swap_per_day,
+                slippage_mode=payload.slippage_mode,
+                slippage_value=payload.slippage_value,
+            ),
+        )
+    )
+    return _result_response(stored)
+
+
+@router.get("", response_model=list[BacktestRunSummaryResponse])
+async def list_backtests(
+    service: BacktestServiceDependency,
+    limit: int = Query(default=100, ge=1, le=200),
+) -> list[BacktestRunSummaryResponse]:
+    return [
+        BacktestRunSummaryResponse.model_validate(item)
+        for item in await service.list(limit)
+    ]
+
+
+@router.get("/{run_id}", response_model=BacktestResultResponse)
+async def get_backtest(
+    run_id: UUID, service: BacktestServiceDependency
+) -> BacktestResultResponse:
+    return _result_response(await service.get(run_id))
+
+
+@router.get("/{run_id}/trades", response_model=list[VirtualTradeResponse])
+async def get_backtest_trades(
+    run_id: UUID, service: BacktestServiceDependency
+) -> list[VirtualTradeResponse]:
+    return [
+        VirtualTradeResponse.model_validate(item)
+        for item in await service.trades(run_id)
+    ]

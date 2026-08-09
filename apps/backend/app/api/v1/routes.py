@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Response, status
@@ -68,9 +69,13 @@ async def delete_symbol(symbol_id: UUID, service: SymbolServiceDependency) -> Re
 async def list_candles(
     service: CandleServiceDependency,
     symbol_id: UUID | None = None,
+    timeframe: str | None = Query(default=None, min_length=1, max_length=16),
+    start_at: datetime | None = None,
+    end_at: datetime | None = None,
     limit: int = Query(default=200, ge=1, le=2000),
 ) -> list[CandleResponse]:
-    return [CandleResponse.model_validate(item) for item in await service.list(symbol_id, limit)]
+    candles = await service.list(symbol_id, limit, timeframe, start_at, end_at)
+    return [CandleResponse.model_validate(item) for item in candles]
 
 
 @router.post(

@@ -2,9 +2,9 @@
 
 ## Context
 
-This repository is the first runnable foundation of a trading analytics
-platform. It deliberately excludes strategies, backtesting, Monte Carlo
-simulation and genetic optimization.
+This repository is a runnable trading analytics and deterministic strategy
+backtesting platform. Monte Carlo simulation and genetic optimization remain
+outside the current stage.
 
 ## Components
 
@@ -16,7 +16,10 @@ Next.js frontend ───────► FastAPI /api/v1
                               │
                               ▼
                         Application services
-                              │ ports
+                         │ ports       │
+                         │             ▼
+                         │      Backtest domain engine
+                         │      (framework independent)
                               ▼
                    SQLAlchemy repositories
                               │
@@ -40,6 +43,33 @@ API routes do not contain persistence or trading rules. SQLAlchemy models are
 kept separate from domain entities so persistence concerns do not leak into the
 application layer.
 
+## Backtesting boundary
+
+The backtesting package under `app/domain/backtesting` has no FastAPI,
+SQLAlchemy or MetaTrader imports. It contains the strategy protocol,
+`StrategyContext`, signals, position/risk management, commission and
+slippage models, order simulation, the sequential `BacktestEngine` and typed
+results.
+
+`HistoricalDataProvider` is a domain port. Its SQLAlchemy adapter selects one
+symbol and timeframe for an inclusive date range in ascending time order. The
+engine defensively filters that response again.
+
+Strategies receive the current completed candle, history only through that
+candle, balance, equity, open positions and immutable parameters. A signal is
+queued and executed at the next candle open. SL/TP checks then use that candle's
+OHLC data. If both levels are touched, the reproducible conservative policy is
+stop-first. A final open position is closed at the last candle close.
+Intrabar-dependent equity and exit events are timestamped at candle close.
+Synchronous API runs are capped at 2,000 candles to bound CPU, memory,
+persistence and response size.
+
+The included moving-average crossover is an infrastructure demonstration only
+and makes no profitability claim. Position size means price units; SL/TP are
+percentages from the simulated fill, commission is cash per fill, relative
+slippage is expressed in basis points, and swap is cash per position for each
+crossed calendar day.
+
 ## Data model
 
 - `symbols` is the normalized instrument catalog.
@@ -49,6 +79,12 @@ application layer.
 - `accounts` identifies an external trading account.
 - `trades` belongs to an account and symbol and is unique by account and
   external ticket.
+- `backtest_runs` stores the requested and actual data ranges, settings,
+  strategy version, parameters and final metrics.
+- `backtest_trades` stores a separate virtual execution ledger and never
+  mixes research fills with live/MT5 trades.
+- `backtest_equity_points` stores the complete balance/equity/drawdown curve
+  for each run.
 
 Prices, volumes and monetary values use fixed-precision `NUMERIC(24, 8)` rather
 than floating point. UUIDs are generated in the application.

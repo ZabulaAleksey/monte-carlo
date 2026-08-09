@@ -70,3 +70,138 @@ export interface Mt5Status {
   stale_after_seconds: number;
   terminal: Mt5TerminalStatus | null;
 }
+
+export type SlippageMode = "fixed" | "relative";
+export type BacktestExitReason =
+  | "signal"
+  | "reverse"
+  | "stop_loss"
+  | "take_profit"
+  | "end_of_data";
+
+export interface StrategyParameterDefinition {
+  name: string;
+  label: string;
+  value_type: "integer";
+  default: number;
+  minimum: number | null;
+  maximum: number | null;
+}
+
+export interface StrategyDefinition {
+  name: string;
+  version: string;
+  title: string;
+  description: string;
+  parameters: StrategyParameterDefinition[];
+}
+
+export interface BacktestCreateRequest {
+  strategy_name: string;
+  symbol_id: string;
+  timeframe: string;
+  start_at: string;
+  end_at: string;
+  initial_capital: string;
+  position_size: string;
+  stop_loss_pct: string | null;
+  take_profit_pct: string | null;
+  commission_per_fill: string;
+  swap_per_day: string;
+  slippage_mode: SlippageMode;
+  slippage_value: string;
+  parameters: Record<string, number>;
+}
+
+export interface BacktestSettingsRecord {
+  initial_capital: string;
+  position_size: string;
+  stop_loss_pct: string | null;
+  take_profit_pct: string | null;
+  commission_per_fill: string;
+  swap_per_day: string;
+  slippage_mode: SlippageMode;
+  slippage_value: string;
+}
+
+export interface VirtualTradeRecord {
+  sequence: number;
+  side: TradeSide;
+  volume: string;
+  opened_at: string;
+  closed_at: string;
+  open_price: string;
+  close_price: string;
+  stop_loss: string | null;
+  take_profit: string | null;
+  exit_reason: BacktestExitReason;
+  gross_profit: string;
+  commission: string;
+  swap: string;
+  net_profit: string;
+}
+
+export interface EquityPointRecord {
+  sequence: number;
+  timestamp: string;
+  balance: string;
+  equity: string;
+  drawdown_pct: string;
+}
+
+export interface BacktestMetricsRecord {
+  initial_capital: string;
+  final_balance: string;
+  final_equity: string;
+  total_net_profit: string;
+  return_pct: string;
+  max_drawdown_pct: string;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate_pct: string;
+  profit_factor: string | null;
+  total_commission: string;
+  total_swap: string;
+}
+
+export interface BacktestResultRecord {
+  id: string;
+  created_at: string;
+  symbol_id: string;
+  timeframe: string;
+  requested_start: string;
+  requested_end: string;
+  data_start: string;
+  data_end: string;
+  candle_count: number;
+  strategy_name: string;
+  strategy_version: string;
+  parameters: Record<string, unknown>;
+  settings: BacktestSettingsRecord;
+  trades: VirtualTradeRecord[];
+  equity_curve: EquityPointRecord[];
+  metrics: BacktestMetricsRecord;
+}
+
+export interface BacktestRunSummary {
+  id: string;
+  created_at: string;
+  symbol_id: string;
+  timeframe: string;
+  strategy_name: string;
+  strategy_version: string;
+  data_start: string;
+  data_end: string;
+  total_trades: number;
+  final_balance: string;
+  return_pct: string;
+}
+
+export interface CandleQuery {
+  limit?: number;
+  symbolId?: string;
+  timeframe?: string;
+  startAt?: string;
+  endAt?: string;
+}

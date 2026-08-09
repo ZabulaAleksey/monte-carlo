@@ -131,10 +131,71 @@ tbody tr:hover { background: #f7f9f5; }
 .setting-card strong { margin-top: 13px; color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
 .setting-card small { margin-top: 8px; color: var(--muted); font-size: 10px; }
 
+.backtest-workbench { max-width: 1380px; margin: 0 auto; display: grid; grid-template-columns: minmax(330px, 390px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.backtest-sidebar, .backtest-results { min-width: 0; display: grid; gap: 14px; }
+.backtest-sidebar { position: sticky; top: 24px; }
+.backtest-form { padding: 20px; }
+.backtest-form .panel-heading { margin-bottom: 18px; }
+.form-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.form-field { min-width: 0; display: grid; align-content: start; gap: 6px; color: var(--muted); font-size: 9px; letter-spacing: .04em; text-transform: uppercase; }
+.form-field-wide { grid-column: 1 / -1; }
+.form-field input, .form-field select { width: 100%; min-height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 9px; color: var(--ink); background: white; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0; text-transform: none; outline: none; }
+.form-field input:focus, .form-field select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(23,92,69,.1); }
+.form-field small { color: var(--muted); font-size: 9px; line-height: 1.45; letter-spacing: 0; text-transform: none; }
+.primary-button { width: 100%; min-height: 44px; margin-top: 16px; border: 0; border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 9px; color: white; background: var(--green); font-size: 11px; font-weight: 650; cursor: pointer; transition: 160ms ease; }
+.primary-button:hover:not(:disabled) { background: #104b37; transform: translateY(-1px); }
+.primary-button:disabled { opacity: .55; cursor: wait; }
+.backtest-runs { max-height: 430px; overflow: auto; }
+.backtest-runs .panel-heading { position: sticky; top: 0; z-index: 2; background: var(--panel); }
+.backtest-runs td { padding: 12px; font-size: 10px; }
+.backtest-runs td small { display: block; margin-top: 4px; color: var(--muted); font-size: 8px; }
+.table-link { border: 0; padding: 0; color: var(--green); background: transparent; font-size: 10px; font-weight: 650; cursor: pointer; }
+.table-link:disabled { color: var(--muted); cursor: wait; }
+.selected-row { background: #edf6f0 !important; }
+.backtest-welcome { min-height: 360px; padding: 46px; display: grid; align-content: center; background: radial-gradient(circle at 85% 10%, rgba(201,242,107,.35), transparent 32%), var(--panel); }
+.backtest-welcome h2 { max-width: 600px; margin: 0; font-size: clamp(27px, 4vw, 46px); line-height: 1.04; letter-spacing: -.04em; }
+.backtest-welcome p { max-width: 560px; margin: 18px 0 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.result-heading { padding: 22px; display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
+.result-heading h2 { margin: 0; font-size: 24px; letter-spacing: -.03em; }
+.result-heading p { margin: 8px 0 0; color: var(--muted); font-family: var(--font-mono); font-size: 10px; }
+.result-range { text-align: right; }
+.result-range span, .result-range strong, .result-range small { display: block; }
+.result-range span { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+.result-range strong { margin-top: 8px; font-family: var(--font-mono); font-size: 10px; }
+.result-range small { margin-top: 5px; color: var(--muted); font-size: 9px; }
+.backtest-metrics { max-width: none; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.backtest-metrics .metric-card { min-height: 145px; padding: 18px; }
+.backtest-metrics .metric-card > strong { font-size: 21px; }
+.backtest-metrics .metric-card small { left: 18px; bottom: 17px; }
+.result-chart-panel { min-width: 0; overflow: hidden; }
+.chart-frame { min-width: 0; overflow-x: auto; }
+.chart-caption { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; color: var(--muted); font-family: var(--font-mono); font-size: 9px; }
+.equity-chart, .candlestick-chart { width: 100%; min-width: 560px; height: auto; display: block; border: 1px solid var(--line); border-radius: 10px; background: repeating-linear-gradient(to bottom, #f8faf7 0, #f8faf7 62px, #e9eee9 63px); }
+.equity-line { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.equity-area { fill: url("#equity-fill"); stroke: none; }
+.candle line { stroke-width: 1.4; }
+.candle rect { stroke-width: 1; }
+.candle.up line, .candle.up rect { fill: #2e8b68; stroke: #175c45; }
+.candle.down line, .candle.down rect { fill: #d77a66; stroke: #a94039; }
+.trade-marker { stroke: white; stroke-width: 1.5; }
+.trade-marker.buy { fill: #0d6f4d; }
+.trade-marker.sell { fill: var(--red); }
+.trade-marker.exit { fill: #13251f; }
+.chart-empty { min-height: 220px; display: grid; place-items: center; color: var(--muted); font-size: 11px; }
+.run-settings { padding: 18px 20px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.run-settings span, .run-settings strong { display: block; }
+.run-settings span { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; }
+.run-settings strong { margin-top: 7px; font-family: var(--font-mono); font-size: 10px; overflow-wrap: anywhere; }
+.backtest-trades { max-width: none; }
+
 @media (max-width: 1050px) {
   .metric-grid { grid-template-columns: repeat(2, 1fr); }
   .content-grid { grid-template-columns: 1fr; }
   .settings-grid { grid-template-columns: 1fr; }
+  .backtest-workbench { grid-template-columns: 1fr; }
+  .backtest-sidebar { position: static; }
+  .backtest-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .run-settings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 720px) {
@@ -151,4 +212,12 @@ tbody tr:hover { background: #f7f9f5; }
   .metric-card { min-height: 145px; }
   .mt5-connection { align-items: flex-start; flex-wrap: wrap; }
   .mt5-sync-time { width: 100%; margin: 4px 0 0 54px; }
+  .form-fields { grid-template-columns: 1fr; }
+  .form-field-wide { grid-column: auto; }
+  .result-heading { display: block; }
+  .result-range { margin-top: 20px; text-align: left; }
+  .backtest-metrics { grid-template-columns: 1fr; }
+  .run-settings { grid-template-columns: 1fr; }
+  .result-chart-panel { padding: 16px; }
+  .backtest-welcome { min-height: 300px; padding: 28px; }
 }
