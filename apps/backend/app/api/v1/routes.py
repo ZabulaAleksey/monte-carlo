@@ -22,6 +22,7 @@ from app.api.schemas import (
     TradeCreate,
     TradeResponse,
 )
+from app.domain.enums import CandleSource
 from app.infrastructure.config import get_settings
 
 router = APIRouter()
@@ -74,9 +75,10 @@ async def list_candles(
     timeframe: str | None = Query(default=None, min_length=1, max_length=16),
     start_at: datetime | None = None,
     end_at: datetime | None = None,
+    source: CandleSource | None = None,
     limit: int = Query(default=200, ge=1, le=2000),
 ) -> list[CandleResponse]:
-    candles = await service.list(symbol_id, limit, timeframe, start_at, end_at)
+    candles = await service.list(symbol_id, limit, timeframe, start_at, end_at, source)
     return [CandleResponse.model_validate(item) for item in candles]
 
 

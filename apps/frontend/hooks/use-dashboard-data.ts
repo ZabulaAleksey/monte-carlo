@@ -15,15 +15,14 @@ export interface DashboardQuery {
 }
 
 async function loadDashboard(): Promise<DashboardSnapshot> {
-  const [accounts, candles, symbols, trades, mt5, quotes] = await Promise.all([
+  const [accounts, candles, symbols, trades, quotes] = await Promise.all([
     apiClient.getAccounts(),
     apiClient.getCandles(500),
     apiClient.getSymbols(),
     apiClient.getTrades(),
-    apiClient.getMt5Status(),
     apiClient.getQuotes(),
   ]);
-  return { accounts, candles, symbols, trades, mt5, quotes };
+  return { accounts, candles, symbols, trades, quotes };
 }
 
 export function useDashboardData(): DashboardQuery {

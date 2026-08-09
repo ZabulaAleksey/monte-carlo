@@ -58,11 +58,15 @@ export const apiClient = {
     if (options.timeframe) parameters.set("timeframe", options.timeframe);
     if (options.startAt) parameters.set("start_at", options.startAt);
     if (options.endAt) parameters.set("end_at", options.endAt);
+    if (options.source) parameters.set("source", options.source);
     return request<CandleRecord[]>(`/api/v1/candles?${parameters.toString()}`);
   },
   getAccounts: (): Promise<AccountRecord[]> => request<AccountRecord[]>("/api/v1/accounts"),
-  getTrades: (limit = 100): Promise<TradeRecord[]> =>
-    request<TradeRecord[]>(`/api/v1/trades?limit=${limit}`),
+  getTrades: (limit = 100, accountId?: string): Promise<TradeRecord[]> => {
+    const parameters = new URLSearchParams({ limit: String(limit) });
+    if (accountId) parameters.set("account_id", accountId);
+    return request<TradeRecord[]>(`/api/v1/trades?${parameters.toString()}`);
+  },
   getMt5Status: (): Promise<Mt5Status> =>
     request<Mt5Status>("/api/v1/mt5/status"),
   getQuotes: (symbolId?: string): Promise<QuoteRecord[]> => {

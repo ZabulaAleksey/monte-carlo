@@ -10,6 +10,8 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useMt5Status } from "@/hooks/use-mt5-status";
+
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/market-data", label: "Market Data", icon: ChartCandlestick },
@@ -20,6 +22,22 @@ const links = [
 
 export function Navigation(): React.JSX.Element {
   const pathname = usePathname();
+  const { error, status } = useMt5Status();
+  const connected = status?.connected === true;
+  const checking = status === null && error === null;
+  const environmentState = connected ? "online" : checking ? "checking" : "offline";
+  const environmentLabel = connected
+    ? "Online environment"
+    : checking
+      ? "Checking environment"
+      : "Demo environment";
+  const environmentDetail = connected
+    ? "MT5 market feed online"
+    : error
+      ? "Connection status unavailable"
+      : status?.configured
+        ? "MT5 feed offline · sample data"
+        : "Sample market feed";
 
   return (
     <aside className="sidebar">
@@ -41,11 +59,15 @@ export function Navigation(): React.JSX.Element {
           );
         })}
       </nav>
-      <div className="sidebar-status">
+      <div
+        aria-live="polite"
+        className={`sidebar-status ${environmentState}`}
+        role="status"
+      >
         <span className="status-dot" />
         <div>
-          <strong>Demo environment</strong>
-          <small>Sample market feed</small>
+          <strong>{environmentLabel}</strong>
+          <small>{environmentDetail}</small>
         </div>
       </div>
     </aside>

@@ -4,6 +4,7 @@ import type { AccountRecord, CandleRecord, QuoteRecord } from "./api/types";
 import {
   getDashboardSource,
   mergeLiveQuotes,
+  selectEnvironmentAccount,
   selectPortfolioAccount,
   selectSourceCandles,
 } from "./dashboard";
@@ -39,6 +40,16 @@ describe("dashboard data selection", () => {
 
     expect(selected).toEqual(demoAccount);
     expect(getDashboardSource(selected)).toBe("demo");
+  });
+
+  it("selects accounts strictly for the active environment", () => {
+    expect(selectEnvironmentAccount([demoAccount, mt5Account], true)).toEqual(
+      mt5Account,
+    );
+    expect(selectEnvironmentAccount([demoAccount, mt5Account], false)).toEqual(
+      demoAccount,
+    );
+    expect(selectEnvironmentAccount([demoAccount], true)).toBeNull();
   });
 
   it("does not mix demo candles into an MT5 dashboard", () => {

@@ -214,4 +214,5 @@ export interface CandleQuery {
   timeframe?: string;
   startAt?: string;
   endAt?: string;
+  source?: CandleRecord["source"];
 }

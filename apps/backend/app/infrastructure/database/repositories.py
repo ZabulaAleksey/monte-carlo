@@ -132,6 +132,7 @@ class SqlAlchemyCandleRepository:
         timeframe: str | None = None,
         start_at: datetime | None = None,
         end_at: datetime | None = None,
+        source: CandleSource | None = None,
     ) -> list[Candle]:
         query = select(CandleModel).order_by(CandleModel.open_time.desc()).limit(limit)
         if symbol_id is not None:
@@ -142,6 +143,8 @@ class SqlAlchemyCandleRepository:
             query = query.where(CandleModel.open_time >= start_at)
         if end_at is not None:
             query = query.where(CandleModel.open_time <= end_at)
+        if source is not None:
+            query = query.where(CandleModel.source == source.value)
         result = await self._session.scalars(query)
         return [_candle(item) for item in result.all()]
 

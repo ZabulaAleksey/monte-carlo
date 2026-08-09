@@ -72,8 +72,11 @@ class CandleService:
         timeframe: str | None = None,
         start_at: datetime | None = None,
         end_at: datetime | None = None,
+        source: CandleSource | None = None,
     ) -> list[Candle]:
-        return await self._repository.list(symbol_id, limit, timeframe, start_at, end_at)
+        return await self._repository.list(
+            symbol_id, limit, timeframe, start_at, end_at, source
+        )
 
     async def save(
         self,

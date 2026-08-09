@@ -1,7 +1,6 @@
 import type {
   AccountRecord,
   CandleRecord,
-  Mt5Status,
   QuoteRecord,
   SymbolRecord,
   TradeRecord,
@@ -10,7 +9,6 @@ import type {
 export interface DashboardSnapshot {
   accounts: AccountRecord[];
   candles: CandleRecord[];
-  mt5: Mt5Status;
   quotes: QuoteRecord[];
   symbols: SymbolRecord[];
   trades: TradeRecord[];
@@ -34,6 +32,18 @@ export function selectPortfolioAccount(accounts: AccountRecord[]): AccountRecord
     (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
   );
   return newestFirst.find((account) => !isDemoAccount(account)) ?? newestFirst[0] ?? null;
+}
+
+export function selectEnvironmentAccount(
+  accounts: AccountRecord[],
+  connected: boolean,
+): AccountRecord | null {
+  const newestFirst = [...accounts].sort(
+    (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
+  );
+  return connected
+    ? newestFirst.find((account) => !isDemoAccount(account)) ?? null
+    : newestFirst.find(isDemoAccount) ?? null;
 }
 
 export function getDashboardSource(account: AccountRecord | null): DashboardSource {

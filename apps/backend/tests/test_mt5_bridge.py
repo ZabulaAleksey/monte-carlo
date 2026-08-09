@@ -157,8 +157,12 @@ async def test_candle_and_trade_batches_are_idempotent(client: AsyncClient) -> N
     assert second_trades.json()["created"] == 0
     assert second_trades.json()["updated"] == 1
     stored_candles = (await client.get("/api/v1/candles")).json()
+    mt5_candles = (await client.get("/api/v1/candles?source=mt5")).json()
+    demo_candles = (await client.get("/api/v1/candles?source=demo")).json()
     assert len(stored_candles) == 1
     assert stored_candles[0]["source"] == "mt5"
+    assert len(mt5_candles) == 1
+    assert demo_candles == []
     assert len((await client.get("/api/v1/trades")).json()) == 1
 
 

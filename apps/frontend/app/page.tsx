@@ -9,6 +9,7 @@ import { MarketCandlestickChart } from "@/components/market-candlestick-chart";
 import { Mt5ConnectionCard } from "@/components/mt5-connection-card";
 import { PageHeader } from "@/components/page-header";
 import { useDashboardData } from "@/hooks/use-dashboard-data";
+import { useMt5Status } from "@/hooks/use-mt5-status";
 import {
   buildMarketSeries,
   getDashboardSource,
@@ -39,6 +40,7 @@ function money(value: number, currency = "USD"): string {
 
 export default function DashboardPage(): React.JSX.Element {
   const { data, error } = useDashboardData();
+  const { status: mt5Status } = useMt5Status();
   const [selectedSeriesKey, setSelectedSeriesKey] = useState<string | null>(
     storedMarketSeries,
   );
@@ -85,7 +87,7 @@ export default function DashboardPage(): React.JSX.Element {
       {!data && !error ? <LoadingState /> : null}
       {data ? (
         <>
-          <Mt5ConnectionCard status={data.mt5} />
+          {mt5Status ? <Mt5ConnectionCard status={mt5Status} /> : null}
           <section className="metric-grid" aria-label="Portfolio metrics">
             <article className="metric-card primary">
               <div className="metric-icon"><WalletCards size={19} /></div>

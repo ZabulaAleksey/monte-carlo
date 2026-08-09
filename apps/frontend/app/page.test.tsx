@@ -7,31 +7,38 @@ vi.mock("@/lib/api/client", () => ({
   apiClient: {
     getAccounts: vi.fn(),
     getCandles: vi.fn(),
-    getMt5Status: vi.fn(),
     getQuotes: vi.fn(),
     getSymbols: vi.fn(),
     getTrades: vi.fn(),
   },
 }));
 
+vi.mock("@/hooks/use-mt5-status", () => ({
+  useMt5Status: vi.fn(),
+}));
+
+import { useMt5Status } from "@/hooks/use-mt5-status";
 import { apiClient } from "@/lib/api/client";
 
 describe("DashboardPage", () => {
   beforeEach(() => {
     vi.mocked(apiClient.getAccounts).mockResolvedValue([]);
     vi.mocked(apiClient.getCandles).mockResolvedValue([]);
-    vi.mocked(apiClient.getMt5Status).mockResolvedValue({
-      configured: true,
-      connected: true,
-      stale: false,
-      stale_after_seconds: 90,
-      terminal: {
-        terminal_id: "terminal-test",
-        terminal_name: "MetaTrader 5",
-        terminal_build: 5000,
-        last_heartbeat_at: "2026-08-02T12:00:00Z",
-        terminal_time: "2026-08-02T12:00:00Z",
-        last_sync_at: "2026-08-02T12:00:00Z",
+    vi.mocked(useMt5Status).mockReturnValue({
+      error: null,
+      status: {
+        configured: true,
+        connected: true,
+        stale: false,
+        stale_after_seconds: 90,
+        terminal: {
+          terminal_id: "terminal-test",
+          terminal_name: "MetaTrader 5",
+          terminal_build: 5000,
+          last_heartbeat_at: "2026-08-02T12:00:00Z",
+          terminal_time: "2026-08-02T12:00:00Z",
+          last_sync_at: "2026-08-02T12:00:00Z",
+        },
       },
     });
     vi.mocked(apiClient.getQuotes).mockResolvedValue([]);

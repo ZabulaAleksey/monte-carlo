@@ -5,6 +5,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.domain.entities import Account, Candle, MarketQuote, Symbol, Trade
+from app.domain.enums import CandleSource
 
 
 class SymbolRepository(Protocol):
@@ -24,6 +25,7 @@ class CandleRepository(Protocol):
         timeframe: str | None = None,
         start_at: datetime | None = None,
         end_at: datetime | None = None,
+        source: CandleSource | None = None,
     ) -> list[Candle]: ...
     async def add(self, candle: Candle) -> Candle: ...
 
