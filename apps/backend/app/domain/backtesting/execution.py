@@ -19,7 +19,8 @@ DECIMAL_QUANTUM = Decimal("0.00000001")
 
 
 def quantize_decimal(value: Decimal) -> Decimal:
-    return value.quantize(DECIMAL_QUANTUM)
+    quantized = value.quantize(DECIMAL_QUANTUM)
+    return abs(quantized) if quantized.is_zero() else quantized
 
 
 class FixedCommissionModel:

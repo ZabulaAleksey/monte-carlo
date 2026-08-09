@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -20,7 +20,11 @@ def _candle(model: CandleModel) -> Candle:
         model.id,
         model.symbol_id,
         model.timeframe,
-        model.open_time,
+        (
+            model.open_time
+            if model.open_time.tzinfo is not None
+            else model.open_time.replace(tzinfo=UTC)
+        ),
         model.open,
         model.high,
         model.low,

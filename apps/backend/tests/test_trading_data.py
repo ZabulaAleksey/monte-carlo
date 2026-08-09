@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def create_symbol(client: AsyncClient, name: str = "EURUSD") -> dict[str, object]:
@@ -53,7 +54,7 @@ async def test_symbol_crud(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_save_candle(client: AsyncClient) -> None:
+async def test_save_candle(client: AsyncClient, session: AsyncSession) -> None:
     symbol = await create_symbol(client)
     response = await client.post(
         "/api/v1/candles",
@@ -69,10 +70,12 @@ async def test_save_candle(client: AsyncClient) -> None:
         },
     )
     assert response.status_code == 201
+    session.expunge_all()
     candles = await client.get(f"/api/v1/candles?symbol_id={symbol['id']}")
     assert len(candles.json()) == 1
     assert candles.json()[0]["timeframe"] == "H1"
     assert candles.json()[0]["source"] == "api"
+    assert candles.json()[0]["open_time"].endswith("Z")
 
 
 @pytest.mark.asyncio

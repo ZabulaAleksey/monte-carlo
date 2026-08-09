@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
@@ -46,7 +47,7 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
         "stop_loss_pct": None,
         "take_profit_pct": None,
         "commission_per_fill": "0.1",
-        "swap_per_day": "0",
+        "swap_per_day": "-0.1",
         "slippage_mode": "fixed",
         "slippage_value": "0",
         "parameters": {"short_window": 2, "long_window": 3},
@@ -58,6 +59,7 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
     assert result["candle_count"] == 8
     assert len(result["trades"]) == 2
     assert len(result["equity_curve"]) == 8
+    assert all(not Decimal(trade["swap"]).is_signed() for trade in result["trades"])
 
     listed = await client.get("/api/v1/backtests")
     assert listed.status_code == 200

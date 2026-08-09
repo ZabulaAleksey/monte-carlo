@@ -137,6 +137,7 @@ class SqlAlchemyBacktestRunRepository:
         except Exception:
             await self._session.rollback()
             raise
+        self._session.expire_all()
         stored = await self.get(run_id)
         if stored is None:
             raise RuntimeError("Persisted backtest run could not be reloaded")
