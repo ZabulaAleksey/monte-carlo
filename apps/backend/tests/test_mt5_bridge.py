@@ -49,11 +49,31 @@ async def sync_account_and_symbol(client: AsyncClient) -> None:
                     "description": "Euro / US Dollar",
                     "digits": 5,
                     "is_active": True,
+                    "volume_min": "0.01",
+                    "volume_step": "0.01",
+                    "volume_max": "100",
+                    "contract_size": "100000",
                 }
             ],
         },
     )
     assert symbols.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_symbol_sync_persists_mt5_lot_spec_and_caps_platform_maximum(
+    client: AsyncClient,
+) -> None:
+    await sync_account_and_symbol(client)
+
+    symbols = await client.get("/api/v1/symbols")
+
+    assert symbols.status_code == 200
+    symbol = symbols.json()[0]
+    assert symbol["volume_min"] == "0.01000000"
+    assert symbol["volume_step"] == "0.01000000"
+    assert symbol["volume_max"] == "99.00000000"
+    assert symbol["contract_size"] == "100000.00000000"
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { CandleRecord, VirtualTradeRecord } from "@/lib/api/types";
 import type { TradeMarker } from "@/lib/backtests";
@@ -25,6 +25,11 @@ interface PositionedTradeMarker extends TradeMarker {
   markerY: number;
 }
 
+interface ViewportRange {
+  end: number;
+  start: number;
+}
+
 const MINIMUM_WIDTH = 900;
 const HEIGHT = 320;
 const PADDING = 30;
@@ -38,11 +43,51 @@ export function CandlestickTradeChart({
   const { intlLocale, t } = useI18n();
   const visible = sortCandles(candles);
   const frameRef = useRef<HTMLDivElement>(null);
+  const [viewportRange, setViewportRange] = useState<ViewportRange>({
+    start: 0,
+    end: Number.MAX_SAFE_INTEGER,
+  });
   const width = Math.max(MINIMUM_WIDTH, visible.length * 7 + PADDING * 2);
   const step = visible.length > 0 ? (width - PADDING * 2) / visible.length : 0;
   const latestCandleX = visible.length > 0
     ? PADDING + step * (visible.length - 1) + step / 2
     : 0;
+
+  const updateViewportRange = useCallback((): void => {
+    const frame = frameRef.current;
+    if (!frame || visible.length === 0 || step <= 0 || frame.clientWidth <= 0) {
+      setViewportRange({ start: 0, end: Math.max(visible.length - 1, 0) });
+      return;
+    }
+    const start = Math.max(
+      0,
+      Math.floor((frame.scrollLeft - PADDING) / step),
+    );
+    const end = Math.min(
+      visible.length - 1,
+      Math.ceil((frame.scrollLeft + frame.clientWidth - PADDING) / step),
+    );
+    setViewportRange((current) =>
+      current.start === start && current.end === end
+        ? current
+        : { start, end },
+    );
+  }, [step, visible.length]);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return undefined;
+    updateViewportRange();
+    frame.addEventListener("scroll", updateViewportRange, { passive: true });
+    const observer = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(updateViewportRange);
+    observer?.observe(frame);
+    return () => {
+      frame.removeEventListener("scroll", updateViewportRange);
+      observer?.disconnect();
+    };
+  }, [updateViewportRange]);
 
   useEffect(() => {
     const frame = frameRef.current;
@@ -50,14 +95,20 @@ export function CandlestickTradeChart({
       const maximumScroll = Math.max(0, frame.scrollWidth - frame.clientWidth);
       const target = latestCandleX - frame.clientWidth * 0.72;
       frame.scrollLeft = Math.max(0, Math.min(maximumScroll, target));
+      updateViewportRange();
     }
-  }, [followLatest, latestCandleX]);
+  }, [followLatest, latestCandleX, updateViewportRange]);
 
   if (visible.length === 0) {
     return <div className="chart-empty">{t("replay.empty")}</div>;
   }
-  const lows = visible.map((item) => Number(item.low));
-  const highs = visible.map((item) => Number(item.high));
+  const scaleCandles = visible.slice(
+    viewportRange.start,
+    Math.min(viewportRange.end + 1, visible.length),
+  );
+  const scaleSource = scaleCandles.length > 0 ? scaleCandles : visible;
+  const lows = scaleSource.map((item) => Number(item.low));
+  const highs = scaleSource.map((item) => Number(item.high));
   const minimum = Math.min(...lows);
   const maximum = Math.max(...highs);
   const range = maximum - minimum || 1;
@@ -119,6 +170,10 @@ export function CandlestickTradeChart({
       <svg
         aria-label={t("replay.chartAria", { count: visibleTradeCount })}
         className="candlestick-chart"
+        data-scale-end={Math.min(viewportRange.end, visible.length - 1)}
+        data-scale-max={maximum}
+        data-scale-min={minimum}
+        data-scale-start={viewportRange.start}
         role="img"
         style={{ minWidth: `${width}px` }}
         viewBox={`0 0 ${width} ${HEIGHT}`}

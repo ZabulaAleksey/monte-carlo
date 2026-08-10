@@ -39,6 +39,10 @@ async def test_symbol_crud(client: AsyncClient) -> None:
 
     fetched = await client.get(f"/api/v1/symbols/{symbol_id}")
     assert fetched.json()["name"] == "EURUSD"
+    assert fetched.json()["volume_min"] == "0.01000000"
+    assert fetched.json()["volume_step"] == "0.01000000"
+    assert fetched.json()["volume_max"] == "99.00000000"
+    assert fetched.json()["contract_size"] == "1.00000000"
 
     updated = await client.put(
         f"/api/v1/symbols/{symbol_id}",

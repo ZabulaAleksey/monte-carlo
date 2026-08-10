@@ -17,12 +17,24 @@ Stage 3 — Strategy engine and backtesting.
 - Run-scoped Virtual execution retrieval with an explicit database filter.
 - Locale-first bootstrap without an intermediate English render.
 - Locale-aware run dates and a $100 starting-capital step.
+- MT5 lot minimum/step/maximum and contract-size synchronization, with a 99-lot
+  platform cap and lot-aware backtest P&L.
+- Configurable monetary swap per lot per crossed calendar day.
+- Initial MT5 candle backfill controlled by `CandleLookbackDays` (3650 days by
+  default), with visible candle-loading state before simulation.
+- Replay Stop preserves the current frame; speed survives run changes; saved
+  research opens immediately at its final frame.
+- Price charts rescale to the visible viewport; equity charts include a
+  drawdown series and labeled equity/drawdown/time axes.
 
 ## Known constraints
 
 - The frontend currently requests at most 2000 candles for a stored run.
 - Replay animation is client-side after the completed result and candles are
   loaded.
+- Lot P&L currently uses price difference times MT5 contract size. Instruments
+  requiring tick-value or account-currency conversion need a richer profit
+  specification in a later iteration.
 - Backtest commission and swap are currently explicit run inputs. MT5 deal
   history stores realized commission/swap, but no historical cost profile is
   inferred automatically yet.
@@ -33,4 +45,6 @@ Stage 3 — Strategy engine and backtesting.
 - Profile rendering near the 2000-candle frontend limit.
 - Design broker/account/symbol cost profiles from synchronized MT5 deals,
   including long/short swap and rollover rules.
+- Add MT5 tick-size/tick-value and profit-currency conversion for instruments
+  whose P&L cannot be represented by contract size alone.
 - Continue Stage 3 commits with the stage title in the commit subject.

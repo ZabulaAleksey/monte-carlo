@@ -29,7 +29,7 @@ describe("MarketDataPage", () => {
   beforeEach(() => {
     vi.mocked(useMt5Status).mockReturnValue({ error: null, status: onlineStatus });
     vi.mocked(apiClient.getSymbols).mockResolvedValue([
-      { id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true },
+      { id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100000" },
     ]);
     vi.mocked(apiClient.getCandles).mockResolvedValue([
       {

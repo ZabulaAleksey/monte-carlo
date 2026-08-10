@@ -15,6 +15,10 @@ class Symbol:
     description: str
     digits: int
     is_active: bool
+    volume_min: Decimal = Decimal("0.01")
+    volume_step: Decimal = Decimal("0.01")
+    volume_max: Decimal = Decimal("99")
+    contract_size: Decimal = Decimal("1")
 
 
 @dataclass(frozen=True, slots=True)

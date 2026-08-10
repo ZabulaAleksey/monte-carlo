@@ -16,6 +16,7 @@ input int    RequestTimeoutMs    = 5000;
 input int    RetryCount          = 3;
 input ENUM_TIMEFRAMES CandleTimeframe = PERIOD_H1;
 input int    CandleBatchSize     = 100;
+input int    CandleLookbackDays  = 3650;
 input int    TradeBatchSize      = 200;
 input int    TradeLookbackDays   = 30;
 
@@ -178,6 +179,10 @@ bool SendSymbols()
       items+="{\"name\":"+JsonString(symbol)+
              ",\"description\":"+JsonString(SymbolInfoString(symbol,SYMBOL_DESCRIPTION))+
              ",\"digits\":"+IntegerToString(SymbolInfoInteger(symbol,SYMBOL_DIGITS))+
+             ",\"volume_min\":"+JsonNumber(SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN),8)+
+             ",\"volume_step\":"+JsonNumber(SymbolInfoDouble(symbol,SYMBOL_VOLUME_STEP),8)+
+             ",\"volume_max\":"+JsonNumber(MathMin(99.0,SymbolInfoDouble(symbol,SYMBOL_VOLUME_MAX)),8)+
+             ",\"contract_size\":"+JsonNumber(SymbolInfoDouble(symbol,SYMBOL_TRADE_CONTRACT_SIZE),8)+
              ",\"is_active\":true}";
      }
    if(StringLen(items)==0)
@@ -214,21 +219,41 @@ bool SendQuotes()
    return sent;
   }
 
+bool FlushCandleBatch(const string items,const datetime newest,const int symbol_index)
+  {
+   string body=RequestPrefix()+",\"candles\":["+items+"]}";
+   if(!HttpPost("/api/v1/mt5/candles/batch",body))
+      return false;
+   if(newest>g_last_candle_at[symbol_index])
+      g_last_candle_at[symbol_index]=newest;
+   return true;
+  }
+
 bool SendCandlesForSymbol(const int symbol_index)
   {
    string symbol=g_symbol_names[symbol_index];
+   int period_seconds=PeriodSeconds(CandleTimeframe);
+   datetime to_time=TimeTradeServer()-(datetime)MathMax(1,period_seconds);
+   datetime from_time=g_last_candle_at[symbol_index]>0
+                      ? g_last_candle_at[symbol_index]+(datetime)MathMax(1,period_seconds)
+                      : to_time-(datetime)(MathMax(1,CandleLookbackDays)*86400);
+   if(from_time>to_time)
+      return true;
+
    MqlRates rates[];
-   int requested=MathMax(1,MathMin(CandleBatchSize,1000));
-   int copied=CopyRates(symbol,CandleTimeframe,1,requested,rates);
-   if(copied<=0)
+   int copied=CopyRates(symbol,CandleTimeframe,from_time,to_time,rates);
+   if(copied<0)
      {
       PrintFormat("MonteCarlo bridge could not copy rates: symbol=%s error=%d",
                   symbol,GetLastError());
       return false;
      }
+   if(copied==0)
+      return true;
 
    string items="";
-   datetime newest=g_last_candle_at[symbol_index];
+   int batch_size=MathMax(1,MathMin(CandleBatchSize,1000));
+   datetime batch_newest=g_last_candle_at[symbol_index];
    int accepted=0;
    for(int i=0;i<copied;i++)
      {
@@ -245,16 +270,19 @@ bool SendCandlesForSymbol(const int symbol_index)
              ",\"close\":"+JsonNumber(rates[i].close,8)+
              ",\"volume\":"+IntegerToString(rates[i].tick_volume)+"}";
       accepted++;
-      if(rates[i].time>newest)
-         newest=rates[i].time;
+      if(rates[i].time>batch_newest)
+         batch_newest=rates[i].time;
+      if(accepted>=batch_size)
+        {
+         if(!FlushCandleBatch(items,batch_newest,symbol_index))
+            return false;
+         items="";
+         accepted=0;
+        }
      }
    if(accepted==0)
       return true;
-   bool sent=HttpPost("/api/v1/mt5/candles/batch",
-                      RequestPrefix()+",\"candles\":["+items+"]}");
-   if(sent)
-      g_last_candle_at[symbol_index]=newest;
-   return sent;
+   return FlushCandleBatch(items,batch_newest,symbol_index);
   }
 
 bool SendCandles()

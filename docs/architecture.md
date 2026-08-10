@@ -65,14 +65,17 @@ Synchronous API runs are capped at 2,000 candles to bound CPU, memory,
 persistence and response size.
 
 The included moving-average crossover is an infrastructure demonstration only
-and makes no profitability claim. Position size means price units; SL/TP are
-percentages from the simulated fill, commission is cash per fill, relative
-slippage is expressed in basis points, and swap is cash per position for each
-crossed calendar day.
+and makes no profitability claim. Position size is expressed in MT5 lots and
+validated against the synchronized symbol minimum, step and maximum, with an
+additional platform cap of 99 lots. Profit and unrealized equity use the
+symbol's MT5 contract size. SL/TP are percentages from the simulated fill,
+commission is cash per fill, relative slippage is expressed in basis points,
+and swap is a cash rate per lot for each crossed calendar day.
 
 ## Data model
 
-- `symbols` is the normalized instrument catalog.
+- `symbols` is the normalized instrument catalog and stores MT5 volume minimum,
+  volume step, capped volume maximum and contract size.
 - `candles` belongs to a symbol and is unique by symbol, timeframe and opening
   time. Its typed `source` field (`demo`, `mt5`, or `api`) prevents
   synthetic MVP prices from being mixed into a connected terminal view.

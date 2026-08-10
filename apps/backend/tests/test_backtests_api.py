@@ -45,7 +45,7 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
     strategies = await client.get("/api/v1/backtests/strategies")
     assert strategies.status_code == 200
     assert strategies.json()[0]["name"] == "moving_average_cross"
-    assert strategies.json()[0]["version"] == "1.1.0"
+    assert strategies.json()[0]["version"] == "1.2.0"
     assert any(
         parameter["name"] == "position_size"
         and parameter["value_type"] == "decimal"
@@ -72,7 +72,9 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
     created = await client.post("/api/v1/backtests", json=payload)
     assert created.status_code == 201, created.text
     result = created.json()
-    assert result["strategy_version"] == "1.1.0"
+    assert result["strategy_version"] == "1.2.0"
+    assert result["settings"]["contract_size"] == "1.00000000"
+    assert result["settings"]["swap_per_lot_per_day"] == "-0.10000000"
     assert result["candle_count"] == 8
     assert len(result["trades"]) == 2
     assert len(result["equity_curve"]) == 8
@@ -138,6 +140,51 @@ async def test_backtest_rejects_range_without_candles(client: AsyncClient) -> No
     assert response.json()["error"]["message"] == (
         "No historical candles found for the requested range"
     )
+
+
+@pytest.mark.asyncio
+async def test_backtest_enforces_mt5_lot_minimum_and_step(client: AsyncClient) -> None:
+    symbol_response = await client.post(
+        "/api/v1/symbols",
+        json={
+            "name": "SP500",
+            "description": "S&P 500",
+            "digits": 1,
+            "is_active": True,
+            "volume_min": "0.1",
+            "volume_step": "0.1",
+            "volume_max": "99",
+            "contract_size": "50",
+        },
+    )
+    assert symbol_response.status_code == 201
+    symbol = symbol_response.json()
+    base_payload = {
+        "strategy_name": "moving_average_cross",
+        "symbol_id": symbol["id"],
+        "timeframe": "H1",
+        "start_at": "2026-01-01T00:00:00Z",
+        "end_at": "2026-01-02T00:00:00Z",
+        "parameters": {
+            "short_window": 2,
+            "long_window": 3,
+            "position_size": "0.01",
+        },
+    }
+
+    below_minimum = await client.post("/api/v1/backtests", json=base_payload)
+    wrong_step = await client.post(
+        "/api/v1/backtests",
+        json={
+            **base_payload,
+            "parameters": {**base_payload["parameters"], "position_size": "0.15"},
+        },
+    )
+
+    assert below_minimum.status_code == 400
+    assert "between 0.10000000 and 99" in below_minimum.json()["error"]["message"]
+    assert wrong_step.status_code == 400
+    assert "0.10000000 lot step" in wrong_step.json()["error"]["message"]
 
 
 @pytest.mark.asyncio

@@ -39,7 +39,7 @@ interface FormState {
   endAt: string;
   initialCapital: string;
   commissionPerFill: string;
-  swapPerDay: string;
+  swapPerLotPerDay: string;
   slippageMode: SlippageMode;
   slippageValue: string;
   parameters: Record<string, string>;
@@ -59,11 +59,35 @@ function localizedDateInput(value: string, locale: string): string {
   }).format(date);
 }
 
-function initialParameters(strategy: StrategyDefinition | undefined): Record<string, string> {
+function normalizeLotValue(value: string, symbol: SymbolRecord | undefined): string {
+  if (!symbol) return value;
+  const minimum = Number(symbol.volume_min);
+  const step = Number(symbol.volume_step);
+  const maximum = Math.min(Number(symbol.volume_max), 99);
+  const numeric = Math.min(Math.max(Number(value), minimum), maximum);
+  const maximumStep = Math.max(Math.floor((maximum - minimum) / step), 0);
+  const stepIndex = Math.min(
+    Math.ceil((numeric - minimum - Number.EPSILON) / step),
+    maximumStep,
+  );
+  const aligned = minimum + Math.max(stepIndex, 0) * step;
+  const decimals = Math.max(
+    symbol.volume_min.split(".")[1]?.replace(/0+$/, "").length ?? 0,
+    symbol.volume_step.split(".")[1]?.replace(/0+$/, "").length ?? 0,
+  );
+  return aligned.toFixed(decimals);
+}
+
+function initialParameters(
+  strategy: StrategyDefinition | undefined,
+  symbol: SymbolRecord | undefined,
+): Record<string, string> {
   return Object.fromEntries(
     (strategy?.parameters ?? []).map((parameter) => [
       parameter.name,
-      String(parameter.default),
+      parameter.name === "position_size"
+        ? normalizeLotValue(String(parameter.default), symbol)
+        : String(parameter.default),
     ]),
   );
 }
@@ -90,13 +114,14 @@ export function BacktestForm({
       endAt: localDateInput(end),
       initialCapital: "10000",
       commissionPerFill: "0",
-      swapPerDay: "0",
+      swapPerLotPerDay: "0",
       slippageMode: "fixed",
       slippageValue: "0",
-      parameters: initialParameters(strategies[0]),
+      parameters: initialParameters(strategies[0], symbols[0]),
     };
   });
   const selectedStrategy = strategies.find((item) => item.name === form.strategyName);
+  const selectedSymbol = symbols.find((item) => item.id === form.symbolId);
   const strategyTitle = (strategy: StrategyDefinition): string =>
     strategy.name === "moving_average_cross" ? t("strategy.maTitle") : strategy.title;
   const advisorLabel = (name: string, fallback: string): string => {
@@ -113,7 +138,22 @@ export function BacktestForm({
     setForm((current) => ({
       ...current,
       strategyName,
-      parameters: initialParameters(strategy),
+      parameters: initialParameters(strategy, selectedSymbol),
+    }));
+  };
+
+  const selectSymbol = (symbolId: string): void => {
+    const symbol = symbols.find((item) => item.id === symbolId);
+    setForm((current) => ({
+      ...current,
+      symbolId,
+      parameters: {
+        ...current.parameters,
+        position_size: normalizeLotValue(
+          current.parameters.position_size ?? "0.01",
+          symbol,
+        ),
+      },
     }));
   };
 
@@ -136,7 +176,7 @@ export function BacktestForm({
       end_at: new Date(form.endAt).toISOString(),
       initial_capital: form.initialCapital,
       commission_per_fill: form.commissionPerFill,
-      swap_per_day: form.swapPerDay,
+      swap_per_lot_per_day: form.swapPerLotPerDay,
       slippage_mode: form.slippageMode,
       slippage_value: form.slippageValue,
       parameters,
@@ -190,7 +230,7 @@ export function BacktestForm({
             <span>{t("form.instrument")}</span>
             <select
               aria-label={t("form.instrument")}
-              onChange={(event) => update("symbolId", event.target.value)}
+              onChange={(event) => selectSymbol(event.target.value)}
               required
               value={form.symbolId}
             >
@@ -253,13 +293,24 @@ export function BacktestForm({
           <strong>{t("form.advisor")}</strong>
           <small>{t("form.advisorHint")}</small>
           <div className="form-fields">
-            {selectedStrategy?.parameters.map((parameter) => (
+            {selectedStrategy?.parameters.map((parameter) => {
+              const lotParameter = parameter.name === "position_size";
+              const minimum = lotParameter
+                ? selectedSymbol?.volume_min
+                : parameter.minimum ?? undefined;
+              const maximum = lotParameter
+                ? String(Math.min(Number(selectedSymbol?.volume_max ?? 99), 99))
+                : parameter.maximum ?? undefined;
+              const step = lotParameter
+                ? selectedSymbol?.volume_step ?? "0.01"
+                : parameter.value_type === "integer" ? "1" : "any";
+              return (
               <label className="form-field" key={parameter.name}>
                 <span>{advisorLabel(parameter.name, parameter.label)}</span>
                 <input
                   aria-label={advisorLabel(parameter.name, parameter.label)}
-                  max={parameter.maximum ?? undefined}
-                  min={parameter.minimum ?? undefined}
+                  max={maximum}
+                  min={minimum}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
@@ -270,12 +321,22 @@ export function BacktestForm({
                     }))
                   }
                   required
-                  step={parameter.value_type === "integer" ? "1" : "any"}
+                  step={step}
                   type="number"
                   value={form.parameters[parameter.name] ?? ""}
                 />
+                {lotParameter && selectedSymbol ? (
+                  <small>
+                    {t("form.lotRange", {
+                      min: selectedSymbol.volume_min,
+                      step: selectedSymbol.volume_step,
+                      max: maximum ?? 99,
+                    })}
+                  </small>
+                ) : null}
               </label>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -298,10 +359,10 @@ export function BacktestForm({
               <span>{t("form.swap")}</span>
               <input
                 aria-label={t("form.swap")}
-                onChange={(event) => update("swapPerDay", event.target.value)}
+                onChange={(event) => update("swapPerLotPerDay", event.target.value)}
                 step="any"
                 type="number"
-                value={form.swapPerDay}
+                value={form.swapPerLotPerDay}
               />
             </label>
             <label className="form-field">
@@ -336,7 +397,7 @@ export function BacktestForm({
 
       <button className="primary-button" disabled={busy || !form.symbolId} type="submit">
         <Play aria-hidden="true" size={16} />
-        {busy ? t("form.running") : t("form.run")}
+        {busy ? jobMessage || t("job.loading_data") : t("form.run")}
       </button>
 
       {busy && job ? (

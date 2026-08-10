@@ -6,6 +6,7 @@ from uuid import UUID
 
 import pytest
 
+from app.application.backtesting import BacktestService
 from app.domain.backtesting.engine import BacktestEngine
 from app.domain.backtesting.execution import (
     FixedCommissionModel,
@@ -19,11 +20,12 @@ from app.domain.backtesting.models import (
     MAX_BACKTEST_CANDLES,
     BacktestSettings,
     ExitReason,
+    PositionSide,
     Signal,
     SlippageMode,
     StrategyContext,
 )
-from app.domain.entities import Candle
+from app.domain.entities import Candle, Symbol
 from app.domain.enums import CandleSource
 from app.domain.exceptions import DomainError
 
@@ -62,6 +64,24 @@ class ScriptedStrategy:
         return self._signals.get(len(context.history), Signal.HOLD)
 
 
+def test_lot_step_is_measured_from_the_symbol_minimum() -> None:
+    symbol = Symbol(
+        SYMBOL_ID,
+        "CUSTOM",
+        "Offset lot step",
+        2,
+        True,
+        Decimal("0.05"),
+        Decimal("0.1"),
+        Decimal("99"),
+        Decimal("1"),
+    )
+
+    BacktestService._validate_lot_size(Decimal("0.15"), symbol)
+    with pytest.raises(DomainError, match="0.1 lot step"):
+        BacktestService._validate_lot_size(Decimal("0.1"), symbol)
+
+
 def candle(
     sequence: int,
     *,
@@ -89,17 +109,22 @@ def candle(
 def settings(
     *,
     commission: str = "0",
+    contract_size: str = "1",
+    position_size: str = "1",
     stop_loss_pct: str | None = None,
+    swap_per_lot_per_day: str = "0",
     take_profit_pct: str | None = None,
     slippage_mode: SlippageMode = SlippageMode.FIXED,
     slippage_value: str = "0",
 ) -> BacktestSettings:
     return BacktestSettings(
         initial_capital=Decimal("1000"),
-        position_size=Decimal("1"),
+        position_size=Decimal(position_size),
+        contract_size=Decimal(contract_size),
         stop_loss_pct=Decimal(stop_loss_pct) if stop_loss_pct else None,
         take_profit_pct=Decimal(take_profit_pct) if take_profit_pct else None,
         commission_per_fill=Decimal(commission),
+        swap_per_lot_per_day=Decimal(swap_per_lot_per_day),
         slippage_mode=slippage_mode,
         slippage_value=Decimal(slippage_value),
     )
@@ -122,7 +147,8 @@ async def run_engine(
         OrderSimulator(
             FixedCommissionModel(configuration.commission_per_fill),
             slippage,
-            configuration.swap_per_day,
+            configuration.swap_per_lot_per_day,
+            configuration.contract_size,
         ),
     )
     return await engine.run(
@@ -213,6 +239,54 @@ async def test_commission_is_charged_on_entry_and_exit() -> None:
     assert result.trades[0].net_profit == Decimal("0")
     assert result.metrics.final_balance == Decimal("1000")
     assert result.metrics.total_commission == Decimal("4")
+
+
+@pytest.mark.asyncio
+async def test_lot_profit_uses_the_symbol_contract_size() -> None:
+    candles = [
+        candle(1, open_price="1.1000"),
+        candle(2, open_price="1.1000"),
+        candle(3, open_price="1.1010"),
+    ]
+    result = await run_engine(
+        candles,
+        ScriptedStrategy({1: Signal.BUY, 2: Signal.CLOSE}),
+        settings(position_size="0.1", contract_size="100000"),
+    )
+
+    assert result.trades[0].volume == Decimal("0.1")
+    assert result.trades[0].gross_profit == Decimal("10")
+    assert result.metrics.final_balance == Decimal("1010")
+
+
+def test_swap_is_a_monetary_daily_rate_per_lot() -> None:
+    manager = PositionManager()
+    simulator = OrderSimulator(
+        FixedCommissionModel(Decimal("0")),
+        FixedSlippageModel(Decimal("0")),
+        Decimal("-3"),
+        Decimal("100000"),
+    )
+    simulator.open_position(
+        manager,
+        RiskManager(None, None),
+        PositionSide.BUY,
+        Decimal("0.1"),
+        START,
+        Decimal("1.1"),
+    )
+
+    trade = simulator.close_position(
+        manager,
+        1,
+        START + timedelta(days=2),
+        Decimal("1.1"),
+        ExitReason.SIGNAL,
+    )
+
+    assert trade.gross_profit == Decimal("0")
+    assert trade.swap == Decimal("-0.6")
+    assert trade.net_profit == Decimal("-0.6")
 
 
 @pytest.mark.asyncio

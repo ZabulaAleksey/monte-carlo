@@ -18,7 +18,7 @@ endpoint reveals connection timestamps but never authentication material.
 | --- | --- | --- |
 | `POST` | `/api/v1/mt5/heartbeat` | Record terminal liveness and build |
 | `POST` | `/api/v1/mt5/account` | Upsert account metrics |
-| `POST` | `/api/v1/mt5/symbols` | Upsert the symbol catalog |
+| POST | /api/v1/mt5/symbols | Upsert symbols with lot limits and contract size |
 | `POST` | `/api/v1/mt5/candles/batch` | Upsert up to 1,000 candles |
 | `POST` | `/api/v1/mt5/quotes` | Upsert the latest Bid/Ask per symbol |
 | `POST` | `/api/v1/mt5/positions` | Replace an account's open-position snapshot |
@@ -38,6 +38,9 @@ consistent.
   the stored quote is ignored.
 - A successful MT5 candle upsert sets `source=mt5`, including when it replaces
   a matching candle that was previously marked as demo data.
+- Initial candle synchronization covers CandleLookbackDays and is split into
+  batches no larger than 1,000 records. Subsequent synchronization is
+  incremental from the last successfully uploaded candle.
 - Trades use `(account_id, external_id)`.
 - Positions use `(account_id, external_id)` and are treated as a complete
   current snapshot. Positions omitted from a later snapshot are removed.
@@ -71,3 +74,8 @@ tracked example file.
 Before attaching it to a chart, add the backend origin to MetaTrader's allowed
 WebRequest URLs. The function is unavailable in Strategy Tester, so use a demo
 terminal for integration testing.
+
+After updating the EA, compile and reattach or restart it so its in-memory
+candle cursor starts from zero and the initial `CandleLookbackDays` backfill is
+performed. MetaTrader can require several timer cycles to download older broker
+history before `CopyRates` returns it.

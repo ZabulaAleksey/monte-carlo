@@ -30,15 +30,44 @@ class SymbolService:
             raise NotFoundError("Symbol not found")
         return symbol
 
-    async def create(self, name: str, description: str, digits: int, is_active: bool) -> Symbol:
+    async def create(
+        self,
+        name: str,
+        description: str,
+        digits: int,
+        is_active: bool,
+        volume_min: Decimal = Decimal("0.01"),
+        volume_step: Decimal = Decimal("0.01"),
+        volume_max: Decimal = Decimal("99"),
+        contract_size: Decimal = Decimal("1"),
+    ) -> Symbol:
         normalized_name = name.strip().upper()
         if await self._repository.get_by_name(normalized_name) is not None:
             raise ConflictError(f"Symbol {normalized_name} already exists")
-        symbol = Symbol(uuid4(), normalized_name, description.strip(), digits, is_active)
+        symbol = Symbol(
+            uuid4(),
+            normalized_name,
+            description.strip(),
+            digits,
+            is_active,
+            volume_min,
+            volume_step,
+            min(volume_max, Decimal("99")),
+            contract_size,
+        )
         return await self._repository.add(symbol)
 
     async def update(
-        self, symbol_id: UUID, name: str, description: str, digits: int, is_active: bool
+        self,
+        symbol_id: UUID,
+        name: str,
+        description: str,
+        digits: int,
+        is_active: bool,
+        volume_min: Decimal = Decimal("0.01"),
+        volume_step: Decimal = Decimal("0.01"),
+        volume_max: Decimal = Decimal("99"),
+        contract_size: Decimal = Decimal("1"),
     ) -> Symbol:
         existing = await self.get(symbol_id)
         normalized_name = name.strip().upper()
@@ -52,6 +81,10 @@ class SymbolService:
                 description=description.strip(),
                 digits=digits,
                 is_active=is_active,
+                volume_min=volume_min,
+                volume_step=volume_step,
+                volume_max=min(volume_max, Decimal("99")),
+                contract_size=contract_size,
             )
         )
 

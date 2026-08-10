@@ -24,12 +24,22 @@ from app.infrastructure.database.base import Base
 
 class SymbolModel(Base):
     __tablename__ = "symbols"
+    __table_args__ = (
+        CheckConstraint("volume_min > 0", name="ck_symbols_volume_min_positive"),
+        CheckConstraint("volume_step > 0", name="ck_symbols_volume_step_positive"),
+        CheckConstraint("volume_max >= volume_min", name="ck_symbols_volume_range"),
+        CheckConstraint("contract_size > 0", name="ck_symbols_contract_size_positive"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(32), unique=True)
     description: Mapped[str] = mapped_column(String(255), default="")
     digits: Mapped[int]
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    volume_min: Mapped[Decimal] = mapped_column(Numeric(24, 8), default=Decimal("0.01"))
+    volume_step: Mapped[Decimal] = mapped_column(Numeric(24, 8), default=Decimal("0.01"))
+    volume_max: Mapped[Decimal] = mapped_column(Numeric(24, 8), default=Decimal("99"))
+    contract_size: Mapped[Decimal] = mapped_column(Numeric(24, 8), default=Decimal("1"))
 
     candles: Mapped[list[CandleModel]] = relationship(back_populates="symbol")
     positions: Mapped[list[PositionModel]] = relationship(back_populates="symbol")

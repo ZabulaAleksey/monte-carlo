@@ -199,10 +199,18 @@ tbody tr:hover { background: #f7f9f5; }
 .backtest-metrics .metric-card small { left: 18px; bottom: 17px; }
 .result-chart-panel { min-width: 0; overflow: hidden; }
 .chart-frame { min-width: 0; overflow-x: auto; }
-.chart-caption { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; color: var(--muted); font-family: var(--font-mono); font-size: 9px; }
+.chart-caption { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; color: var(--muted); font-family: var(--font-mono); font-size: 9px; flex-wrap: wrap; }
 .equity-chart, .candlestick-chart { width: 100%; min-width: 560px; height: auto; display: block; border: 1px solid var(--line); border-radius: 10px; background: repeating-linear-gradient(to bottom, #f8faf7 0, #f8faf7 62px, #e9eee9 63px); }
 .equity-line { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .equity-area { fill: url("#equity-fill"); stroke: none; }
+.drawdown-line { fill: none; stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; stroke-linecap: round; stroke-linejoin: round; }
+.equity-legend { display: flex; align-items: center; gap: 14px; }
+.equity-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.equity-legend i { width: 16px; height: 3px; display: inline-block; border-radius: 2px; background: var(--green); }
+.equity-legend .drawdown-swatch { background: repeating-linear-gradient(to right, var(--red) 0, var(--red) 5px, transparent 5px, transparent 8px); }
+.chart-grid line { stroke: var(--line); stroke-width: .7; stroke-dasharray: 2 4; }
+.chart-axis-tick { fill: var(--muted); font-family: var(--font-mono); font-size: 8px; }
+.chart-axis-title { fill: var(--ink); font-family: var(--font-mono); font-size: 8px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .candle line { stroke-width: 1.4; }
 .candle rect { stroke-width: 1; }
 .candle.up line, .candle.up rect { fill: #2e8b68; stroke: #175c45; }

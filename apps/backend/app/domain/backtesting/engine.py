@@ -64,8 +64,9 @@ class BacktestEngine:
             settings,
             initial_capital=quantize_decimal(settings.initial_capital),
             position_size=quantize_decimal(settings.position_size),
+            contract_size=quantize_decimal(settings.contract_size),
             commission_per_fill=quantize_decimal(settings.commission_per_fill),
-            swap_per_day=quantize_decimal(settings.swap_per_day),
+            swap_per_lot_per_day=quantize_decimal(settings.swap_per_lot_per_day),
         )
         if control is not None:
             await control.checkpoint("loading_data")
@@ -201,6 +202,8 @@ class BacktestEngine:
             raise DomainError("Initial capital must be greater than zero")
         if settings.position_size <= 0:
             raise DomainError("Position size must be greater than zero")
+        if settings.contract_size <= 0:
+            raise DomainError("Contract size must be greater than zero")
 
     @staticmethod
     def _timeframe_duration(timeframe: str) -> timedelta:

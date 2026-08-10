@@ -1,3 +1,4 @@
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Response, status
@@ -34,10 +35,11 @@ def _run_request(payload: BacktestCreate) -> BacktestRunRequest:
         settings=BacktestSettings(
             initial_capital=payload.initial_capital,
             position_size=payload.position_size,
+            contract_size=Decimal("1"),
             stop_loss_pct=payload.stop_loss_pct,
             take_profit_pct=payload.take_profit_pct,
             commission_per_fill=payload.commission_per_fill,
-            swap_per_day=payload.swap_per_day,
+            swap_per_lot_per_day=payload.swap_per_lot_per_day,
             slippage_mode=payload.slippage_mode,
             slippage_value=payload.slippage_value,
         ),

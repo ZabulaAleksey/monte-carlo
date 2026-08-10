@@ -4,6 +4,10 @@ export interface SymbolRecord {
   description: string;
   digits: number;
   is_active: boolean;
+  volume_min: string;
+  volume_step: string;
+  volume_max: string;
+  contract_size: string;
 }
 
 export interface CandleRecord {
@@ -117,7 +121,7 @@ export interface BacktestCreateRequest {
   stop_loss_pct?: string | null;
   take_profit_pct?: string | null;
   commission_per_fill: string;
-  swap_per_day: string;
+  swap_per_lot_per_day: string;
   slippage_mode: SlippageMode;
   slippage_value: string;
   parameters: Record<string, number | string>;
@@ -146,10 +150,11 @@ export interface BacktestJobRecord {
 export interface BacktestSettingsRecord {
   initial_capital: string;
   position_size: string;
+  contract_size: string;
   stop_loss_pct: string | null;
   take_profit_pct: string | null;
   commission_per_fill: string;
-  swap_per_day: string;
+  swap_per_lot_per_day: string;
   slippage_mode: SlippageMode;
   slippage_value: string;
 }

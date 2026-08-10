@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import uuid4
 
 from sqlalchemy import delete, select, tuple_
@@ -138,6 +139,10 @@ class SqlAlchemyMt5SyncGateway:
             model.description = command.description.strip()
             model.digits = command.digits
             model.is_active = command.is_active
+            model.volume_min = command.volume_min
+            model.volume_step = command.volume_step
+            model.volume_max = min(command.volume_max, Decimal("99"))
+            model.contract_size = command.contract_size
         await self._commit("symbols", terminal_id)
         return SyncResult(len(commands), created, updated)
 

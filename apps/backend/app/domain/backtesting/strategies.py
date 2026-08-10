@@ -18,7 +18,7 @@ class MovingAverageCrossStrategy:
     """Infrastructure demo only; no profitability claim is made."""
 
     name = "moving_average_cross"
-    version = "1.1.0"
+    version = "1.2.0"
 
     def validate_parameters(self, parameters: dict[str, object]) -> None:
         short_window = self._window(parameters, "short_window")
@@ -125,8 +125,8 @@ MOVING_AVERAGE_CROSS_DEFINITION = StrategyDefinition(
         StrategyParameterDefinition("short_window", "Fast MA period", "integer", 5, 1, 200),
         StrategyParameterDefinition("long_window", "Slow MA period", "integer", 20, 2, 500),
         StrategyParameterDefinition(
-            "position_size", "Position size / units", "decimal", Decimal("10000"),
-            Decimal("0.00000001"), Decimal("1000000000")
+            "position_size", "Position size / lots", "decimal", Decimal("0.01"),
+            Decimal("0.01"), Decimal("99")
         ),
         StrategyParameterDefinition(
             "stop_loss_pct", "Stop loss / %", "decimal", Decimal("1"),

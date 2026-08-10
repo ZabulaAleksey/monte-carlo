@@ -22,7 +22,17 @@ def _utc(value: datetime) -> datetime:
 
 
 def _symbol(model: SymbolModel) -> Symbol:
-    return Symbol(model.id, model.name, model.description, model.digits, model.is_active)
+    return Symbol(
+        model.id,
+        model.name,
+        model.description,
+        model.digits,
+        model.is_active,
+        model.volume_min,
+        model.volume_step,
+        model.volume_max,
+        model.contract_size,
+    )
 
 
 def _candle(model: CandleModel) -> Candle:
@@ -101,6 +111,10 @@ class SqlAlchemySymbolRepository:
                 description=symbol.description,
                 digits=symbol.digits,
                 is_active=symbol.is_active,
+                volume_min=symbol.volume_min,
+                volume_step=symbol.volume_step,
+                volume_max=symbol.volume_max,
+                contract_size=symbol.contract_size,
             )
         )
         await self._session.commit()
@@ -113,6 +127,10 @@ class SqlAlchemySymbolRepository:
             model.description = symbol.description
             model.digits = symbol.digits
             model.is_active = symbol.is_active
+            model.volume_min = symbol.volume_min
+            model.volume_step = symbol.volume_step
+            model.volume_max = symbol.volume_max
+            model.contract_size = symbol.contract_size
             await self._session.commit()
         return symbol
 

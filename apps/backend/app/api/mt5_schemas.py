@@ -53,6 +53,16 @@ class Mt5SymbolItem(BaseModel):
     description: str = Field(default="", max_length=255)
     digits: int = Field(ge=0, le=12)
     is_active: bool = True
+    volume_min: Decimal = Field(default=Decimal("0.01"), gt=0, le=99)
+    volume_step: Decimal = Field(default=Decimal("0.01"), gt=0, le=99)
+    volume_max: Decimal = Field(default=Decimal("99"), gt=0)
+    contract_size: Decimal = Field(default=Decimal("1"), gt=0)
+
+    @model_validator(mode="after")
+    def validate_volume_range(self) -> Mt5SymbolItem:
+        if self.volume_min > min(self.volume_max, Decimal("99")):
+            raise ValueError("volume_min must not exceed the platform volume maximum")
+        return self
 
 
 class Mt5SymbolsRequest(Mt5RequestBase):

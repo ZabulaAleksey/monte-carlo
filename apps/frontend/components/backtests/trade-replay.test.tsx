@@ -74,4 +74,27 @@ describe("TradeReplay", () => {
     expect(within(ledger as HTMLElement).getByText("102.10")).toBeInTheDocument();
     expect(within(ledger as HTMLElement).getByText("200.10")).toBeInTheDocument();
   });
+
+  it("opens saved research at the end and stop preserves the current frame", () => {
+    const candles = [
+      candle("one", "2026-01-01T00:00:00Z"),
+      candle("two", "2026-01-01T01:00:00Z"),
+      candle("three", "2026-01-01T02:00:00Z"),
+    ];
+    const trades = [
+      trade(1, "2026-01-01T00:30:00Z", "2026-01-01T01:30:00Z", "100.10", "102.10"),
+    ];
+    const { rerender } = render(
+      <TradeReplay candles={candles} startAtEnd trades={trades} />,
+    );
+
+    expect(screen.getByText("Candle 3 of 3")).toBeInTheDocument();
+    expect(screen.getByText("102.10")).toBeInTheDocument();
+
+    rerender(<TradeReplay candles={candles} trades={trades} />);
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(screen.getByText("Candle 1 of 3")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(screen.getByText("Candle 1 of 3")).toBeInTheDocument();
+  });
 });

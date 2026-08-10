@@ -208,10 +208,18 @@ class SqlAlchemyBacktestRunRepository:
         settings = BacktestSettings(
             initial_capital=Decimal(str(model.settings["initial_capital"])),
             position_size=Decimal(str(model.settings["position_size"])),
+            contract_size=Decimal(str(model.settings.get("contract_size", "1"))),
             stop_loss_pct=self._optional_decimal(model.settings.get("stop_loss_pct")),
             take_profit_pct=self._optional_decimal(model.settings.get("take_profit_pct")),
             commission_per_fill=Decimal(str(model.settings["commission_per_fill"])),
-            swap_per_day=Decimal(str(model.settings["swap_per_day"])),
+            swap_per_lot_per_day=Decimal(
+                str(
+                    model.settings.get(
+                        "swap_per_lot_per_day",
+                        model.settings.get("swap_per_day", "0"),
+                    )
+                )
+            ),
             slippage_mode=SlippageMode(str(model.settings["slippage_mode"])),
             slippage_value=Decimal(str(model.settings["slippage_value"])),
         )
@@ -282,6 +290,7 @@ class SqlAlchemyBacktestRunRepository:
         return {
             "initial_capital": str(settings.initial_capital),
             "position_size": str(settings.position_size),
+            "contract_size": str(settings.contract_size),
             "stop_loss_pct": (
                 str(settings.stop_loss_pct) if settings.stop_loss_pct is not None else None
             ),
@@ -289,7 +298,7 @@ class SqlAlchemyBacktestRunRepository:
                 str(settings.take_profit_pct) if settings.take_profit_pct is not None else None
             ),
             "commission_per_fill": str(settings.commission_per_fill),
-            "swap_per_day": str(settings.swap_per_day),
+            "swap_per_lot_per_day": str(settings.swap_per_lot_per_day),
             "slippage_mode": settings.slippage_mode.value,
             "slippage_value": str(settings.slippage_value),
         }

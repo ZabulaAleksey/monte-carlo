@@ -20,8 +20,9 @@ does not import `CTrade`, call `OrderSend`, or expose any command endpoint.
 6. In MetaTrader, open **Tools → Options → Expert Advisors** and add the exact
    `BridgeBaseUrl` value from `mt5/config.local` to the allowed WebRequest
    URLs.
-7. In the EA **Inputs** tab, copy `BridgeBaseUrl`, `BridgeTerminalId`, and
-   `MT5_API_KEY` from `mt5/config.local`.
+7. In the EA **Inputs** tab, copy BridgeBaseUrl, BridgeTerminalId, and
+   MT5_API_KEY from mt5/config.local. Keep CandleLookbackDays=3650 to preload
+   up to ten years, or reduce it when the terminal stores less history.
 
 The EA exposes all three values as input parameters in
 `mt5/Experts/MonteCarloBridge.mq5`. It deliberately does not read
@@ -34,7 +35,9 @@ prints request headers, bodies, or the key. Temporary network errors, HTTP 408,
 
 ## Operational notes
 
-- Only completed candles are sent (`CopyRates` starts at bar 1).
+- Only completed candles are sent. On first synchronization the bridge requests
+  the configured CandleLookbackDays range and uploads it in bounded batches;
+  later calls request only candles newer than the last successful batch.
 - Live Bid/Ask observations are sent every `QuoteSeconds` (two seconds by default).
 - Initial startup sends a bounded lookback; later calls send new data only.
 - Deal and candle batches are safe to resend because backend uniqueness keys
@@ -43,3 +46,5 @@ prints request headers, bodies, or the key. Temporary network errors, HTTP 408,
   snapshot for that account.
 - MetaTrader does not allow `WebRequest` in Strategy Tester. Test the bridge on
   a demo terminal and explicitly allow the backend URL.
+- Available depth still depends on the broker history and MetaTrader's
+  **Max bars in chart** setting.

@@ -25,9 +25,25 @@ def test_mql5_bridge_exposes_documented_connection_inputs() -> None:
     assert "input string BridgeTerminalId" in source
     assert "input string MT5_API_KEY" in source
     assert "input int    QuoteSeconds" in source
+    assert "input int    CandleLookbackDays" in source
     assert 'HttpPost("/api/v1/mt5/quotes"' in source
     assert "SymbolInfoTick(symbol,tick)" in source
     assert "BridgeApiKey" not in source
+
+
+def test_mql5_bridge_backfills_candles_and_sends_symbol_trade_spec() -> None:
+    project_root = Path(__file__).resolve().parents[3]
+    source = (project_root / "mt5" / "Experts" / "MonteCarloBridge.mq5").read_text(
+        encoding="utf-8"
+    )
+
+    assert "CopyRates(symbol,CandleTimeframe,from_time,to_time,rates)" in source
+    assert "CandleLookbackDays)*86400" in source
+    assert "FlushCandleBatch" in source
+    assert "SYMBOL_VOLUME_MIN" in source
+    assert "SYMBOL_VOLUME_STEP" in source
+    assert "SYMBOL_VOLUME_MAX" in source
+    assert "SYMBOL_TRADE_CONTRACT_SIZE" in source
 
 
 def test_mt5_connection_settings_are_present_in_all_examples() -> None:

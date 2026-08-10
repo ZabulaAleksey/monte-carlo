@@ -178,11 +178,13 @@ class OrderSimulator:
         self,
         commission_model: CommissionModel,
         slippage_model: SlippageModel,
-        swap_per_day: Decimal,
+        swap_per_lot_per_day: Decimal,
+        contract_size: Decimal = Decimal("1"),
     ) -> None:
         self._commission_model = commission_model
         self._slippage_model = slippage_model
-        self._swap_per_day = swap_per_day
+        self._swap_per_lot_per_day = swap_per_lot_per_day
+        self._contract_size = contract_size
 
     def open_position(
         self,
@@ -229,7 +231,10 @@ class OrderSimulator:
         exit_commission = self._commission_model.calculate(fill_price, position.quantity)
         direction = Decimal("1") if position.side == PositionSide.BUY else Decimal("-1")
         gross_profit = quantize_decimal(
-            (fill_price - position.open_price) * position.quantity * direction
+            (fill_price - position.open_price)
+            * position.quantity
+            * self._contract_size
+            * direction
         )
         swap = self.accrued_swap(position, timestamp)
         total_commission = quantize_decimal(position.entry_commission + exit_commission)
@@ -254,9 +259,14 @@ class OrderSimulator:
     def unrealized_profit(self, position: OpenPosition, price: Decimal) -> Decimal:
         direction = Decimal("1") if position.side == PositionSide.BUY else Decimal("-1")
         return quantize_decimal(
-            (price - position.open_price) * position.quantity * direction
+            (price - position.open_price)
+            * position.quantity
+            * self._contract_size
+            * direction
         )
 
     def accrued_swap(self, position: OpenPosition, timestamp: datetime) -> Decimal:
         days = max((timestamp.date() - position.opened_at.date()).days, 0)
-        return quantize_decimal(self._swap_per_day * Decimal(days))
+        return quantize_decimal(
+            self._swap_per_lot_per_day * position.quantity * Decimal(days)
+        )

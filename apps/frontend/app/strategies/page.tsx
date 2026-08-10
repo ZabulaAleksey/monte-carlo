@@ -49,6 +49,8 @@ export default function StrategiesPage(): React.JSX.Element {
   const [running, setRunning] = useState(false);
   const [loadingRun, setLoadingRun] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [replayFromStart, setReplayFromStart] = useState(false);
+  const [replaySpeed, setReplaySpeed] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const selectionSequence = useRef(0);
   const jobSequence = useRef(0);
@@ -104,6 +106,7 @@ export default function StrategiesPage(): React.JSX.Element {
     selectionSequence.current += 1;
     setLoadingRun(false);
     setRunning(true);
+    setJob(null);
     setError(null);
     try {
       let current = await apiClient.startBacktestJob(payload);
@@ -126,6 +129,7 @@ export default function StrategiesPage(): React.JSX.Element {
       if (sequence !== jobSequence.current) return;
       setResult(completed.result);
       setCandles(completed.candles);
+      setReplayFromStart(true);
       setRuns(await apiClient.getBacktestRuns());
     } catch (reason: unknown) {
       if (sequence === jobSequence.current) {
@@ -146,6 +150,7 @@ export default function StrategiesPage(): React.JSX.Element {
       if (selection !== selectionSequence.current) return;
       setResult(completed.result);
       setCandles(completed.candles);
+      setReplayFromStart(false);
     } catch (reason: unknown) {
       if (selection === selectionSequence.current) {
         setError(reason instanceof Error ? reason.message : "Unknown error");
@@ -313,10 +318,17 @@ export default function StrategiesPage(): React.JSX.Element {
                   <EquityChart points={result.equity_curve} trades={result.trades} />
                 </section>
 
-                <TradeReplay key={result.id} candles={candles} trades={result.trades} />
+                <TradeReplay
+                  key={result.id}
+                  candles={candles}
+                  onSpeedChange={setReplaySpeed}
+                  speed={replaySpeed}
+                  startAtEnd={!replayFromStart}
+                  trades={result.trades}
+                />
 
                 <div className="run-settings panel">
-                  <div><span>{t("settings.position")}</span><strong>{result.settings.position_size}</strong></div>
+                  <div><span>{t("settings.position")}</span><strong>{result.settings.position_size} {t("common.lots")}</strong></div>
                   <div><span>{t("settings.risk")}</span><strong>{result.settings.stop_loss_pct ?? "off"}% / {result.settings.take_profit_pct ?? "off"}%</strong></div>
                   <div><span>{t("settings.commission")}</span><strong>{formatMoney(result.metrics.total_commission, intlLocale)}</strong></div>
                   <div><span>{t("settings.swap")}</span><strong>{formatMoney(result.metrics.total_swap, intlLocale)}</strong></div>

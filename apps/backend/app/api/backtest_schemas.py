@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.backtesting.models import (
     BacktestJobState,
@@ -27,7 +27,7 @@ class BacktestCreate(BaseModel):
         default=Decimal("10000"), gt=0, max_digits=24, decimal_places=8
     )
     position_size: Decimal = Field(
-        default=Decimal("10000"), gt=0, max_digits=24, decimal_places=8
+        default=Decimal("0.01"), gt=0, le=99, max_digits=24, decimal_places=8
     )
     stop_loss_pct: Decimal | None = Field(
         default=Decimal("1"), gt=0, max_digits=16, decimal_places=8
@@ -38,8 +38,11 @@ class BacktestCreate(BaseModel):
     commission_per_fill: Decimal = Field(
         default=Decimal("0"), ge=0, max_digits=24, decimal_places=8
     )
-    swap_per_day: Decimal = Field(
-        default=Decimal("0"), max_digits=24, decimal_places=8
+    swap_per_lot_per_day: Decimal = Field(
+        default=Decimal("0"),
+        validation_alias=AliasChoices("swap_per_lot_per_day", "swap_per_day"),
+        max_digits=24,
+        decimal_places=8,
     )
     slippage_mode: SlippageMode = SlippageMode.FIXED
     slippage_value: Decimal = Field(
@@ -61,10 +64,11 @@ class BacktestSettingsResponse(BaseModel):
 
     initial_capital: Decimal
     position_size: Decimal
+    contract_size: Decimal
     stop_loss_pct: Decimal | None
     take_profit_pct: Decimal | None
     commission_per_fill: Decimal
-    swap_per_day: Decimal
+    swap_per_lot_per_day: Decimal
     slippage_mode: SlippageMode
     slippage_value: Decimal
 

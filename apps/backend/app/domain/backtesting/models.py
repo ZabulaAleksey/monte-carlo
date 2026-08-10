@@ -51,10 +51,11 @@ class BacktestJobState(StrEnum):
 class BacktestSettings:
     initial_capital: Decimal
     position_size: Decimal
+    contract_size: Decimal = Decimal("1")
     stop_loss_pct: Decimal | None = None
     take_profit_pct: Decimal | None = None
     commission_per_fill: Decimal = Decimal("0")
-    swap_per_day: Decimal = Decimal("0")
+    swap_per_lot_per_day: Decimal = Decimal("0")
     slippage_mode: SlippageMode = SlippageMode.FIXED
     slippage_value: Decimal = Decimal("0")
 

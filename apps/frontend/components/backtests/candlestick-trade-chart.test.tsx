@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { CandlestickTradeChart } from "./candlestick-trade-chart";
@@ -15,6 +15,14 @@ const candle = (id: string, openTime: string): CandleRecord => ({
   close: "101",
   volume: "100",
   source: "demo",
+});
+
+const candleAtPrice = (id: string, index: number, price: number): CandleRecord => ({
+  ...candle(id, new Date(Date.UTC(2026, 0, 1, index)).toISOString()),
+  open: String(price),
+  high: String(price + 2),
+  low: String(price - 2),
+  close: String(price + 1),
 });
 
 const trade: VirtualTradeRecord = {
@@ -66,6 +74,33 @@ describe("CandlestickTradeChart", () => {
     expect(container.querySelector('[data-trade-sequence="1"]')).toBeInTheDocument();
     expect(screen.getByText("+$2.00")).toBeInTheDocument();
     expect(screen.getByLabelText("Trade 1 exit, P&L +$2.00")).toBeInTheDocument();
+
+    delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
+    delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+  });
+
+  it("rescales prices from the candles in the visible horizontal viewport", async () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+      configurable: true,
+      get: () => 1460,
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 300,
+    });
+    const candles = Array.from({ length: 200 }, (_, index) =>
+      candleAtPrice(`candle-${index}`, index, index < 100 ? 100 : 1000),
+    );
+    const { container } = render(
+      <CandlestickTradeChart candles={candles} trades={[]} />,
+    );
+    const frame = container.querySelector(".chart-frame") as HTMLDivElement;
+    const chart = container.querySelector(".candlestick-chart") as SVGSVGElement;
+
+    await waitFor(() => expect(Number(chart.dataset.scaleMax)).toBeLessThan(200));
+    frame.scrollLeft = 1000;
+    fireEvent.scroll(frame);
+    await waitFor(() => expect(Number(chart.dataset.scaleMin)).toBeGreaterThan(900));
 
     delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
     delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;

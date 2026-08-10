@@ -39,6 +39,10 @@ class SymbolSyncCommand:
     description: str
     digits: int
     is_active: bool
+    volume_min: Decimal
+    volume_step: Decimal
+    volume_max: Decimal
+    contract_size: Decimal
 
 
 @dataclass(frozen=True, slots=True)

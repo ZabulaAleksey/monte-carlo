@@ -93,7 +93,7 @@ describe("DashboardPage", () => {
       },
     ]);
     vi.mocked(apiClient.getSymbols).mockResolvedValue([
-      { id: "xauusd", name: "XAUUSD", description: "Gold", digits: 2, is_active: true },
+      { id: "xauusd", name: "XAUUSD", description: "Gold", digits: 2, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100" },
     ]);
     vi.mocked(apiClient.getCandles).mockResolvedValue([
       {
@@ -146,8 +146,8 @@ describe("DashboardPage", () => {
       },
     ]);
     vi.mocked(apiClient.getSymbols).mockResolvedValue([
-      { id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true },
-      { id: "xauusd", name: "XAUUSD", description: "Gold", digits: 2, is_active: true },
+      { id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100000" },
+      { id: "xauusd", name: "XAUUSD", description: "Gold", digits: 2, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100" },
     ]);
     vi.mocked(apiClient.getCandles).mockResolvedValue([
       {

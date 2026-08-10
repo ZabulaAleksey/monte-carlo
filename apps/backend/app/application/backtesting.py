@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from app.application.ports import SymbolRepository
@@ -28,7 +29,8 @@ from app.domain.backtesting.models import (
     VirtualTrade,
 )
 from app.domain.backtesting.strategies import create_strategy, strategy_catalog
-from app.domain.exceptions import NotFoundError
+from app.domain.entities import Symbol
+from app.domain.exceptions import DomainError, NotFoundError
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,11 +63,17 @@ class BacktestService:
         request: BacktestRunRequest,
         control: BacktestControl | None = None,
     ) -> StoredBacktestResult:
-        if await self._symbols.get(request.symbol_id) is None:
+        symbol = await self._symbols.get(request.symbol_id)
+        if symbol is None:
             raise NotFoundError("Symbol not found")
         strategy = create_strategy(request.strategy_name)
         strategy.validate_parameters(request.parameters)
         resolved_settings = strategy.configure(request.parameters, request.settings)
+        self._validate_lot_size(resolved_settings.position_size, symbol)
+        resolved_settings = replace(
+            resolved_settings,
+            contract_size=symbol.contract_size,
+        )
         slippage = (
             FixedSlippageModel(resolved_settings.slippage_value)
             if resolved_settings.slippage_mode == SlippageMode.FIXED
@@ -81,7 +89,8 @@ class BacktestService:
             OrderSimulator(
                 FixedCommissionModel(resolved_settings.commission_per_fill),
                 slippage,
-                resolved_settings.swap_per_day,
+                resolved_settings.swap_per_lot_per_day,
+                resolved_settings.contract_size,
             ),
         )
         result = await engine.run(
@@ -95,6 +104,18 @@ class BacktestService:
             control=control,
         )
         return await self._repository.add(result)
+
+    @staticmethod
+    def _validate_lot_size(position_size: Decimal, symbol: Symbol) -> None:
+        maximum = min(symbol.volume_max, Decimal("99"))
+        if position_size < symbol.volume_min or position_size > maximum:
+            raise DomainError(
+                f"Position size must be between {symbol.volume_min} and {maximum} lots"
+            )
+        if (position_size - symbol.volume_min) % symbol.volume_step != 0:
+            raise DomainError(
+                f"Position size must use the {symbol.volume_step} lot step"
+            )
 
     async def list(self, limit: int = 100) -> list[BacktestRunSummary]:
         return await self._repository.list(limit)

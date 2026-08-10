@@ -11,24 +11,34 @@ import { useI18n } from "@/lib/i18n";
 
 interface TradeReplayProps {
   candles: CandleRecord[];
+  onSpeedChange?: (speed: number) => void;
+  speed?: number;
+  startAtEnd?: boolean;
   trades: VirtualTradeRecord[];
 }
 
 const SPEEDS = [0.5, 1, 2, 4, 5, 10, 20, 50, 100] as const;
 
-export function TradeReplay({ candles, trades }: TradeReplayProps): React.JSX.Element {
+const ignoreSpeedChange = (): void => undefined;
+
+export function TradeReplay({
+  candles,
+  onSpeedChange = ignoreSpeedChange,
+  speed = 1,
+  startAtEnd = false,
+  trades,
+}: TradeReplayProps): React.JSX.Element {
   const { t } = useI18n();
   const sorted = useMemo(() => sortCandles(candles), [candles]);
   const [enabled, setEnabled] = useState(true);
   const [followLatest, setFollowLatest] = useState(true);
-  const [playing, setPlaying] = useState(true);
-  const [speed, setSpeed] = useState<number>(1);
-  const [index, setIndex] = useState(0);
+  const [playing, setPlaying] = useState(!startAtEnd);
+  const [index, setIndex] = useState(startAtEnd ? Math.max(sorted.length - 1, 0) : 0);
 
   useEffect(() => {
-    setIndex(0);
-    setPlaying(true);
-  }, [candles]);
+    setIndex(startAtEnd ? Math.max(sorted.length - 1, 0) : 0);
+    setPlaying(!startAtEnd);
+  }, [candles, sorted.length, startAtEnd]);
 
   useEffect(() => {
     if (!enabled || !playing || sorted.length === 0 || index >= sorted.length - 1) {
@@ -90,7 +100,7 @@ export function TradeReplay({ candles, trades }: TradeReplayProps): React.JSX.El
           {t("replay.speed")}
           <select
             disabled={!enabled}
-            onChange={(event) => setSpeed(Number(event.target.value))}
+            onChange={(event) => onSpeedChange(Number(event.target.value))}
             value={speed}
           >
             {SPEEDS.map((item) => <option key={item} value={item}>{item}{"\u00d7"}</option>)}
@@ -115,7 +125,6 @@ export function TradeReplay({ candles, trades }: TradeReplayProps): React.JSX.El
             disabled={!enabled || sorted.length === 0}
             onClick={() => {
               setPlaying(false);
-              setIndex(0);
             }}
             type="button"
           >
