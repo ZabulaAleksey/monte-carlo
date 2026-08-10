@@ -17,7 +17,7 @@ export function CandlestickTradeChart({
   trades,
   visibleUntil,
 }: CandlestickTradeChartProps): React.JSX.Element {
-  const { t } = useI18n();
+  const { intlLocale, t } = useI18n();
   const visible = sortCandles(candles);
   if (visible.length === 0) {
     return <div className="chart-empty">{t("replay.empty")}</div>;
@@ -43,7 +43,7 @@ export function CandlestickTradeChart({
         <span>{t("replay.markers")}</span>
       </div>
       <svg
-        aria-label={`Candlestick chart with ${trades.length} virtual trades`}
+        aria-label={t("replay.chartAria", { count: trades.length })}
         className="candlestick-chart"
         role="img"
         style={{ minWidth: `${width}px` }}
@@ -58,7 +58,13 @@ export function CandlestickTradeChart({
           return (
             <g className={`candle ${direction}`} key={item.id}>
               <title>
-                {`${new Date(item.open_time).toLocaleString()}: O ${item.open}, H ${item.high}, L ${item.low}, C ${item.close}`}
+                {t("dashboard.candleTooltip", {
+                  time: new Date(item.open_time).toLocaleString(intlLocale),
+                  open: item.open,
+                  high: item.high,
+                  low: item.low,
+                  close: item.close,
+                })}
               </title>
               <line x1={x(index)} x2={x(index)} y1={y(Number(item.high))} y2={y(Number(item.low))} />
               <rect
@@ -77,16 +83,20 @@ export function CandlestickTradeChart({
           const isEntry = marker.kind === "entry";
           const markerY = isEntry ? y(Number(item.low)) + 13 : y(Number(item.high)) - 13;
           const className = `trade-marker ${marker.side} ${marker.kind}`;
+          const side = marker.side === "buy" ? t("common.buy") : t("common.sell");
           return isEntry ? (
             <polygon
-              aria-label={`Trade ${marker.tradeSequence} ${marker.side} entry`}
+              aria-label={t("replay.entryAria", {
+                sequence: marker.tradeSequence,
+                side,
+              })}
               className={className}
               key={`${marker.tradeSequence}-entry`}
               points={`${markerX},${markerY - 6} ${markerX - 6},${markerY + 5} ${markerX + 6},${markerY + 5}`}
             />
           ) : (
             <circle
-              aria-label={`Trade ${marker.tradeSequence} exit`}
+              aria-label={t("replay.exitAria", { sequence: marker.tradeSequence })}
               className={className}
               cx={markerX}
               cy={markerY}

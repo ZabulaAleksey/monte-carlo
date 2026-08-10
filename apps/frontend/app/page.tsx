@@ -18,6 +18,7 @@ import {
   selectSourceCandles,
   selectSourceQuotes,
 } from "@/lib/dashboard";
+import { useI18n } from "@/lib/i18n";
 
 const MARKET_SERIES_STORAGE_KEY = "montecarlo.dashboard.market-series.v1";
 
@@ -30,15 +31,16 @@ function storedMarketSeries(): string | null {
   }
 }
 
-function money(value: number, currency = "USD"): string {
+function money(value: number, locale: string, currency = "USD"): string {
   try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value);
+    return new Intl.NumberFormat(locale, { style: "currency", currency }).format(value);
   } catch {
     return `${value.toFixed(2)} ${currency}`;
   }
 }
 
 export default function DashboardPage(): React.JSX.Element {
+  const { intlLocale, t } = useI18n();
   const { data, error } = useDashboardData();
   const { status: mt5Status } = useMt5Status();
   const [selectedSeriesKey, setSelectedSeriesKey] = useState<string | null>(
@@ -65,7 +67,8 @@ export default function DashboardPage(): React.JSX.Element {
   const winners = accountTrades.filter((trade) => Number(trade.profit) > 0).length;
   const winRate = accountTrades.length ? (winners / accountTrades.length) * 100 : 0;
   const balance = Number(account?.balance ?? 0);
-  const sourceLabel = account?.external_id ?? "No account data";
+  const sourceLabel = account?.external_id ?? t("dashboard.noAccount");
+  const translatedSource = source === "mt5" ? t("common.mt5") : t("common.demo");
 
   const selectSeries = (key: string): void => {
     setSelectedSeriesKey(key);
@@ -79,20 +82,20 @@ export default function DashboardPage(): React.JSX.Element {
   return (
     <>
       <PageHeader
-        eyebrow="Portfolio overview"
-        title="Trading performance, in focus."
-        description="A concise view of connected accounts, execution history and the latest market feed."
+        eyebrow={t("dashboard.eyebrow")}
+        title={t("dashboard.title")}
+        description={t("dashboard.description")}
       />
       {error ? <ErrorState message={error} /> : null}
       {!data && !error ? <LoadingState /> : null}
       {data ? (
         <>
           {mt5Status ? <Mt5ConnectionCard status={mt5Status} /> : null}
-          <section className="metric-grid" aria-label="Portfolio metrics">
+          <section className="metric-grid" aria-label={t("dashboard.metrics")}>
             <article className="metric-card primary">
               <div className="metric-icon"><WalletCards size={19} /></div>
-              <span>Portfolio balance</span>
-              <strong>{money(balance, account?.currency)}</strong>
+              <span>{t("dashboard.balance")}</span>
+              <strong>{money(balance, intlLocale, account?.currency)}</strong>
               <small className="metric-source">
                 <span className={`source-dot ${source}`} />
                 {sourceLabel}
@@ -100,20 +103,20 @@ export default function DashboardPage(): React.JSX.Element {
             </article>
             <article className="metric-card">
               <div className="metric-icon"><LineChart size={19} /></div>
-              <span>Realized P&amp;L</span>
-              <strong className={profit >= 0 ? "positive" : "negative"}>{money(profit)}</strong>
-              <small><ArrowUpRight size={14} /> Across {accountTrades.length} account trades</small>
+              <span>{t("dashboard.realized")}</span>
+              <strong className={profit >= 0 ? "positive" : "negative"}>{money(profit, intlLocale)}</strong>
+              <small><ArrowUpRight size={14} /> {t("dashboard.acrossTrades", { count: accountTrades.length })}</small>
             </article>
             <article className="metric-card">
               <div className="metric-icon"><Landmark size={19} /></div>
-              <span>Win rate</span>
+              <span>{t("dashboard.winRate")}</span>
               <strong>{winRate.toFixed(1)}%</strong>
-              <small>{winRate >= 50 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />} Closed positions</small>
+              <small>{winRate >= 50 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />} {t("dashboard.closedPositions")}</small>
             </article>
             <article className="metric-card">
-              <span>Market coverage</span>
+              <span>{t("dashboard.marketCoverage")}</span>
               <strong>{data.symbols.length}</strong>
-              <small>{sourceCandles.length} candles loaded</small>
+              <small>{t("dashboard.candlesLoaded", { count: sourceCandles.length })}</small>
             </article>
           </section>
           <section className="content-grid">
@@ -123,14 +126,14 @@ export default function DashboardPage(): React.JSX.Element {
                   <span className="eyebrow">
                     {activeSeries
                       ? `${activeSeries.symbol.name} · ${activeSeries.timeframe}`
-                      : "Waiting for candles"}
+                      : t("dashboard.waitingCandles")}
                   </span>
-                  <h2>Market pulse</h2>
+                  <h2>{t("dashboard.marketPulse")}</h2>
                 </div>
                 <div className="market-controls">
                   {marketSeries.length > 1 ? (
                     <select
-                      aria-label="Market pulse instrument"
+                      aria-label={t("dashboard.marketInstrument")}
                       value={activeSeries?.key ?? ""}
                       onChange={(event) => selectSeries(event.target.value)}
                     >
@@ -164,8 +167,10 @@ export default function DashboardPage(): React.JSX.Element {
                     </div>
                     <small>
                       {activeQuote
-                        ? `Live · ${new Date(activeQuote.observed_at).toLocaleTimeString()}`
-                        : "Waiting for Bid/Ask"}
+                        ? t("dashboard.liveQuote", {
+                            time: new Date(activeQuote.observed_at).toLocaleTimeString(intlLocale),
+                          })
+                        : t("dashboard.waitingBidAsk")}
                     </small>
                   </div>
                   <MarketCandlestickChart
@@ -177,25 +182,25 @@ export default function DashboardPage(): React.JSX.Element {
                 </>
               ) : (
                 <div className="panel-empty">
-                  No {source.toUpperCase()} candles have been stored yet. The dashboard
-                  refreshes every 15 seconds.
+                  {t("dashboard.noCandles", { source: translatedSource })}
                 </div>
               )}
             </article>
             <article className="panel">
-              <div className="panel-heading"><div><span className="eyebrow">Execution</span><h2>Recent trades</h2></div></div>
+              <div className="panel-heading"><div><span className="eyebrow">{t("dashboard.execution")}</span><h2>{t("dashboard.recentTrades")}</h2></div></div>
               <div className="trade-list">
                 {accountTrades.slice(0, 5).map((trade) => {
                   const symbol = data.symbols.find((item) => item.id === trade.symbol_id)?.name ?? "—";
+                  const side = trade.side === "buy" ? t("common.buy") : t("common.sell");
                   return (
                     <div className="trade-row" key={trade.id}>
-                      <div><strong>{symbol}</strong><small>{trade.side.toUpperCase()} · {trade.volume} lots</small></div>
-                      <strong className={Number(trade.profit) >= 0 ? "positive" : "negative"}>{money(Number(trade.profit))}</strong>
+                      <div><strong>{symbol}</strong><small>{t("dashboard.tradeVolume", { side, volume: trade.volume })}</small></div>
+                      <strong className={Number(trade.profit) >= 0 ? "positive" : "negative"}>{money(Number(trade.profit), intlLocale)}</strong>
                     </div>
                   );
                 })}
                 {accountTrades.length === 0 ? (
-                  <div className="panel-empty compact">No trades for the selected account.</div>
+                  <div className="panel-empty compact">{t("dashboard.noTrades")}</div>
                 ) : null}
               </div>
             </article>

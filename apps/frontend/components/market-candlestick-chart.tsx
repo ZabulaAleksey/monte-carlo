@@ -1,4 +1,5 @@
 import type { CandleRecord, QuoteRecord } from "@/lib/api/types";
+import { useI18n } from "@/lib/i18n";
 
 interface MarketCandlestickChartProps {
   candles: CandleRecord[];
@@ -17,11 +18,12 @@ export function MarketCandlestickChart({
   symbol,
   digits,
 }: MarketCandlestickChartProps): React.JSX.Element {
+  const { intlLocale, t } = useI18n();
   const visible = [...candles]
     .sort((left, right) => Date.parse(left.open_time) - Date.parse(right.open_time))
     .slice(-48);
   if (visible.length === 0) {
-    return <div className="panel-empty">No candles are available.</div>;
+    return <div className="panel-empty">{t("dashboard.chartEmpty")}</div>;
   }
 
   const prices = visible.flatMap((candle) => [Number(candle.low), Number(candle.high)]);
@@ -53,7 +55,7 @@ export function MarketCandlestickChart({
   return (
     <div className="market-chart-frame">
       <svg
-        aria-label={`Japanese candlestick chart for ${symbol} with ${visible.length} candles`}
+        aria-label={t("dashboard.chartAria", { symbol, count: visible.length })}
         className="market-candlestick-chart"
         role="img"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
@@ -80,7 +82,13 @@ export function MarketCandlestickChart({
           return (
             <g className={`market-candle ${direction}`} key={candle.id}>
               <title>
-                {`${new Date(candle.open_time).toLocaleString()}: O ${candle.open}, H ${candle.high}, L ${candle.low}, C ${candle.close}`}
+                {t("dashboard.candleTooltip", {
+                  time: new Date(candle.open_time).toLocaleString(intlLocale),
+                  open: candle.open,
+                  high: candle.high,
+                  low: candle.low,
+                  close: candle.close,
+                })}
               </title>
               <line
                 x1={x(index)}
@@ -118,7 +126,7 @@ export function MarketCandlestickChart({
             x={x(index)}
             y={HEIGHT - 7}
           >
-            {new Date(visible[index]?.open_time ?? "").toLocaleTimeString([], {
+            {new Date(visible[index]?.open_time ?? "").toLocaleTimeString(intlLocale, {
               hour: "2-digit",
               minute: "2-digit",
             })}

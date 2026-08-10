@@ -218,6 +218,7 @@ tbody tr:hover { background: #f7f9f5; }
 .language-switcher button:hover, .language-switcher button.active { color: #102c23; background: var(--lime); }
 .language-switcher button:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
 .language-flag { display: block; font-size: 18px; line-height: 1; filter: saturate(.82); }
+.language-code { display: block; font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1; letter-spacing: .08em; }
 .language-switcher button:hover .language-flag, .language-switcher button.active .language-flag { filter: saturate(1); }
 .language-switcher + .sidebar-status { margin-top: 10px; }
 

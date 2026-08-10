@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, Inter } from "next/font/google";
 
 import { Navigation } from "@/components/navigation";
+import { LocalizedDocumentTitle } from "@/components/localized-document-title";
 import { Mt5StatusProvider } from "@/hooks/use-mt5-status";
 import { I18nProvider } from "@/lib/i18n";
 
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${inter.variable} ${mono.variable}`}>
       <body>
         <I18nProvider>
+          <LocalizedDocumentTitle />
           <Mt5StatusProvider>
             <div className="app-shell">
               <Navigation />

@@ -19,6 +19,7 @@ vi.mock("@/hooks/use-mt5-status", () => ({
 
 import { useMt5Status } from "@/hooks/use-mt5-status";
 import { apiClient } from "@/lib/api/client";
+import { I18nProvider } from "@/lib/i18n";
 
 describe("DashboardPage", () => {
   beforeEach(() => {
@@ -54,6 +55,22 @@ describe("DashboardPage", () => {
     expect(await screen.findByText("Portfolio balance")).toBeInTheDocument();
     expect(screen.getByText("No account data")).toBeInTheDocument();
     expect(screen.queryByText("Demo data")).not.toBeInTheDocument();
+  });
+
+  it("translates the complete dashboard surface from the stored locale", async () => {
+    window.localStorage.setItem("montecarlo.locale.v1", "be");
+
+    render(
+      <I18nProvider>
+        <DashboardPage />
+      </I18nProvider>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Гандлёвыя вынікі ў фокусе." }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Баланс партфеля")).toBeInTheDocument();
+    expect(screen.getByText("Няма даных рахунку")).toBeInTheDocument();
   });
 
   it("prefers the MT5 account over demo data and identifies the live source", async () => {

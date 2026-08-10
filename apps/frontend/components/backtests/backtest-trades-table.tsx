@@ -10,6 +10,13 @@ export function BacktestTradesTable({
   trades,
 }: BacktestTradesTableProps): React.JSX.Element {
   const { intlLocale, t } = useI18n();
+  const exitReason = (reason: VirtualTradeRecord["exit_reason"]): string => ({
+    signal: t("trade.reason.signal"),
+    reverse: t("trade.reason.reverse"),
+    stop_loss: t("trade.reason.stop_loss"),
+    take_profit: t("trade.reason.take_profit"),
+    end_of_data: t("trade.reason.end_of_data"),
+  })[reason];
   return (
     <section className="panel table-panel backtest-trades">
       <div className="panel-heading">
@@ -41,12 +48,16 @@ export function BacktestTradesTable({
               {trades.map((trade) => (
                 <tr key={trade.sequence}>
                   <td className="mono">{trade.sequence}</td>
-                  <td><span className={`tag ${trade.side}`}>{trade.side}</span></td>
+                  <td>
+                    <span className={`tag ${trade.side}`}>
+                      {trade.side === "buy" ? t("common.buy") : t("common.sell")}
+                    </span>
+                  </td>
                   <td>{new Date(trade.opened_at).toLocaleString(intlLocale)}</td>
                   <td>{new Date(trade.closed_at).toLocaleString(intlLocale)}</td>
                   <td className="mono">{trade.open_price}</td>
                   <td className="mono">{trade.close_price}</td>
-                  <td>{trade.exit_reason.replaceAll("_", " ")}</td>
+                  <td>{exitReason(trade.exit_reason)}</td>
                   <td className="mono">{formatMoney(Number(trade.commission) - Number(trade.swap), intlLocale)}</td>
                   <td className={Number(trade.net_profit) >= 0 ? "positive mono" : "negative mono"}>
                     {formatMoney(trade.net_profit, intlLocale)}

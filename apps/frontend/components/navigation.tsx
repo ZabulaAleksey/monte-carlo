@@ -47,10 +47,10 @@ export function Navigation(): React.JSX.Element {
         <span className="brand-mark">MC</span>
         <div>
           <strong>MonteCarlo</strong>
-          <small>Trading intelligence</small>
+          <small>{t("brand.tagline")}</small>
         </div>
       </div>
-      <nav aria-label="Main navigation">
+      <nav aria-label={t("navigation.main")}>
         {links.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === href : pathname.startsWith(href);
           return (
@@ -72,7 +72,12 @@ export function Navigation(): React.JSX.Element {
             title={item.name}
             type="button"
           >
-            <span aria-hidden="true" className="language-flag">{item.flag}</span>
+            <span
+              aria-hidden="true"
+              className={item.code === "en" ? "language-code" : "language-flag"}
+            >
+              {item.flag}
+            </span>
           </button>
         ))}
       </div>

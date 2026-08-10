@@ -8,10 +8,12 @@ import { PageHeader } from "@/components/page-header";
 import { useMt5Status } from "@/hooks/use-mt5-status";
 import { apiClient } from "@/lib/api/client";
 import type { CandleRecord, SymbolRecord } from "@/lib/api/types";
+import { useI18n } from "@/lib/i18n";
 
 const REFRESH_INTERVAL_MS = 10_000;
 
 export default function MarketDataPage(): React.JSX.Element {
+  const { intlLocale, t } = useI18n();
   const { error: statusError, status } = useMt5Status();
   const connected = status?.connected === true;
   const source = connected ? "mt5" : "demo";
@@ -53,12 +55,12 @@ export default function MarketDataPage(): React.JSX.Element {
   return (
     <>
       <PageHeader
-        eyebrow="Price history"
-        title="Market Data"
+        eyebrow={t("market.eyebrow")}
+        title={t("market.title")}
         description={
           connected
-            ? "Live normalized candles synchronized from the connected MT5 terminal."
-            : "MT5 is offline. Showing the local demo candle feed."
+            ? t("market.descriptionLive")
+            : t("market.descriptionDemo")
         }
       />
       {error ? <ErrorState message={error} /> : null}
@@ -68,30 +70,30 @@ export default function MarketDataPage(): React.JSX.Element {
           <div className="panel-heading">
             <div>
               <span className="eyebrow">
-                {connected ? "Live MT5 candles" : "Demo candles"}
+                {connected ? t("market.liveCandles") : t("market.demoCandles")}
               </span>
-              <h2>Latest observations</h2>
+              <h2>{t("market.latest")}</h2>
             </div>
             <div className="market-controls">
               <span className={`source-badge ${source}`}>
-                {connected ? "MT5 online" : "Demo fallback"}
+                {connected ? t("market.online") : t("market.demoFallback")}
               </span>
-              <span className="count-badge">{candles.length} rows</span>
+              <span className="count-badge">{t("common.rows", { count: candles.length })}</span>
             </div>
           </div>
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Source</th>
-                  <th>Symbol</th>
-                  <th>Time</th>
-                  <th>TF</th>
-                  <th>Open</th>
-                  <th>High</th>
-                  <th>Low</th>
-                  <th>Close</th>
-                  <th>Volume</th>
+                  <th>{t("common.source")}</th>
+                  <th>{t("common.symbol")}</th>
+                  <th>{t("common.time")}</th>
+                  <th>{t("common.timeframe")}</th>
+                  <th>{t("common.priceOpen")}</th>
+                  <th>{t("common.priceHigh")}</th>
+                  <th>{t("common.priceLow")}</th>
+                  <th>{t("common.priceClose")}</th>
+                  <th>{t("common.volume")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -99,7 +101,7 @@ export default function MarketDataPage(): React.JSX.Element {
                   <tr key={candle.id}>
                     <td>
                       <span className={`tag source-${candle.source}`}>
-                        {candle.source}
+                        {candle.source === "mt5" ? t("common.mt5") : t("common.demo")}
                       </span>
                     </td>
                     <td>
@@ -107,21 +109,21 @@ export default function MarketDataPage(): React.JSX.Element {
                         {symbols.find((item) => item.id === candle.symbol_id)?.name ?? "—"}
                       </strong>
                     </td>
-                    <td>{new Date(candle.open_time).toLocaleString()}</td>
+                    <td>{new Date(candle.open_time).toLocaleString(intlLocale)}</td>
                     <td><span className="tag">{candle.timeframe}</span></td>
                     <td>{candle.open}</td>
                     <td>{candle.high}</td>
                     <td>{candle.low}</td>
                     <td>{candle.close}</td>
-                    <td>{Number(candle.volume).toLocaleString()}</td>
+                    <td>{Number(candle.volume).toLocaleString(intlLocale)}</td>
                   </tr>
                 ))}
                 {candles.length === 0 ? (
                   <tr>
                     <td className="table-empty" colSpan={9}>
                       {connected
-                        ? "Waiting for the first MT5 candle synchronization."
-                        : "No demo candles are available."}
+                        ? t("market.emptyLive")
+                        : t("market.emptyDemo")}
                     </td>
                   </tr>
                 ) : null}

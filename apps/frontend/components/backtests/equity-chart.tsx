@@ -45,7 +45,7 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
         <span>{t("equity.high", { value: formatMoney(maximum, intlLocale) })}</span>
       </div>
       <svg
-        aria-label={`Equity curve with ${points.length} observations and ${trades.length} completed operations`}
+        aria-label={t("equity.aria", { points: points.length, trades: trades.length })}
         className="equity-chart"
         role="img"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}

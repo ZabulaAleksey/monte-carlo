@@ -9,10 +9,12 @@ import { useMt5Status } from "@/hooks/use-mt5-status";
 import { apiClient } from "@/lib/api/client";
 import type { AccountRecord, SymbolRecord, TradeRecord } from "@/lib/api/types";
 import { selectEnvironmentAccount } from "@/lib/dashboard";
+import { useI18n } from "@/lib/i18n";
 
 const REFRESH_INTERVAL_MS = 10_000;
 
 export default function TradesPage(): React.JSX.Element {
+  const { intlLocale, t } = useI18n();
   const { error: statusError, status } = useMt5Status();
   const connected = status?.connected === true;
   const [account, setAccount] = useState<AccountRecord | null>(null);
@@ -65,12 +67,12 @@ export default function TradesPage(): React.JSX.Element {
   return (
     <>
       <PageHeader
-        eyebrow="Execution ledger"
-        title="Trades"
+        eyebrow={t("liveTrades.eyebrow")}
+        title={t("liveTrades.title")}
         description={
           connected
-            ? "Live executions synchronized from the connected MT5 account."
-            : "MT5 is offline. Showing trades from the demo account."
+            ? t("liveTrades.descriptionLive")
+            : t("liveTrades.descriptionDemo")
         }
       />
       {error ? <ErrorState message={error} /> : null}
@@ -80,29 +82,29 @@ export default function TradesPage(): React.JSX.Element {
           <div className="panel-heading">
             <div>
               <span className="eyebrow">
-                {connected ? "Live MT5 trade history" : "Demo trade history"}
+                {connected ? t("liveTrades.historyLive") : t("liveTrades.historyDemo")}
               </span>
-              <h2>Latest executions</h2>
+              <h2>{t("liveTrades.latest")}</h2>
               {account ? <small className="muted">{account.external_id}</small> : null}
             </div>
             <div className="market-controls">
               <span className={`source-badge ${connected ? "mt5" : "demo"}`}>
-                {connected ? "MT5 online" : "Demo fallback"}
+                {connected ? t("market.online") : t("market.demoFallback")}
               </span>
-              <span className="count-badge">{trades.length} trades</span>
+              <span className="count-badge">{t("common.trades", { count: trades.length })}</span>
             </div>
           </div>
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Ticket</th>
-                  <th>Symbol</th>
-                  <th>Side</th>
-                  <th>Volume</th>
-                  <th>Opened</th>
-                  <th>Status</th>
-                  <th>P&amp;L</th>
+                  <th>{t("common.ticket")}</th>
+                  <th>{t("common.symbol")}</th>
+                  <th>{t("trades.side")}</th>
+                  <th>{t("common.volume")}</th>
+                  <th>{t("trades.opened")}</th>
+                  <th>{t("common.status")}</th>
+                  <th>{t("common.pnl")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -114,10 +116,20 @@ export default function TradesPage(): React.JSX.Element {
                         {symbols.find((item) => item.id === trade.symbol_id)?.name ?? "—"}
                       </strong>
                     </td>
-                    <td><span className={`tag ${trade.side}`}>{trade.side}</span></td>
+                    <td>
+                      <span className={`tag ${trade.side}`}>
+                        {trade.side === "buy" ? t("common.buy") : t("common.sell")}
+                      </span>
+                    </td>
                     <td>{trade.volume}</td>
-                    <td>{new Date(trade.opened_at).toLocaleString()}</td>
-                    <td>{trade.status}</td>
+                    <td>{new Date(trade.opened_at).toLocaleString(intlLocale)}</td>
+                    <td>
+                      {trade.status === "closed"
+                        ? t("common.closed")
+                        : trade.status === "open"
+                          ? t("common.open")
+                          : trade.status}
+                    </td>
                     <td className={Number(trade.profit) >= 0 ? "positive" : "negative"}>
                       <strong>{Number(trade.profit).toFixed(2)}</strong>
                     </td>
@@ -127,8 +139,8 @@ export default function TradesPage(): React.JSX.Element {
                   <tr>
                     <td className="table-empty" colSpan={7}>
                       {connected
-                        ? "Waiting for MT5 trade history synchronization."
-                        : "No demo trades are available."}
+                        ? t("liveTrades.emptyLive")
+                        : t("liveTrades.emptyDemo")}
                     </td>
                   </tr>
                 ) : null}

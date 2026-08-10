@@ -63,7 +63,7 @@ describe("Navigation", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("🇬🇧");
+    expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("EN");
     expect(screen.getByRole("button", { name: "Русский" })).toHaveTextContent("🇷🇺");
     expect(screen.getByRole("button", { name: "Українська" })).toHaveTextContent("🇺🇦");
     expect(screen.getByRole("button", { name: "Беларуская" })).toHaveTextContent("🇧🇾");

@@ -25,6 +25,13 @@ import { formatMoney, formatPercent } from "@/lib/backtests";
 import { useI18n } from "@/lib/i18n";
 
 const TERMINAL_JOB_STATES = new Set(["completed", "stopped", "failed"]);
+const RESULT_PARAMETER_LABELS = {
+  short_window: "advisor.short_window",
+  long_window: "advisor.long_window",
+  position_size: "advisor.position_size",
+  stop_loss_pct: "advisor.stop_loss_pct",
+  take_profit_pct: "advisor.take_profit_pct",
+} as const;
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -306,7 +313,17 @@ export default function StrategiesPage(): React.JSX.Element {
                   <div><span>{t("settings.commission")}</span><strong>{formatMoney(result.metrics.total_commission, intlLocale)}</strong></div>
                   <div><span>{t("settings.swap")}</span><strong>{formatMoney(result.metrics.total_swap, intlLocale)}</strong></div>
                   <div><span>{t("settings.slippage")}</span><strong>{result.settings.slippage_value} {result.settings.slippage_mode === "relative" ? "bps" : "price"}</strong></div>
-                  <div><span>{t("settings.parameters")}</span><strong>{Object.entries(result.parameters).map(([key, value]) => `${key}=${String(value)}`).join(", ")}</strong></div>
+                  <div>
+                    <span>{t("settings.parameters")}</span>
+                    <strong>
+                      {Object.entries(result.parameters).map(([key, value]) => {
+                        const labelKey = RESULT_PARAMETER_LABELS[
+                          key as keyof typeof RESULT_PARAMETER_LABELS
+                        ];
+                        return `${labelKey ? t(labelKey) : key}=${String(value)}`;
+                      }).join(", ")}
+                    </strong>
+                  </div>
                 </div>
 
                 <BacktestTradesTable trades={result.trades} />
