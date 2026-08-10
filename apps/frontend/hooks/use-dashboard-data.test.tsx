@@ -1,0 +1,71 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { useDashboardData } from "./use-dashboard-data";
+
+vi.mock("@/lib/api/client", () => ({
+  apiClient: {
+    getAccounts: vi.fn(),
+    getCandles: vi.fn(),
+    getQuotes: vi.fn(),
+    getSymbols: vi.fn(),
+    getTrades: vi.fn(),
+  },
+}));
+
+import { apiClient } from "@/lib/api/client";
+
+describe("useDashboardData", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("refreshes only quotes every 500 ms and clears both route timers", async () => {
+    vi.mocked(apiClient.getAccounts).mockResolvedValue([]);
+    vi.mocked(apiClient.getCandles).mockResolvedValue([]);
+    const quote = (bid: string, observedAt: string) => ({
+      symbol_id: "eurusd",
+      terminal_id: "terminal",
+      bid,
+      ask: String(Number(bid) + 0.0002),
+      observed_at: observedAt,
+      received_at: observedAt,
+      source: "mt5" as const,
+    });
+    vi.mocked(apiClient.getQuotes)
+      .mockResolvedValueOnce([quote("1.1000", "2026-08-10T10:00:00Z")])
+      .mockResolvedValue([quote("1.1010", "2026-08-10T10:00:01Z")]);
+    vi.mocked(apiClient.getSymbols).mockResolvedValue([]);
+    vi.mocked(apiClient.getTrades).mockResolvedValue([]);
+    const setIntervalSpy = vi.spyOn(window, "setInterval");
+    const clearIntervalSpy = vi.spyOn(window, "clearInterval");
+
+    const { result, unmount } = renderHook(() => useDashboardData());
+
+    await waitFor(() =>
+      expect(result.current.data?.quotes[0]?.bid).toBe("1.1000"),
+    );
+    const quoteTimer = setIntervalSpy.mock.calls.find(([, delay]) => delay === 500);
+    expect(quoteTimer).toBeDefined();
+    await act(async () => {
+      (quoteTimer?.[0] as () => void)();
+      await Promise.resolve();
+    });
+
+    expect(apiClient.getQuotes).toHaveBeenCalledTimes(2);
+    await waitFor(() =>
+      expect(result.current.data?.quotes[0]).toMatchObject({
+        bid: "1.1010",
+        observed_at: "2026-08-10T10:00:01Z",
+      }),
+    );
+    expect(apiClient.getAccounts).toHaveBeenCalledTimes(1);
+    expect(apiClient.getCandles).toHaveBeenCalledTimes(1);
+
+    const intervalIds = setIntervalSpy.mock.results.map((result) => result.value);
+    unmount();
+    for (const intervalId of intervalIds) {
+      expect(clearIntervalSpy).toHaveBeenCalledWith(intervalId);
+    }
+  });
+});

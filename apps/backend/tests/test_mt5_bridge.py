@@ -316,10 +316,17 @@ async def test_position_snapshot_replaces_stale_positions(
         "observed_at": now_iso(),
     }
     first = await client.post("/api/v1/mt5/positions", headers=HEADERS, json=payload([position]))
+    account_id = (await client.get("/api/v1/accounts")).json()[0]["id"]
+    public = await client.get("/api/v1/positions", params={"account_id": account_id})
     empty = await client.post("/api/v1/mt5/positions", headers=HEADERS, json=payload([]))
     count = await session.scalar(select(func.count()).select_from(PositionModel))
 
     assert first.json()["created"] == 1
+    assert public.status_code == 200
+    assert public.json()[0]["external_id"] == "POSITION-1"
+    assert public.json()[0]["profit"] == "40.00000000"
+    assert public.json()[0]["swap"] == "-0.20000000"
+    assert public.json()[0]["status"] == "open"
     assert empty.json()["removed"] == 1
     assert count == 0
 

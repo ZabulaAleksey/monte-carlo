@@ -24,6 +24,7 @@ request to read and upload an exact candle range; trading actions are impossible
 7. In the EA **Inputs** tab, copy BridgeBaseUrl, BridgeTerminalId, and
    MT5_API_KEY from mt5/config.local. `IncludeAllBrokerQuotes=true` exposes all
    broker instruments, `QuoteMilliseconds=500` controls quote sampling, and
+   `PositionMilliseconds=500` controls open-position P&L snapshots.
    `HistoryRequestSeconds=1` controls historical request polling.
 
 The EA exposes all three values as input parameters in
@@ -42,6 +43,8 @@ prints request headers, bodies, or the key. Temporary network errors, HTTP 408,
   later calls request only candles newer than the last successful batch.
 - Changed Bid/Ask observations are sampled every `QuoteMilliseconds` (500 ms by
   default) and uploaded in batches of at most 500 symbols.
+- Open positions, including their current price, profit and swap, are uploaded
+  every `PositionMilliseconds` (500 ms by default).
 - The initial Market Watch selection is captured for background candle sync.
   Expanding live quotes to all broker symbols therefore does not trigger a
   ten-year candle backfill for every broker instrument.
@@ -49,8 +52,9 @@ prints request headers, bodies, or the key. Temporary network errors, HTTP 408,
   The EA claims it, retries `CopyRates` while MT5 synchronizes history, uploads
   idempotent batches, then completes or fails the request explicitly.
 - Initial startup sends a bounded lookback; later calls send new data only.
-- Deal and candle batches are safe to resend because backend uniqueness keys
-  make the write idempotent.
+- Only exit/reversal deals enter closed history; entry deals remain represented
+  by the open-position snapshot. Deal and candle batches are safe to resend
+  because backend uniqueness keys make the write idempotent.
 - An empty positions list is meaningful and clears the stored open-position
   snapshot for that account.
 - MetaTrader does not allow `WebRequest` in Strategy Tester. Test the bridge on

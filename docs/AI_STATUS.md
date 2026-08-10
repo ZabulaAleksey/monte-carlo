@@ -49,6 +49,12 @@ Stage 3 — Strategy engine and backtesting.
 - Equity ordinate now identifies the plotted monetary portfolio-value scale;
   caption minimum/maximum are calculated from equity rather than the offset
   drawdown helper series.
+- Public open-position snapshots drive correct `open` status and 500 ms live
+  P&L on Trades. The EA filters entry deals out of closed history.
+- Dashboard Market pulse uses route-local 500 ms quote-only refreshes; all
+  heavier snapshot data keeps its 15-second cadence.
+- Backtest portfolio lines now plot realized balance and current liquidation
+  equity directly, meeting whenever an open position is closed.
 
 ## Known constraints
 

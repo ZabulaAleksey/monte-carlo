@@ -8,11 +8,12 @@ from uuid import UUID, uuid4
 from app.application.ports import (
     AccountRepository,
     CandleRepository,
+    PositionRepository,
     QuoteRepository,
     SymbolRepository,
     TradeRepository,
 )
-from app.domain.entities import Account, Candle, MarketQuote, Symbol, Trade
+from app.domain.entities import Account, Candle, MarketQuote, OpenPosition, Symbol, Trade
 from app.domain.enums import CandleSource, TradeSide, TradeStatus
 from app.domain.exceptions import ConflictError, DomainError, NotFoundError
 
@@ -170,6 +171,14 @@ class AccountService:
                 datetime.now(UTC),
             )
         )
+
+
+class PositionService:
+    def __init__(self, repository: PositionRepository) -> None:
+        self._repository = repository
+
+    async def list(self, account_id: UUID | None) -> list[OpenPosition]:
+        return await self._repository.list(account_id)
 
 
 class TradeService:

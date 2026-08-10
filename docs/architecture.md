@@ -85,9 +85,10 @@ the source confirms the requested interval independently of candle cadence.
 
 Strategy history is exposed as a read-only prefix view over one immutable
 candle tuple. This preserves the no-future-data contract without copying the
-entire prefix on every candle. Equity points store both percentage and absolute
-drawdown; the frontend renders absolute drawdown on the same monetary axis as
-equity and advances both series on the replay clock.
+entire prefix on every candle. Equity points store realized balance, current
+liquidation equity and peak-to-trough drawdown metrics. The frontend plots the
+balance and liquidation values on one monetary axis; they diverge only while a
+position is open and meet whenever unrealized P&L becomes realized.
 
 `GET /api/v1/database/overview` uses a dedicated application port and a
 SQLAlchemy adapter. It exposes counts, schema revision, database size and
@@ -107,8 +108,10 @@ cannot execute arbitrary SQL.
   ranges are deduplicated by a partial unique index; `(status, requested_at)`
   supports `FOR UPDATE SKIP LOCKED` claims and a lease recovers abandoned work.
 - `accounts` identifies an external trading account.
-- `trades` belongs to an account and symbol and is unique by account and
-  external ticket.
+- `positions` is the replaceable current MT5 snapshot and is available through
+  a read-only public endpoint for live status/P&L rendering.
+- `trades` belongs to an account and symbol, contains closed exit executions,
+  and is unique by account and external ticket.
 - `backtest_runs` stores the requested and actual data ranges, settings,
   strategy version, parameters and final metrics.
 - `backtest_trades` stores a separate virtual execution ledger and never
@@ -147,10 +150,11 @@ constraints are reused for retry-safe batch upserts. See
 [`mt5-bridge.md`](mt5-bridge.md) for the complete contract.
 
 Live quotes use a bounded latest-state model rather than an unbounded raw tick
-table. The EA samples changed `time_msc` values in batches; only `/market-data`
-mounts the 500 ms browser polling hook, and effect cleanup stops it immediately
-when navigation unmounts that route. Other pages receive only their normal
-low-frequency snapshots.
+table. The EA samples changed `time_msc` values in batches. `/market-data` and
+Dashboard mount route-local 500 ms polling; Dashboard refreshes only quotes and
+reuses its slower account/symbol/candle snapshot. Effect cleanup stops fast
+polling immediately when either route unmounts. Trades similarly polls only the
+small open-position snapshot at 500 ms for current P&L.
 
 The same backtest router is exposed under `/api/v1/tester/backtests` for
 non-browser clients. See [`backtesting-api.md`](backtesting-api.md).

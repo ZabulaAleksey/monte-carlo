@@ -30,6 +30,7 @@ endpoint reveals connection timestamps but never authentication material.
 | `POST` | `/api/v1/mt5/positions` | Replace an account's open-position snapshot |
 | `POST` | `/api/v1/mt5/trades/batch` | Upsert up to 1,000 history records |
 | `GET` | `/api/v1/mt5/status` | Read connection state for the frontend |
+| `GET` | `/api/v1/positions` | Read current open positions, optionally by account |
 
 All timestamps must be timezone-aware and no more than five minutes in the
 future. Price fields must be positive, volume must be non-negative for candles
@@ -59,9 +60,12 @@ consistent.
   PostgreSQL workers use `FOR UPDATE SKIP LOCKED`; a 15-minute lease allows a
   disconnected terminal's request to be recovered. The same terminal may retry
   its claimed request while MT5 downloads older bars asynchronously.
-- Trades use `(account_id, external_id)`.
+- Closed history accepts only MT5 exit/reversal deals. Entry deals are exposed
+  through the current open-position snapshot instead of being mislabeled as
+  closed trades. Trades use `(account_id, external_id)`.
 - Positions use `(account_id, external_id)` and are treated as a complete
-  current snapshot. Positions omitted from a later snapshot are removed.
+  current snapshot. Positions omitted from a later snapshot are removed. The
+  EA refreshes profit and swap every `PositionMilliseconds` (500 ms by default).
 - Terminals and accounts use their external identifiers.
 
 The database keeps unique constraints as the final safety boundary. The
@@ -77,9 +81,9 @@ uploads update `last_sync_at`; heartbeat updates `last_heartbeat_at`.
 
 ## Expert Advisor setup
 
-See [`mt5/README.md`](../mt5/README.md). The EA samples changed Bid/Ask up to
-every 500 ms by default, plus completed candles, account state, open-position
-snapshots and history deals. It retries network
+See [`mt5/README.md`](../mt5/README.md). The EA samples changed Bid/Ask and
+open-position P&L up to every 500 ms by default, plus completed candles,
+account state and exit-deal history. It retries network
 errors, HTTP 408, 429 and 5xx responses. Client errors are not retried because
 they require configuration or payload correction.
 

@@ -35,16 +35,13 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
     return <div className="chart-empty">{t("equity.empty")}</div>;
   }
 
-  const equityValues = points.map((point) => Number(point.equity));
-  const equityMinimum = Math.min(...equityValues);
-  const equityMaximum = Math.max(...equityValues);
+  const balanceValues = points.map((point) => Number(point.balance));
+  const liquidationValues = points.map((point) => Number(point.equity));
+  const equityMinimum = Math.min(...balanceValues, ...liquidationValues);
+  const equityMaximum = Math.max(...balanceValues, ...liquidationValues);
   const drawdownValues = points.map((point) => Number(point.drawdown_absolute ?? 0));
-  const drawdownBaseline = (equityValues[0] ?? 0) + (drawdownValues[0] ?? 0);
-  const drawdownLevelValues = drawdownValues.map(
-    (drawdown) => drawdownBaseline - drawdown,
-  );
-  const minimum = Math.min(...equityValues, ...drawdownLevelValues);
-  const maximum = Math.max(...equityValues, ...drawdownLevelValues);
+  const minimum = equityMinimum;
+  const maximum = equityMaximum;
   const valueRange = maximum - minimum || 1;
   const drawdownMaximum = Math.max(...drawdownValues);
   const plotWidth = PLOT.right - PLOT.left;
@@ -53,8 +50,8 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
     PLOT.left + (index / Math.max(points.length - 1, 1)) * plotWidth;
   const valueY = (value: number): number =>
     PLOT.top + ((maximum - value) / valueRange) * plotHeight;
-  const equityPath = seriesPath(equityValues, x, valueY);
-  const drawdownPath = seriesPath(drawdownLevelValues, x, valueY);
+  const equityPath = seriesPath(balanceValues, x, valueY);
+  const drawdownPath = seriesPath(liquidationValues, x, valueY);
   const valueTicks = [maximum, minimum + valueRange / 2, minimum];
   const xTickIndices = [
     ...new Set([0, Math.floor((points.length - 1) / 2), points.length - 1]),
@@ -68,7 +65,7 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
     return {
       trade,
       x: x(resolvedIndex),
-      y: valueY(equityValues[resolvedIndex] ?? maximum),
+      y: valueY(balanceValues[resolvedIndex] ?? maximum),
     };
   });
 

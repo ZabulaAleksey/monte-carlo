@@ -11,6 +11,7 @@ import type {
   HistoricalDataCoverageRecord,
   HistoricalDataRequestRecord,
   Mt5Status,
+  PositionRecord,
   QuoteRecord,
   StrategyDefinition,
   SymbolRecord,
@@ -67,6 +68,10 @@ export const apiClient = {
     return request<CandleRecord[]>(`/api/v1/candles?${parameters.toString()}`);
   },
   getAccounts: (): Promise<AccountRecord[]> => request<AccountRecord[]>("/api/v1/accounts"),
+  getPositions: (accountId?: string): Promise<PositionRecord[]> => {
+    const suffix = accountId ? `?account_id=${encodeURIComponent(accountId)}` : "";
+    return request<PositionRecord[]>(`/api/v1/positions${suffix}`);
+  },
   getTrades: (limit = 100, accountId?: string): Promise<TradeRecord[]> => {
     const parameters = new URLSearchParams({ limit: String(limit) });
     if (accountId) parameters.set("account_id", accountId);

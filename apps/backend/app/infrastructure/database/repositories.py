@@ -6,12 +6,13 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.entities import Account, Candle, MarketQuote, Symbol, Trade
+from app.domain.entities import Account, Candle, MarketQuote, OpenPosition, Symbol, Trade
 from app.domain.enums import CandleSource, TradeSide, TradeStatus
 from app.infrastructure.database.models import (
     AccountModel,
     CandleModel,
     MarketQuoteModel,
+    PositionModel,
     SymbolModel,
     TradeModel,
 )
@@ -65,6 +66,25 @@ def _quote(model: MarketQuoteModel) -> MarketQuote:
 def _account(model: AccountModel) -> Account:
     return Account(
         model.id, model.external_id, model.name, model.currency, model.balance, model.created_at
+    )
+
+
+def _position(model: PositionModel) -> OpenPosition:
+    return OpenPosition(
+        model.id,
+        model.account_id,
+        model.symbol_id,
+        model.external_id,
+        TradeSide(model.side),
+        model.volume,
+        model.open_price,
+        model.current_price,
+        model.stop_loss,
+        model.take_profit,
+        model.profit,
+        model.swap,
+        _utc(model.opened_at),
+        _utc(model.observed_at),
     )
 
 
@@ -228,6 +248,18 @@ class SqlAlchemyAccountRepository:
         )
         await self._session.commit()
         return account
+
+
+class SqlAlchemyPositionRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list(self, account_id: UUID | None = None) -> list[OpenPosition]:
+        query = select(PositionModel).order_by(PositionModel.observed_at.desc())
+        if account_id is not None:
+            query = query.where(PositionModel.account_id == account_id)
+        result = await self._session.scalars(query)
+        return [_position(item) for item in result.all()]
 
 
 class SqlAlchemyTradeRepository:

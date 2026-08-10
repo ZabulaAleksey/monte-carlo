@@ -80,6 +80,25 @@ class AccountResponse(AccountCreate):
     created_at: datetime
 
 
+class PositionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    account_id: UUID
+    symbol_id: UUID
+    external_id: str
+    side: TradeSide
+    volume: Decimal
+    open_price: Decimal
+    current_price: Decimal
+    stop_loss: Decimal | None
+    take_profit: Decimal | None
+    profit: Decimal
+    swap: Decimal
+    opened_at: datetime
+    observed_at: datetime
+    status: TradeStatus = TradeStatus.OPEN
+
+
 class TradeCreate(BaseModel):
     account_id: UUID
     symbol_id: UUID

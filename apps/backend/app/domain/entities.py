@@ -79,6 +79,24 @@ class Account:
 
 
 @dataclass(frozen=True, slots=True)
+class OpenPosition:
+    id: UUID
+    account_id: UUID
+    symbol_id: UUID
+    external_id: str
+    side: TradeSide
+    volume: Decimal
+    open_price: Decimal
+    current_price: Decimal
+    stop_loss: Decimal | None
+    take_profit: Decimal | None
+    profit: Decimal
+    swap: Decimal
+    opened_at: datetime
+    observed_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class Trade:
     id: UUID
     account_id: UUID

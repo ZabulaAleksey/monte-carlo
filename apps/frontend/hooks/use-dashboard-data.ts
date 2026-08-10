@@ -7,6 +7,7 @@ import { mergeDashboardSnapshot } from "@/lib/dashboard";
 import type { DashboardSnapshot } from "@/lib/dashboard";
 
 const REFRESH_INTERVAL_MS = 15_000;
+const QUOTE_REFRESH_INTERVAL_MS = 500;
 
 export interface DashboardQuery {
   data: DashboardSnapshot | null;
@@ -47,6 +48,42 @@ export function useDashboardData(): DashboardQuery {
 
     void refresh();
     const intervalId = window.setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let inFlight = false;
+
+    const refreshQuotes = async (): Promise<void> => {
+      if (inFlight || document.visibilityState === "hidden") return;
+      inFlight = true;
+      try {
+        const quotes = await apiClient.getQuotes();
+        if (active) {
+          setData((previous) =>
+            previous
+              ? mergeDashboardSnapshot(previous, { ...previous, quotes })
+              : previous,
+          );
+          setError(null);
+        }
+      } catch (reason: unknown) {
+        if (active) {
+          setError(reason instanceof Error ? reason.message : "Unknown error");
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const intervalId = window.setInterval(
+      () => void refreshQuotes(),
+      QUOTE_REFRESH_INTERVAL_MS,
+    );
     return () => {
       active = false;
       window.clearInterval(intervalId);

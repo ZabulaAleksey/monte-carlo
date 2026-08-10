@@ -227,10 +227,10 @@ describe("StrategiesPage", () => {
         }),
       ),
     );
-    expect(await screen.findByRole("img", { name: /Equity and drawdown chart with 1 observations and 0 completed operations/ })).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: /Balance and current-liquidation chart with 1 observations and 0 completed operations/ })).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Show animated chart"));
     expect((await screen.findAllByText("$10,001.00")).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByRole("img", { name: /Equity and drawdown chart with 2 observations and 1 completed operations/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Balance and current-liquidation chart with 2 observations and 1 completed operations/ })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /Candlestick chart with 1 virtual trades/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Trade ledger" })).toBeInTheDocument();
     expect(scrollIntoView).toHaveBeenCalled();

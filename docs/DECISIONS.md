@@ -13,7 +13,9 @@ uploads idempotent candle batches and explicitly completes or fails it.
 
 The EA exposes all broker symbols and sends only changed latest quotes in
 bounded batches. PostgreSQL keeps one quote snapshot per symbol; the frontend
-polls that snapshot every 500 ms only while `/market-data` is mounted.
+polls that snapshot every 500 ms only while `/market-data` or Dashboard is
+mounted. Dashboard performs quote-only refreshes instead of reloading its full
+snapshot.
 
 ### Reason
 
@@ -37,8 +39,8 @@ before tick-history use cases are defined.
 - Schema revision `0009` is required before the new endpoints are used.
 - The UI waits up to 60 seconds, then visibly uses confirmed partial data while
   the durable request remains available to MT5.
-- Leaving Market Data clears the 500 ms timer; Dashboard stays on its 15-second
-  snapshot cadence.
+- Leaving Market Data or Dashboard clears its 500 ms timer. Dashboard keeps a
+  separate 15-second refresh only for heavier reference/account data.
 - Fast quotes show the latest sampled state, not a complete tick archive.
 
 ## 2026-08-10 — Explicit partial-data fallback and read-only operations UI

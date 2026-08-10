@@ -3,7 +3,7 @@
 //| Read-only data bridge from MetaTrader 5 to the analytics API.    |
 //+------------------------------------------------------------------+
 #property strict
-#property version   "2.10"
+#property version   "2.20"
 #property description "Read-only bridge. It never sends trading orders."
 
 input string BridgeBaseUrl       = "http://127.0.0.1:8000";
@@ -11,6 +11,7 @@ input string BridgeTerminalId    = "mt5-terminal-01";
 input string MT5_API_KEY         = "replace-with-at-least-32-random-characters";
 input int    HeartbeatSeconds    = 30;
 input int    QuoteMilliseconds   = 500;
+input int    PositionMilliseconds = 500;
 input bool   IncludeAllBrokerQuotes = true;
 input int    HistoryRequestSeconds = 1;
 input int    SynchronizeSeconds  = 60;
@@ -25,6 +26,7 @@ input int    TradeLookbackDays   = 30;
 datetime g_last_sync_at = 0;
 datetime g_last_heartbeat_at = 0;
 ulong    g_last_quote_at_ms = 0;
+ulong    g_last_position_at_ms = 0;
 datetime g_last_history_request_at = 0;
 datetime g_last_trade_at = 0;
 string   g_symbol_names[];
@@ -600,7 +602,10 @@ bool SendPositions()
    string account_id=IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN));
    string body=RequestPrefix()+",\"account_external_id\":"+JsonString(account_id)+
                ",\"positions\":["+items+"]}";
-   return HttpPost("/api/v1/mt5/positions",body);
+   bool sent=HttpPost("/api/v1/mt5/positions",body);
+   if(sent)
+      g_last_position_at_ms=GetTickCount64();
+   return sent;
   }
 
 bool FlushTradeBatch(const string items,const datetime newest)
@@ -613,6 +618,37 @@ bool FlushTradeBatch(const string items,const datetime newest)
    if(newest>g_last_trade_at)
       g_last_trade_at=newest;
    return true;
+  }
+
+bool FindPositionEntry(const ulong position_id,
+                       const datetime closed_at,
+                       double &open_price,
+                       datetime &opened_at,
+                       string &side)
+  {
+   bool found=false;
+   int total=HistoryDealsTotal();
+   for(int i=0;i<total;i++)
+     {
+      ulong ticket=HistoryDealGetTicket(i);
+      if(ticket==0 ||
+         (ulong)HistoryDealGetInteger(ticket,DEAL_POSITION_ID)!=position_id)
+         continue;
+      ENUM_DEAL_ENTRY entry=(ENUM_DEAL_ENTRY)HistoryDealGetInteger(ticket,DEAL_ENTRY);
+      if(entry!=DEAL_ENTRY_IN)
+         continue;
+      datetime deal_time=(datetime)HistoryDealGetInteger(ticket,DEAL_TIME);
+      if(deal_time>closed_at || (found && deal_time>=opened_at))
+         continue;
+      ENUM_DEAL_TYPE deal_type=(ENUM_DEAL_TYPE)HistoryDealGetInteger(ticket,DEAL_TYPE);
+      if(deal_type!=DEAL_TYPE_BUY && deal_type!=DEAL_TYPE_SELL)
+         continue;
+      open_price=HistoryDealGetDouble(ticket,DEAL_PRICE);
+      opened_at=deal_time;
+      side=deal_type==DEAL_TYPE_BUY ? "buy" : "sell";
+      found=true;
+     }
+   return found;
   }
 
 bool SendTrades()
@@ -638,22 +674,30 @@ bool SendTrades()
       ENUM_DEAL_TYPE deal_type=(ENUM_DEAL_TYPE)HistoryDealGetInteger(ticket,DEAL_TYPE);
       if(deal_type!=DEAL_TYPE_BUY && deal_type!=DEAL_TYPE_SELL)
          continue;
+      ENUM_DEAL_ENTRY deal_entry=(ENUM_DEAL_ENTRY)HistoryDealGetInteger(ticket,DEAL_ENTRY);
+      if(deal_entry!=DEAL_ENTRY_OUT && deal_entry!=DEAL_ENTRY_OUT_BY &&
+         deal_entry!=DEAL_ENTRY_INOUT)
+         continue;
       string symbol=HistoryDealGetString(ticket,DEAL_SYMBOL);
       if(StringLen(symbol)==0)
          continue;
       datetime deal_time=(datetime)HistoryDealGetInteger(ticket,DEAL_TIME);
       int digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
-      string side=deal_type==DEAL_TYPE_BUY ? "buy" : "sell";
       double price=HistoryDealGetDouble(ticket,DEAL_PRICE);
+      double open_price=price;
+      datetime opened_at=deal_time;
+      string side=deal_type==DEAL_TYPE_BUY ? "sell" : "buy";
+      ulong position_id=(ulong)HistoryDealGetInteger(ticket,DEAL_POSITION_ID);
+      FindPositionEntry(position_id,deal_time,open_price,opened_at,side);
       if(batch_count>0)
          items+=",";
       items+="{\"external_id\":"+JsonString(IntegerToString(ticket))+
              ",\"symbol\":"+JsonString(symbol)+
              ",\"side\":"+JsonString(side)+
              ",\"volume\":"+JsonNumber(HistoryDealGetDouble(ticket,DEAL_VOLUME),8)+
-             ",\"open_price\":"+JsonNumber(price,digits)+
+             ",\"open_price\":"+JsonNumber(open_price,digits)+
              ",\"close_price\":"+JsonNumber(price,digits)+
-             ",\"opened_at\":"+JsonString(ServerIsoUtc(deal_time))+
+             ",\"opened_at\":"+JsonString(ServerIsoUtc(opened_at))+
              ",\"closed_at\":"+JsonString(ServerIsoUtc(deal_time))+
              ",\"profit\":"+JsonNumber(HistoryDealGetDouble(ticket,DEAL_PROFIT),8)+
              ",\"commission\":"+JsonNumber(HistoryDealGetDouble(ticket,DEAL_COMMISSION),8)+
@@ -725,6 +769,9 @@ void OnTimer()
    if(g_last_quote_at_ms==0 ||
       now_ms-g_last_quote_at_ms>=(ulong)MathMax(100,QuoteMilliseconds))
       SendQuotes();
+   if(g_last_position_at_ms==0 ||
+      now_ms-g_last_position_at_ms>=(ulong)MathMax(100,PositionMilliseconds))
+      SendPositions();
    if(g_last_history_request_at==0 ||
       now-g_last_history_request_at>=MathMax(1,HistoryRequestSeconds))
       ProcessHistoricalRequest();

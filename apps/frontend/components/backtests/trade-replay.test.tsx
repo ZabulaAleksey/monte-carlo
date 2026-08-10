@@ -84,7 +84,7 @@ describe("TradeReplay", () => {
     expect(within(ledger as HTMLElement).queryByText("102.10")).not.toBeInTheDocument();
     expect(within(ledger as HTMLElement).queryByText("200.10")).not.toBeInTheDocument();
     expect(screen.getByRole("img", {
-      name: /Equity and drawdown chart with 1 observations and 0 completed operations/,
+      name: /Balance and current-liquidation chart with 1 observations and 0 completed operations/,
     })).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("Show animated chart"));
@@ -92,7 +92,7 @@ describe("TradeReplay", () => {
     expect(within(ledger as HTMLElement).getByText("102.10")).toBeInTheDocument();
     expect(within(ledger as HTMLElement).getByText("200.10")).toBeInTheDocument();
     expect(screen.getByRole("img", {
-      name: /Equity and drawdown chart with 3 observations and 2 completed operations/,
+      name: /Balance and current-liquidation chart with 3 observations and 2 completed operations/,
     })).toBeInTheDocument();
   });
 

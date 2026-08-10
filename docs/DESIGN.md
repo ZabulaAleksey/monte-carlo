@@ -30,10 +30,11 @@ count and actual dates; it never appears only below the fold.
   daily/weekly charts and years for monthly charts.
 - While animation is enabled, Virtual execution reveals trades at entry and
   withholds close information until exit. Disabling animation shows all rows.
-- The equity and independent drawdown curves use the same replay clock as
-  candles and orders. Drawdown is an absolute monetary amount based on current
-  equity, including unrealized position P&L and accrued swap, and shares the
-  equity value axis.
+- The green portfolio curve is realized balance after closed operations. The
+  red curve is current liquidation value (`balance + unrealized P&L + swap`).
+  They share the replay clock and monetary axis, diverge while a position is
+  open and meet at every close. Peak-to-trough drawdown remains a separate
+  summary metric in the caption.
 - Equity time ticks always include a year. The candle execution map displays
   quote values on its vertical axis with instrument precision capped at six
   digits.

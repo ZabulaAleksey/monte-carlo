@@ -632,3 +632,116 @@ UTF-8 строку; содержимое файлов не перезаписы�
 MQL5 `CopyTicksRange`, Server-Sent Events/WebSocket fan-out, PostgreSQL range
 types, партиционирование tick history, retention policies, lease heartbeat и
 observability очередей через `pg_stat_statements`.
+
+## 2026-08-10 — Live-статусы сделок, P&L и корректная equity-кривая
+
+### Задача
+
+Исправить ложный статус `closed` у открытой MT5-позиции, обновлять её P&L в
+реальном времени, ускорить Bid/Ask и время Market pulse на Dashboard и изменить
+бэктест-график так, чтобы текущая стоимость закрытия совпадала с балансом в
+точках закрытия позиции.
+
+### Что исследовали
+
+Проверены MQL-функции `SendPositions` и `SendTrades`, SQLAlchemy-модели
+`positions`/`trades`, публичные application ports, эффекты страниц Trades и
+Dashboard, а также соответствие `balance`, `equity` и `drawdown_absolute` в
+результате бэктеста SVG-сериям frontend.
+
+### Основные команды
+
+`rg -n "SendPositions|SendTrades|DEAL_ENTRY|drawdown_absolute" ...`
+
+Поиск связал внешний симптом с конкретным источником MT5 и преобразованием
+данных графика.
+
+`python -m pytest -q`, `python -m ruff check app tests`, `python -m mypy app`
+
+Проверяют публичный positions API, фильтрацию MQL-контракта, слои приложения и
+строгие типы.
+
+`npm test -- --run`, `npm run lint`, `npm run build`
+
+Проверяют route-local polling, обновление P&L, доступные подписи и production
+сборку Next.js.
+
+### Как была устроена проблема
+
+MT5 разделяет текущие позиции и исторические deals. Старый мост отправлял любой
+`DEAL_TYPE_BUY/SELL` как закрытую сделку, не проверяя `DEAL_ENTRY`. Поэтому deal
+открытия попадал в историю со статусом `closed`, а фактическая открытая позиция
+оставалась только во внутренней таблице без публичного GET API. Её P&L к тому же
+синхронизировался общим минутным циклом.
+
+Dashboard раз в 15 секунд перезагружал весь snapshot, поэтому последняя
+котировка и время тика запаздывали. В equity SVG зелёная линия строилась из
+`equity`, а красная искусственно вычислялась как фиксированный baseline минус
+peak-to-trough drawdown, хотя backend уже отдавал нужные `balance` и `equity`.
+
+### Что изменили
+
+- Добавлены framework-independent `OpenPosition`, `PositionRepository` и
+  `PositionService`, SQLAlchemy read adapter и публичный `GET /api/v1/positions`.
+- Trades объединяет открытые позиции и закрытую историю, показывает статус
+  `open`, считает текущий net P&L как `profit + swap` и обновляет snapshot каждые
+  500 мс только пока страница смонтирована. Нулевые legacy entry-строки,
+  ошибочно сохранённые старой версией EA как closed, скрываются из журнала.
+- EA версии 2.20 фильтрует `DEAL_ENTRY_IN`, принимает в closed history только
+  выход/reversal, восстанавливает цену/время входа по `DEAL_POSITION_ID` и
+  отправляет позиции по отдельному `PositionMilliseconds=500`.
+- Dashboard обновляет только quotes каждые 500 мс, сохраняя 15-секундный цикл
+  для accounts, symbols, candles и trades. Скрытая вкладка и unmount не создают
+  лишнего трафика.
+- Equity chart рисует realized `balance` зелёной линией и текущую liquidation
+  `equity` красной. В точке закрытия unrealized P&L равен нулю, поэтому линии
+  совпадают; максимальная историческая просадка остаётся отдельной метрикой.
+- Подписи обновлены для EN/RU/UA/BE.
+
+### Почему выбран такой подход
+
+Статус позиции определяется состоянием `PositionsTotal`, а не предположением
+по отдельному deal. Разделение статического справочного polling и маленького
+live snapshot уменьшает трафик и предотвращает наложение запросов. Для графика
+используются исходные финансовые величины backend без дополнительной формулы,
+которая меняла их смысл.
+
+### Что пошло не так
+
+Встроенный Browser снова не запустился из-за
+`windows sandbox failed: helper_unknown_error: setup refresh had errors`,
+поэтому визуальная проверка выполнена локальным Playwright. Встроенный
+просмотрщик PNG получил ту же sandbox-ошибку; сами снимки успешно сохранены во
+временную директорию, а DOM, interactions, console и layout проверены сценарием.
+
+Первый целевой тест equity ожидал старое accessible name. DOM уже показывал
+правильные новые линии и подписи; assertion обновлён на новый контракт.
+
+### Проверки
+
+- Backend: 46 pytest-тестов, Ruff и mypy прошли. Runtime OpenAPI содержит
+  `/api/v1/positions`; две текущие записи базы отданы со `status=open` и
+  полями `profit/swap`.
+- Frontend: 48 Vitest-тестов, ESLint и production build прошли.
+- Docker пересобран; backend, frontend и PostgreSQL healthy.
+- Playwright изменил P&L открытой позиции с `39.80` на `45.80`, обновил Dashboard
+  Bid `4054.80 → 4056.80` и `observed_at` на следующую секунду. После перехода
+  на Guide position/quote request counters не выросли. Console/page errors и
+  горизонтальный overflow отсутствуют.
+
+### Как повторить вручную
+
+1. Скомпилировать EA 2.20 и проверить Input `PositionMilliseconds=500`.
+2. Открыть позицию в MT5 и страницу Trades: строка должна иметь статус
+   «Открыта», а P&L — меняться без перезагрузки.
+3. Закрыть позицию: она исчезнет из open snapshot и появится в закрытой истории.
+4. Открыть Dashboard и убедиться, что Bid/Ask, время и текущая H1-свеча меняются
+   по тикам; перейти на другой URL и проверить прекращение quote polling.
+5. Запустить анимированный бэктест: между входом и выходом линии расходятся, а
+   на каждой закрытой операции снова совпадают.
+
+### Что стоит изучить
+
+Семантику MQL5 `DEAL_ENTRY`, различия netting/hedging, mark-to-market equity,
+отмену fetch через `AbortController` и серверную доставку live-состояния через
+SSE/WebSocket вместо короткого polling.

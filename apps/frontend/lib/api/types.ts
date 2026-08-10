@@ -45,6 +45,24 @@ export interface AccountRecord {
 export type TradeSide = "buy" | "sell";
 export type TradeStatus = "open" | "closed" | "cancelled";
 
+export interface PositionRecord {
+  id: string;
+  account_id: string;
+  symbol_id: string;
+  external_id: string;
+  side: TradeSide;
+  volume: string;
+  open_price: string;
+  current_price: string;
+  stop_loss: string | null;
+  take_profit: string | null;
+  profit: string;
+  swap: string;
+  opened_at: string;
+  observed_at: string;
+  status: "open";
+}
+
 export interface TradeRecord {
   id: string;
   account_id: string;

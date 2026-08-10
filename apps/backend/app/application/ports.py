@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.domain.entities import Account, Candle, MarketQuote, Symbol, Trade
+from app.domain.entities import Account, Candle, MarketQuote, OpenPosition, Symbol, Trade
 from app.domain.enums import CandleSource
 
 
@@ -39,6 +39,10 @@ class AccountRepository(Protocol):
     async def get(self, account_id: UUID) -> Account | None: ...
     async def get_by_external_id(self, external_id: str) -> Account | None: ...
     async def add(self, account: Account) -> Account: ...
+
+
+class PositionRepository(Protocol):
+    async def list(self, account_id: UUID | None = None) -> list[OpenPosition]: ...
 
 
 class TradeRepository(Protocol):

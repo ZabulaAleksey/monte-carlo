@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.services import (
     AccountService,
     CandleService,
+    PositionService,
     QuoteService,
     SymbolService,
     TradeService,
@@ -13,6 +14,7 @@ from app.application.services import (
 from app.infrastructure.database.repositories import (
     SqlAlchemyAccountRepository,
     SqlAlchemyCandleRepository,
+    SqlAlchemyPositionRepository,
     SqlAlchemyQuoteRepository,
     SqlAlchemySymbolRepository,
     SqlAlchemyTradeRepository,
@@ -38,6 +40,10 @@ def get_account_service(session: SessionDependency) -> AccountService:
     return AccountService(SqlAlchemyAccountRepository(session))
 
 
+def get_position_service(session: SessionDependency) -> PositionService:
+    return PositionService(SqlAlchemyPositionRepository(session))
+
+
 def get_trade_service(session: SessionDependency) -> TradeService:
     return TradeService(
         SqlAlchemyTradeRepository(session),
@@ -50,4 +56,5 @@ SymbolServiceDependency = Annotated[SymbolService, Depends(get_symbol_service)]
 CandleServiceDependency = Annotated[CandleService, Depends(get_candle_service)]
 QuoteServiceDependency = Annotated[QuoteService, Depends(get_quote_service)]
 AccountServiceDependency = Annotated[AccountService, Depends(get_account_service)]
+PositionServiceDependency = Annotated[PositionService, Depends(get_position_service)]
 TradeServiceDependency = Annotated[TradeService, Depends(get_trade_service)]

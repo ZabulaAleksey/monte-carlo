@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, Response, status
 from app.api.dependencies import (
     AccountServiceDependency,
     CandleServiceDependency,
+    PositionServiceDependency,
     QuoteServiceDependency,
     SymbolServiceDependency,
     TradeServiceDependency,
@@ -16,6 +17,7 @@ from app.api.schemas import (
     CandleCreate,
     CandleResponse,
     InfoResponse,
+    PositionResponse,
     QuoteResponse,
     SymbolCreate,
     SymbolResponse,
@@ -127,6 +129,14 @@ async def create_account(
 ) -> AccountResponse:
     account = await service.create(**payload.model_dump())
     return AccountResponse.model_validate(account)
+
+
+@router.get("/positions", response_model=list[PositionResponse], tags=["trades"])
+async def list_positions(
+    service: PositionServiceDependency,
+    account_id: UUID | None = None,
+) -> list[PositionResponse]:
+    return [PositionResponse.model_validate(item) for item in await service.list(account_id)]
 
 
 @router.get("/trades", response_model=list[TradeResponse], tags=["trades"])
