@@ -50,6 +50,15 @@ function localDateInput(date: Date): string {
   return adjusted.toISOString().slice(0, 16);
 }
 
+function localizedDateInput(value: string, locale: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
 function initialParameters(strategy: StrategyDefinition | undefined): Record<string, string> {
   return Object.fromEntries(
     (strategy?.parameters ?? []).map((parameter) => [
@@ -69,7 +78,7 @@ export function BacktestForm({
   onStop,
   onSubmit,
 }: BacktestFormProps): React.JSX.Element {
-  const { t } = useI18n();
+  const { intlLocale, t } = useI18n();
   const [form, setForm] = useState<FormState>(() => {
     const end = new Date();
     const start = new Date(end.getTime() - 48 * 60 * 60 * 1000);
@@ -206,30 +215,34 @@ export function BacktestForm({
             <span>{t("form.from")}</span>
             <input
               aria-label={t("form.from")}
+              lang={intlLocale}
               onChange={(event) => update("startAt", event.target.value)}
               required
               type="datetime-local"
               value={form.startAt}
             />
+            <small>{localizedDateInput(form.startAt, intlLocale)}</small>
           </label>
           <label className="form-field">
             <span>{t("form.to")}</span>
             <input
               aria-label={t("form.to")}
+              lang={intlLocale}
               onChange={(event) => update("endAt", event.target.value)}
               required
               type="datetime-local"
               value={form.endAt}
             />
+            <small>{localizedDateInput(form.endAt, intlLocale)}</small>
           </label>
           <label className="form-field form-field-wide">
             <span>{t("form.capital")}</span>
             <input
               aria-label={t("form.capital")}
-              min="0.01"
+              min="100"
               onChange={(event) => update("initialCapital", event.target.value)}
               required
-              step="0.01"
+              step="100"
               type="number"
               value={form.initialCapital}
             />

@@ -758,31 +758,48 @@ function isLocale(value: string | null): value is Locale {
 }
 
 export function I18nProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const [locale, setLocaleState] = useState<Locale>("en");
+  const [locale, setLocaleState] = useState<Locale | null>(null);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (isLocale(stored)) setLocaleState(stored);
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(STORAGE_KEY);
+    } catch {
+      // Storage can be unavailable in privacy-restricted browser contexts.
+    }
+    setLocaleState(isLocale(stored) ? stored : "en");
   }, []);
 
   const setLocale = useCallback((nextLocale: Locale): void => {
     setLocaleState(nextLocale);
-    window.localStorage.setItem(STORAGE_KEY, nextLocale);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, nextLocale);
+    } catch {
+      // Keep the in-memory locale usable even when persistence is blocked.
+    }
   }, []);
 
+  const resolvedLocale = locale ?? "en";
+  const intlLocale = supportedLocales.find((item) => item.code === resolvedLocale)?.intl ?? "en-US";
+
   useEffect(() => {
-    document.documentElement.lang = locale;
-  }, [locale]);
+    if (locale === null) return;
+    document.documentElement.lang = intlLocale;
+    document.documentElement.dataset.locale = locale;
+  }, [intlLocale, locale]);
 
   const value = useMemo<I18nValue>(() => {
-    const intlLocale = supportedLocales.find((item) => item.code === locale)?.intl ?? "en-US";
     return {
-      locale,
+      locale: resolvedLocale,
       intlLocale,
       setLocale,
-      t: (key, values) => interpolate(catalogs[locale][key] ?? en[key], values),
+      t: (key, values) => interpolate(catalogs[resolvedLocale][key] ?? en[key], values),
     };
-  }, [locale, setLocale]);
+  }, [intlLocale, resolvedLocale, setLocale]);
+
+  if (locale === null) {
+    return <div aria-busy="true" className="locale-bootstrap"><span /></div>;
+  }
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

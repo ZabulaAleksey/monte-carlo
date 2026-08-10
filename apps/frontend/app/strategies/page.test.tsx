@@ -23,6 +23,7 @@ vi.mock("@/lib/api/client", () => ({
 
 import { apiClient } from "@/lib/api/client";
 import type { BacktestResultRecord } from "@/lib/api/types";
+import { I18nProvider } from "@/lib/i18n";
 
 const result: BacktestResultRecord = {
   id: "run-1",
@@ -89,6 +90,8 @@ const result: BacktestResultRecord = {
 describe("StrategiesPage", () => {
   beforeEach(() => {
     cleanup();
+    window.localStorage.clear();
+    vi.clearAllMocks();
     vi.mocked(apiClient.getSymbols).mockResolvedValue([
       { id: "symbol-1", name: "EURUSD", description: "Euro", digits: 5, is_active: true },
     ]);
@@ -141,6 +144,10 @@ describe("StrategiesPage", () => {
     render(<StrategiesPage />);
 
     expect(await screen.findByRole("heading", { name: "Run configuration" })).toBeInTheDocument();
+    expect(screen.getByLabelText("From")).toHaveAttribute("lang", "en-US");
+    expect(screen.getByLabelText("To")).toHaveAttribute("lang", "en-US");
+    expect(screen.getByLabelText("Starting capital")).toHaveAttribute("min", "100");
+    expect(screen.getByLabelText("Starting capital")).toHaveAttribute("step", "100");
     fireEvent.change(screen.getByLabelText("Position size / units"), { target: { value: "1" } });
     fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
 
@@ -213,5 +220,92 @@ describe("StrategiesPage", () => {
     await waitFor(() => expect(apiClient.deleteBacktest).toHaveBeenCalledWith(result.id));
     expect(apiClient.deleteBacktest).toHaveBeenCalledWith(secondRun.id);
     expect(await screen.findByText("0 runs")).toBeInTheDocument();
+  });
+
+  it("shows only trades returned for the selected research run", async () => {
+    const firstTrade = { ...result.trades[0]!, open_price: "111.11111" };
+    const secondTrade = { ...result.trades[0]!, open_price: "222.22222" };
+    const secondResult: BacktestResultRecord = {
+      ...result,
+      id: "run-2",
+      created_at: "2026-01-02T08:00:00Z",
+      trades: [secondTrade],
+    };
+    vi.mocked(apiClient.getBacktestRuns).mockResolvedValue([
+      {
+        id: result.id,
+        created_at: result.created_at,
+        symbol_id: result.symbol_id,
+        timeframe: result.timeframe,
+        strategy_name: result.strategy_name,
+        strategy_version: result.strategy_version,
+        data_start: result.data_start,
+        data_end: result.data_end,
+        total_trades: 1,
+        final_balance: "10001",
+        return_pct: "0.01",
+      },
+      {
+        id: secondResult.id,
+        created_at: secondResult.created_at,
+        symbol_id: secondResult.symbol_id,
+        timeframe: secondResult.timeframe,
+        strategy_name: secondResult.strategy_name,
+        strategy_version: secondResult.strategy_version,
+        data_start: secondResult.data_start,
+        data_end: secondResult.data_end,
+        total_trades: 1,
+        final_balance: "10001",
+        return_pct: "0.01",
+      },
+    ]);
+    vi.mocked(apiClient.getBacktestResult).mockImplementation(async (runId) =>
+      runId === result.id
+        ? { ...result, trades: [secondTrade] }
+        : { ...secondResult, trades: [firstTrade] },
+    );
+    vi.mocked(apiClient.getBacktestTrades).mockImplementation(async (runId) =>
+      runId === result.id ? [firstTrade] : [secondTrade],
+    );
+
+    render(<StrategiesPage />);
+
+    let openCharts = await screen.findAllByRole("button", {
+      name: /Open history and trade chart/,
+    });
+    fireEvent.click(openCharts[0]!);
+    expect(await screen.findByText("111.11111")).toBeInTheDocument();
+    expect(screen.queryByText("222.22222")).not.toBeInTheDocument();
+
+    openCharts = screen.getAllByRole("button", {
+      name: /Open history and trade chart/,
+    });
+    fireEvent.click(openCharts[1]!);
+    expect(await screen.findByText("222.22222")).toBeInTheDocument();
+    expect(screen.queryByText("111.11111")).not.toBeInTheDocument();
+    expect(apiClient.getBacktestTrades).toHaveBeenCalledWith(result.id);
+    expect(apiClient.getBacktestTrades).toHaveBeenCalledWith(secondResult.id);
+  });
+
+  it("localizes the date controls from the stored locale", async () => {
+    window.localStorage.setItem("montecarlo.locale.v1", "ru");
+
+    render(
+      <I18nProvider>
+        <StrategiesPage />
+      </I18nProvider>,
+    );
+
+    const from = await screen.findByLabelText("От");
+    expect(from).toHaveAttribute("lang", "ru-RU");
+    expect(screen.getByLabelText("До")).toHaveAttribute("lang", "ru-RU");
+    expect(screen.getByLabelText("Стартовый капитал")).toHaveAttribute("step", "100");
+    expect(document.documentElement.lang).toBe("ru-RU");
+
+    const localizedValue = new Intl.DateTimeFormat("ru-RU", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date((from as HTMLInputElement).value));
+    expect(screen.getByText(localizedValue)).toBeInTheDocument();
   });
 });

@@ -20,6 +20,9 @@
 ## Planned
 
 - Additional strategy adapters and strategy-specific parameter schemas.
+- Historical broker cost profiles derived from synchronized MT5 deals, with
+  account/symbol/date scope, commission normalization by volume and separate
+  long/short rollover handling.
 - Larger-data delivery and rendering optimizations when the 2000-candle UI
   limit becomes restrictive.
 

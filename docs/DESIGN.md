@@ -25,6 +25,19 @@ one select-all checkbox in the table header.
   daily/weekly charts and years for monthly charts.
 - While animation is enabled, Virtual execution reveals trades at entry and
   withholds close information until exit. Disabling animation shows all rows.
+- Selecting saved research replaces the ledger with the trades returned by
+  that run's dedicated endpoint; rows from another run are never retained.
+
+## Localized run configuration
+
+- The application renders a neutral bootstrap until the versioned locale key
+  has been read from local storage, preventing an English frame before the
+  selected language appears.
+- The active locale updates both the document language and each native
+  date-time control. A locale-formatted date preview remains visible even when
+  browser-native picker chrome follows operating-system settings.
+- Starting capital uses a $100 minimum and step so mouse spinner controls
+  change the value in $100 increments.
 
 ## Responsive and accessible behavior
 

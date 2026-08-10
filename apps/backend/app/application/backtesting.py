@@ -106,7 +106,10 @@ class BacktestService:
         return result
 
     async def trades(self, run_id: UUID) -> tuple[VirtualTrade, ...]:
-        return (await self.get(run_id)).result.trades
+        trades = await self._repository.trades(run_id)
+        if trades is None:
+            raise NotFoundError("Backtest run not found")
+        return trades
 
     async def delete(self, run_id: UUID) -> None:
         if not await self._repository.delete(run_id):

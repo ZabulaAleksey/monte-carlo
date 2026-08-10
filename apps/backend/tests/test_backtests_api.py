@@ -96,10 +96,28 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
     assert repeated.json()["metrics"] == result["metrics"]
     assert repeated.json()["trades"] == result["trades"]
 
+    other_payload = {**payload, "commission_per_fill": "2"}
+    other = await client.post("/api/v1/backtests", json=other_payload)
+    assert other.status_code == 201
+    assert other.json()["trades"] != result["trades"]
+
+    first_run_trades = await client.get(
+        f"/api/v1/backtests/{result['id']}/trades"
+    )
+    other_run_trades = await client.get(
+        f"/api/v1/backtests/{other.json()['id']}/trades"
+    )
+    assert first_run_trades.status_code == 200
+    assert other_run_trades.status_code == 200
+    assert first_run_trades.json() == result["trades"]
+    assert other_run_trades.json() == other.json()["trades"]
+
     deleted = await client.delete(f"/api/v1/backtests/{result['id']}")
     assert deleted.status_code == 204
     missing = await client.get(f"/api/v1/backtests/{result['id']}")
     assert missing.status_code == 404
+    missing_trades = await client.get(f"/api/v1/backtests/{result['id']}/trades")
+    assert missing_trades.status_code == 404
 
 
 @pytest.mark.asyncio

@@ -179,6 +179,19 @@ class SqlAlchemyBacktestRunRepository:
             return None
         return StoredBacktestResult(model.id, _utc(model.created_at), self._result(model))
 
+    async def trades(self, run_id: UUID) -> tuple[VirtualTrade, ...] | None:
+        run_exists = await self._session.scalar(
+            select(BacktestRunModel.id).where(BacktestRunModel.id == run_id)
+        )
+        if run_exists is None:
+            return None
+        rows = await self._session.scalars(
+            select(BacktestTradeModel)
+            .where(BacktestTradeModel.run_id == run_id)
+            .order_by(BacktestTradeModel.sequence.asc())
+        )
+        return tuple(self._trade(item) for item in rows.all())
+
     async def delete(self, run_id: UUID) -> bool:
         model = await self._session.get(BacktestRunModel, run_id)
         if model is None:
@@ -217,25 +230,7 @@ class SqlAlchemyBacktestRunRepository:
             total_commission=Decimal(str(model.metrics["total_commission"])),
             total_swap=Decimal(str(model.metrics["total_swap"])),
         )
-        trades = tuple(
-            VirtualTrade(
-                sequence=item.sequence,
-                side=PositionSide(item.side),
-                volume=item.volume,
-                opened_at=_utc(item.opened_at),
-                closed_at=_utc(item.closed_at),
-                open_price=item.open_price,
-                close_price=item.close_price,
-                stop_loss=item.stop_loss,
-                take_profit=item.take_profit,
-                exit_reason=ExitReason(item.exit_reason),
-                gross_profit=item.gross_profit,
-                commission=item.commission,
-                swap=item.swap,
-                net_profit=item.net_profit,
-            )
-            for item in model.trades
-        )
+        trades = tuple(self._trade(item) for item in model.trades)
         equity_curve = tuple(
             EquityPoint(
                 sequence=item.sequence,
@@ -261,6 +256,25 @@ class SqlAlchemyBacktestRunRepository:
             trades=trades,
             equity_curve=equity_curve,
             metrics=metrics,
+        )
+
+    @staticmethod
+    def _trade(item: BacktestTradeModel) -> VirtualTrade:
+        return VirtualTrade(
+            sequence=item.sequence,
+            side=PositionSide(item.side),
+            volume=item.volume,
+            opened_at=_utc(item.opened_at),
+            closed_at=_utc(item.closed_at),
+            open_price=item.open_price,
+            close_price=item.close_price,
+            stop_loss=item.stop_loss,
+            take_profit=item.take_profit,
+            exit_reason=ExitReason(item.exit_reason),
+            gross_profit=item.gross_profit,
+            commission=item.commission,
+            swap=item.swap,
+            net_profit=item.net_profit,
         )
 
     @staticmethod

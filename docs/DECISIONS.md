@@ -1,5 +1,33 @@
 # Technical decisions
 
+## 2026-08-10 — Explicit run isolation and locale-first rendering
+
+Status: accepted for Stage 3.
+
+### Decision
+
+The virtual-trade repository exposes a dedicated run-scoped read operation.
+Its SQL query contains an explicit backtest_trades.run_id predicate and ordered
+sequence, while a missing run still returns HTTP 404.
+
+The i18n provider does not render application children until the versioned
+local-storage locale has been resolved. The first meaningful render therefore
+uses the selected catalog, Intl locale and document language.
+
+### Reason
+
+Virtual execution is research evidence and must not rely on a broad
+relationship load whose scope is less obvious at the API boundary. Rendering
+English before applying a stored language makes localization look broken and
+also initializes native date inputs with the wrong language hint.
+
+### Consequences
+
+- A run with zero trades remains distinguishable from a missing run.
+- API and UI tests use two runs with different fills to detect cross-run data.
+- Storage-restricted browsers fall back to English without breaking the UI.
+- A short neutral loading indicator can appear before the localized app.
+
 ## 2026-08-10 — One replay clock for chart and virtual execution
 
 Status: accepted for Stage 3.
