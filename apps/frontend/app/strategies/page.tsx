@@ -6,14 +6,15 @@ import { useEffect, useRef, useState } from "react";
 import { BacktestForm } from "@/components/backtests/backtest-form";
 import { BacktestRunsTable } from "@/components/backtests/backtest-runs-table";
 import { BacktestTradesTable } from "@/components/backtests/backtest-trades-table";
-import { CandlestickTradeChart } from "@/components/backtests/candlestick-trade-chart";
 import { EquityChart } from "@/components/backtests/equity-chart";
+import { TradeReplay } from "@/components/backtests/trade-replay";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { PageHeader } from "@/components/page-header";
 import { apiClient } from "@/lib/api/client";
 import type {
   BacktestCreateRequest,
+  BacktestJobRecord,
   BacktestResultRecord,
   BacktestRunSummary,
   CandleRecord,
@@ -21,18 +22,30 @@ import type {
   SymbolRecord,
 } from "@/lib/api/types";
 import { formatMoney, formatPercent } from "@/lib/backtests";
+import { useI18n } from "@/lib/i18n";
+
+const TERMINAL_JOB_STATES = new Set(["completed", "stopped", "failed"]);
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
 
 export default function StrategiesPage(): React.JSX.Element {
+  const { intlLocale, t } = useI18n();
   const [symbols, setSymbols] = useState<SymbolRecord[]>([]);
   const [strategies, setStrategies] = useState<StrategyDefinition[]>([]);
   const [runs, setRuns] = useState<BacktestRunSummary[]>([]);
   const [result, setResult] = useState<BacktestResultRecord | null>(null);
   const [candles, setCandles] = useState<CandleRecord[]>([]);
+  const [job, setJob] = useState<BacktestJobRecord | null>(null);
+  const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(new Set());
   const [initialLoading, setInitialLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [loadingRun, setLoadingRun] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectionSequence = useRef(0);
+  const jobSequence = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -55,6 +68,7 @@ export default function StrategiesPage(): React.JSX.Element {
       });
     return () => {
       active = false;
+      jobSequence.current += 1;
     };
   }, []);
 
@@ -67,24 +81,52 @@ export default function StrategiesPage(): React.JSX.Element {
       limit: 2000,
     });
 
+  const fetchCompletedRun = async (
+    runId: string,
+  ): Promise<{ result: BacktestResultRecord; candles: CandleRecord[] }> => {
+    const [stored, trades] = await Promise.all([
+      apiClient.getBacktestResult(runId),
+      apiClient.getBacktestTrades(runId),
+    ]);
+    const nextResult = { ...stored, trades };
+    return { result: nextResult, candles: await candlesFor(nextResult) };
+  };
+
   const runBacktest = async (payload: BacktestCreateRequest): Promise<void> => {
+    const sequence = jobSequence.current + 1;
+    jobSequence.current = sequence;
     selectionSequence.current += 1;
     setLoadingRun(false);
     setRunning(true);
     setError(null);
     try {
-      const created = await apiClient.createBacktest(payload);
-      const [nextCandles, nextRuns] = await Promise.all([
-        candlesFor(created),
-        apiClient.getBacktestRuns(),
-      ]);
-      setResult(created);
-      setCandles(nextCandles);
-      setRuns(nextRuns);
+      let current = await apiClient.startBacktestJob(payload);
+      if (sequence !== jobSequence.current) return;
+      setJob(current);
+
+      while (!TERMINAL_JOB_STATES.has(current.state)) {
+        await wait(120);
+        if (sequence !== jobSequence.current) return;
+        current = await apiClient.getBacktestJob(current.id);
+        setJob(current);
+      }
+
+      if (current.state === "failed") {
+        throw new Error(current.error ?? t("job.failed"));
+      }
+      if (current.state === "stopped" || !current.result_id) return;
+
+      const completed = await fetchCompletedRun(current.result_id);
+      if (sequence !== jobSequence.current) return;
+      setResult(completed.result);
+      setCandles(completed.candles);
+      setRuns(await apiClient.getBacktestRuns());
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "Unknown error");
+      if (sequence === jobSequence.current) {
+        setError(reason instanceof Error ? reason.message : "Unknown error");
+      }
     } finally {
-      setRunning(false);
+      if (sequence === jobSequence.current) setRunning(false);
     }
   };
 
@@ -94,16 +136,10 @@ export default function StrategiesPage(): React.JSX.Element {
     setLoadingRun(true);
     setError(null);
     try {
-      const [stored, trades] = await Promise.all([
-        apiClient.getBacktestResult(runId),
-        apiClient.getBacktestTrades(runId),
-      ]);
+      const completed = await fetchCompletedRun(runId);
       if (selection !== selectionSequence.current) return;
-      const nextResult = { ...stored, trades };
-      const nextCandles = await candlesFor(nextResult);
-      if (selection !== selectionSequence.current) return;
-      setResult(nextResult);
-      setCandles(nextCandles);
+      setResult(completed.result);
+      setCandles(completed.candles);
     } catch (reason: unknown) {
       if (selection === selectionSequence.current) {
         setError(reason instanceof Error ? reason.message : "Unknown error");
@@ -113,22 +149,66 @@ export default function StrategiesPage(): React.JSX.Element {
     }
   };
 
+  const pauseJob = async (): Promise<void> => {
+    if (!job) return;
+    setJob(await apiClient.pauseBacktestJob(job.id));
+  };
+
+  const resumeJob = async (): Promise<void> => {
+    if (!job) return;
+    setJob(await apiClient.resumeBacktestJob(job.id));
+  };
+
+  const stopJob = async (): Promise<void> => {
+    if (!job) return;
+    setJob(await apiClient.stopBacktestJob(job.id));
+  };
+
+  const toggleRun = (runId: string): void => {
+    setSelectedRunIds((current) => {
+      const next = new Set(current);
+      if (next.has(runId)) next.delete(runId);
+      else next.add(runId);
+      return next;
+    });
+  };
+
+  const deleteSelected = async (): Promise<void> => {
+    const ids = [...selectedRunIds];
+    if (ids.length === 0) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await Promise.all(ids.map((runId) => apiClient.deleteBacktest(runId)));
+      setRuns(await apiClient.getBacktestRuns());
+      if (result && selectedRunIds.has(result.id)) {
+        setResult(null);
+        setCandles([]);
+      }
+      setSelectedRunIds(new Set());
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Unknown error");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const selectedSymbol = symbols.find((symbol) => symbol.id === result?.symbol_id);
 
   return (
     <>
       <PageHeader
-        badge="Deterministic engine"
-        description="Configure a strategy, replay historical candles sequentially and inspect every simulated fill."
-        eyebrow="Research workspace"
-        title="Strategy backtesting"
+        badge={t("backtest.badge")}
+        description={t("backtest.description")}
+        eyebrow={t("backtest.eyebrow")}
+        title={t("backtest.title")}
       />
       {error ? <ErrorState message={error} /> : null}
       {initialLoading ? <LoadingState /> : null}
       {!initialLoading && (symbols.length === 0 || strategies.length === 0) ? (
         <section className="empty-state panel">
-          <h2>Historical setup is incomplete</h2>
-          <p>Add an active instrument and strategy definition before starting a backtest.</p>
+          <h2>{t("backtest.emptyTitle")}</h2>
+          <p>{t("backtest.emptyText")}</p>
         </section>
       ) : null}
       {!initialLoading && symbols.length > 0 && strategies.length > 0 ? (
@@ -136,15 +216,23 @@ export default function StrategiesPage(): React.JSX.Element {
           <aside className="backtest-sidebar">
             <BacktestForm
               busy={running}
+              job={job}
+              onPause={pauseJob}
+              onResume={resumeJob}
+              onStop={stopJob}
               onSubmit={runBacktest}
               strategies={strategies}
               symbols={symbols}
             />
             <BacktestRunsTable
               busy={loadingRun || running}
+              deleting={deleting}
+              onDeleteSelected={() => void deleteSelected()}
               onSelect={(runId) => void selectRun(runId)}
+              onToggle={toggleRun}
               runs={runs}
               selectedId={result?.id ?? null}
+              selectedRunIds={selectedRunIds}
               symbols={symbols}
             />
           </aside>
@@ -153,78 +241,72 @@ export default function StrategiesPage(): React.JSX.Element {
             {loadingRun ? <LoadingState /> : null}
             {!result && !loadingRun ? (
               <div className="backtest-welcome panel">
-                <span className="eyebrow">Ready for replay</span>
-                <h2>Build a reproducible research baseline.</h2>
-                <p>
-                  Signals are calculated after a candle closes and executed at the next
-                  candle open. Remaining positions are closed at the end of the dataset.
-                </p>
+                <span className="eyebrow">{t("backtest.ready")}</span>
+                <h2>{t("backtest.readyTitle")}</h2>
+                <p>{t("backtest.readyText")}</p>
               </div>
             ) : null}
             {result && !loadingRun ? (
               <>
                 <div className="result-heading panel">
                   <div>
-                    <span className="eyebrow">Completed run</span>
-                    <h2>{selectedSymbol?.name ?? "Instrument"} / {result.timeframe}</h2>
+                    <span className="eyebrow">{t("result.completed")}</span>
+                    <h2>{selectedSymbol?.name ?? t("result.instrument")} / {result.timeframe}</h2>
                     <p>
-                      {result.strategy_name} v{result.strategy_version} / {result.candle_count} candles
+                      {result.strategy_name === "moving_average_cross"
+                        ? t("strategy.maTitle")
+                        : result.strategy_name} v{result.strategy_version} / {t("result.candles", { count: result.candle_count })}
                     </p>
                   </div>
                   <div className="result-range">
-                    <span>Data range</span>
-                    <strong>{new Date(result.data_start).toLocaleString()}</strong>
-                    <small>to {new Date(result.data_end).toLocaleString()}</small>
+                    <span>{t("result.range")}</span>
+                    <strong>{new Date(result.data_start).toLocaleString(intlLocale)}</strong>
+                    <small>{t("result.to")} {new Date(result.data_end).toLocaleString(intlLocale)}</small>
                   </div>
                 </div>
 
                 <div className="metric-grid backtest-metrics">
                   <article className="metric-card primary">
-                    <span>Final balance</span>
-                    <strong>{formatMoney(result.metrics.final_balance)}</strong>
-                    <small><CircleDollarSign size={13} /> Start {formatMoney(result.metrics.initial_capital)}</small>
+                    <span>{t("metric.balance")}</span>
+                    <strong>{formatMoney(result.metrics.final_balance, intlLocale)}</strong>
+                    <small><CircleDollarSign size={13} /> {t("metric.start", { value: formatMoney(result.metrics.initial_capital, intlLocale) })}</small>
                   </article>
                   <article className="metric-card">
-                    <span>Net return</span>
+                    <span>{t("metric.return")}</span>
                     <strong className={Number(result.metrics.return_pct) >= 0 ? "positive" : "negative"}>
                       {formatPercent(result.metrics.return_pct)}
                     </strong>
-                    <small><Activity size={13} /> {formatMoney(result.metrics.total_net_profit)}</small>
+                    <small><Activity size={13} /> {formatMoney(result.metrics.total_net_profit, intlLocale)}</small>
                   </article>
                   <article className="metric-card">
-                    <span>Maximum drawdown</span>
+                    <span>{t("metric.drawdown")}</span>
                     <strong>{formatPercent(result.metrics.max_drawdown_pct)}</strong>
-                    <small><Gauge size={13} /> Equity peak to trough</small>
+                    <small><Gauge size={13} /> {t("metric.drawdownHint")}</small>
                   </article>
                   <article className="metric-card">
-                    <span>Win rate</span>
+                    <span>{t("metric.winRate")}</span>
                     <strong>{formatPercent(result.metrics.win_rate_pct)}</strong>
-                    <small><BarChart3 size={13} /> {result.metrics.total_trades} completed trades</small>
+                    <small><BarChart3 size={13} /> {t("metric.trades", { count: result.metrics.total_trades })}</small>
                   </article>
                 </div>
 
                 <section className="panel result-chart-panel">
                   <div className="panel-heading">
-                    <div><span className="eyebrow">Portfolio path</span><h2>Equity curve</h2></div>
-                    <span className="muted">Balance + mark-to-market P&amp;L</span>
+                    <div><span className="eyebrow">{t("equity.eyebrow")}</span><h2>{t("equity.title")}</h2></div>
+                    <span className="muted">{t("equity.hint")}</span>
                   </div>
-                  <EquityChart points={result.equity_curve} />
+                  <EquityChart points={result.equity_curve} trades={result.trades} />
                 </section>
 
-                <section className="panel result-chart-panel">
-                  <div className="panel-heading">
-                    <div><span className="eyebrow">Execution map</span><h2>Candles and trades</h2></div>
-                    <span className="muted">Entries and exits never precede their signal</span>
-                  </div>
-                  <CandlestickTradeChart candles={candles} trades={result.trades} />
-                </section>
+                <TradeReplay key={result.id} candles={candles} trades={result.trades} />
 
                 <div className="run-settings panel">
-                  <div><span>Position size</span><strong>{result.settings.position_size}</strong></div>
-                  <div><span>SL / TP</span><strong>{result.settings.stop_loss_pct ?? "off"}% / {result.settings.take_profit_pct ?? "off"}%</strong></div>
-                  <div><span>Commission</span><strong>{formatMoney(result.metrics.total_commission)}</strong></div>
-                  <div><span>Slippage</span><strong>{result.settings.slippage_value} {result.settings.slippage_mode === "relative" ? "bps" : "price"}</strong></div>
-                  <div><span>Parameters</span><strong>{Object.entries(result.parameters).map(([key, value]) => `${key}=${String(value)}`).join(", ")}</strong></div>
+                  <div><span>{t("settings.position")}</span><strong>{result.settings.position_size}</strong></div>
+                  <div><span>{t("settings.risk")}</span><strong>{result.settings.stop_loss_pct ?? "off"}% / {result.settings.take_profit_pct ?? "off"}%</strong></div>
+                  <div><span>{t("settings.commission")}</span><strong>{formatMoney(result.metrics.total_commission, intlLocale)}</strong></div>
+                  <div><span>{t("settings.swap")}</span><strong>{formatMoney(result.metrics.total_swap, intlLocale)}</strong></div>
+                  <div><span>{t("settings.slippage")}</span><strong>{result.settings.slippage_value} {result.settings.slippage_mode === "relative" ? "bps" : "price"}</strong></div>
+                  <div><span>{t("settings.parameters")}</span><strong>{Object.entries(result.parameters).map(([key, value]) => `${key}=${String(value)}`).join(", ")}</strong></div>
                 </div>
 
                 <BacktestTradesTable trades={result.trades} />

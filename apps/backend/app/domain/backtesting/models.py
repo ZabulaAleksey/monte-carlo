@@ -37,6 +37,16 @@ class SlippageMode(StrEnum):
     RELATIVE = "relative"
 
 
+class BacktestJobState(StrEnum):
+    QUEUED = "queued"
+    LOADING_DATA = "loading_data"
+    SIMULATING = "simulating"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    STOPPED = "stopped"
+    FAILED = "failed"
+
+
 @dataclass(frozen=True, slots=True)
 class BacktestSettings:
     initial_capital: Decimal
@@ -161,8 +171,8 @@ class StrategyParameterDefinition:
     label: str
     value_type: str
     default: object
-    minimum: int | None = None
-    maximum: int | None = None
+    minimum: int | Decimal | None = None
+    maximum: int | Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,3 +182,15 @@ class StrategyDefinition:
     title: str
     description: str
     parameters: tuple[StrategyParameterDefinition, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class BacktestJobSnapshot:
+    id: UUID
+    state: BacktestJobState
+    stage: str
+    progress_pct: Decimal
+    processed_candles: int
+    total_candles: int
+    result_id: UUID | None = None
+    error: str | None = None

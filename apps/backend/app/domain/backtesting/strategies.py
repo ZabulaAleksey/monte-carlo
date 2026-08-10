@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from decimal import Decimal
 
 from app.domain.backtesting.models import (
+    BacktestSettings,
     Signal,
     StrategyContext,
     StrategyDefinition,
@@ -16,13 +18,38 @@ class MovingAverageCrossStrategy:
     """Infrastructure demo only; no profitability claim is made."""
 
     name = "moving_average_cross"
-    version = "1.0.0"
+    version = "1.1.0"
 
     def validate_parameters(self, parameters: dict[str, object]) -> None:
         short_window = self._window(parameters, "short_window")
         long_window = self._window(parameters, "long_window")
         if short_window >= long_window:
             raise DomainError("short_window must be smaller than long_window")
+        if "position_size" in parameters:
+            self._positive_decimal(parameters, "position_size")
+        if "stop_loss_pct" in parameters:
+            self._positive_decimal(parameters, "stop_loss_pct")
+        if "take_profit_pct" in parameters:
+            self._positive_decimal(parameters, "take_profit_pct")
+
+    def configure(
+        self, parameters: dict[str, object], settings: BacktestSettings
+    ) -> BacktestSettings:
+        position_size = (
+            self._positive_decimal(parameters, "position_size")
+            if "position_size" in parameters
+            else settings.position_size
+        )
+        return replace(
+            settings,
+            position_size=position_size,
+            stop_loss_pct=self._optional_setting(
+                parameters, "stop_loss_pct", settings.stop_loss_pct
+            ),
+            take_profit_pct=self._optional_setting(
+                parameters, "take_profit_pct", settings.take_profit_pct
+            ),
+        )
 
     def on_candle(self, context: StrategyContext) -> Signal:
         short_window = self._window(context.parameters, "short_window")
@@ -61,6 +88,30 @@ class MovingAverageCrossStrategy:
             raise DomainError(f"{name} must be a positive integer")
         return value
 
+    @staticmethod
+    def _positive_decimal(parameters: Mapping[str, object], name: str) -> Decimal:
+        value = parameters.get(name)
+        if isinstance(value, bool):
+            raise DomainError(f"{name} must be greater than zero")
+        try:
+            converted = Decimal(str(value))
+        except Exception as exc:
+            raise DomainError(f"{name} must be greater than zero") from exc
+        if converted <= 0:
+            raise DomainError(f"{name} must be greater than zero")
+        return converted
+
+    @classmethod
+    def _optional_setting(
+        cls,
+        parameters: Mapping[str, object],
+        name: str,
+        fallback: Decimal | None,
+    ) -> Decimal | None:
+        if name not in parameters:
+            return fallback
+        return cls._positive_decimal(parameters, name)
+
 
 MOVING_AVERAGE_CROSS_DEFINITION = StrategyDefinition(
     name=MovingAverageCrossStrategy.name,
@@ -73,6 +124,18 @@ MOVING_AVERAGE_CROSS_DEFINITION = StrategyDefinition(
     parameters=(
         StrategyParameterDefinition("short_window", "Fast MA period", "integer", 5, 1, 200),
         StrategyParameterDefinition("long_window", "Slow MA period", "integer", 20, 2, 500),
+        StrategyParameterDefinition(
+            "position_size", "Position size / units", "decimal", Decimal("10000"),
+            Decimal("0.00000001"), Decimal("1000000000")
+        ),
+        StrategyParameterDefinition(
+            "stop_loss_pct", "Stop loss / %", "decimal", Decimal("1"),
+            Decimal("0.0001"), Decimal("100")
+        ),
+        StrategyParameterDefinition(
+            "take_profit_pct", "Take profit / %", "decimal", Decimal("2"),
+            Decimal("0.0001"), Decimal("1000")
+        ),
     ),
 )
 

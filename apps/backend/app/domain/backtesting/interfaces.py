@@ -8,6 +8,7 @@ from uuid import UUID
 from app.domain.backtesting.models import (
     BacktestResult,
     BacktestRunSummary,
+    BacktestSettings,
     Signal,
     StoredBacktestResult,
     StrategyContext,
@@ -30,7 +31,16 @@ class Strategy(Protocol):
     version: str
 
     def validate_parameters(self, parameters: dict[str, object]) -> None: ...
+    def configure(
+        self, parameters: dict[str, object], settings: BacktestSettings
+    ) -> BacktestSettings: ...
     def on_candle(self, context: StrategyContext) -> Signal: ...
+
+
+class BacktestControl(Protocol):
+    async def checkpoint(
+        self, stage: str, completed: int = 0, total: int = 0
+    ) -> None: ...
 
 
 class CommissionModel(Protocol):
@@ -45,3 +55,4 @@ class BacktestRunRepository(Protocol):
     async def add(self, result: BacktestResult) -> StoredBacktestResult: ...
     async def list(self, limit: int = 100) -> list[BacktestRunSummary]: ...
     async def get(self, run_id: UUID) -> StoredBacktestResult | None: ...
+    async def delete(self, run_id: UUID) -> bool: ...

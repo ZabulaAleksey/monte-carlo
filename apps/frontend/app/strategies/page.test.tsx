@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import StrategiesPage from "./page";
@@ -6,12 +6,18 @@ import StrategiesPage from "./page";
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     createBacktest: vi.fn(),
+    deleteBacktest: vi.fn(),
     getBacktestResult: vi.fn(),
+    getBacktestJob: vi.fn(),
     getBacktestRuns: vi.fn(),
     getBacktestStrategies: vi.fn(),
     getBacktestTrades: vi.fn(),
     getCandles: vi.fn(),
     getSymbols: vi.fn(),
+    pauseBacktestJob: vi.fn(),
+    resumeBacktestJob: vi.fn(),
+    startBacktestJob: vi.fn(),
+    stopBacktestJob: vi.fn(),
   },
 }));
 
@@ -82,6 +88,7 @@ const result: BacktestResultRecord = {
 
 describe("StrategiesPage", () => {
   beforeEach(() => {
+    cleanup();
     vi.mocked(apiClient.getSymbols).mockResolvedValue([
       { id: "symbol-1", name: "EURUSD", description: "Euro", digits: 5, is_active: true },
     ]);
@@ -94,6 +101,9 @@ describe("StrategiesPage", () => {
         parameters: [
           { name: "short_window", label: "Fast MA period", value_type: "integer", default: 2, minimum: 1, maximum: 200 },
           { name: "long_window", label: "Slow MA period", value_type: "integer", default: 3, minimum: 2, maximum: 500 },
+          { name: "position_size", label: "Position size / units", value_type: "decimal", default: 10000, minimum: 0.00000001, maximum: 1000000000 },
+          { name: "stop_loss_pct", label: "Stop loss / %", value_type: "decimal", default: 1, minimum: 0.0001, maximum: 100 },
+          { name: "take_profit_pct", label: "Take profit / %", value_type: "decimal", default: 2, minimum: 0.0001, maximum: 1000 },
         ],
       },
     ]);
@@ -113,6 +123,16 @@ describe("StrategiesPage", () => {
       },
     ]);
     vi.mocked(apiClient.createBacktest).mockResolvedValue(result);
+    vi.mocked(apiClient.startBacktestJob).mockResolvedValue({
+      id: "job-1",
+      state: "completed",
+      stage: "completed",
+      progress_pct: "100",
+      processed_candles: 8,
+      total_candles: 8,
+      result_id: result.id,
+      error: null,
+    });
     vi.mocked(apiClient.getBacktestResult).mockResolvedValue(result);
     vi.mocked(apiClient.getBacktestTrades).mockResolvedValue(result.trades);
   });
@@ -121,23 +141,62 @@ describe("StrategiesPage", () => {
     render(<StrategiesPage />);
 
     expect(await screen.findByRole("heading", { name: "Run configuration" })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Position size"), { target: { value: "1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Run backtest" }));
+    fireEvent.change(screen.getByLabelText("Position size / units"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
 
     await waitFor(() =>
-      expect(apiClient.createBacktest).toHaveBeenCalledWith(
+      expect(apiClient.startBacktestJob).toHaveBeenCalledWith(
         expect.objectContaining({
           strategy_name: "moving_average_cross",
           symbol_id: "symbol-1",
           timeframe: "H1",
-          position_size: "1",
-          parameters: { short_window: 2, long_window: 3 },
+          parameters: {
+            short_window: 2,
+            long_window: 3,
+            position_size: "1",
+            stop_loss_pct: "1",
+            take_profit_pct: "2",
+          },
         }),
       ),
     );
     expect(await screen.findByText("$10,001.00")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /Equity curve with 2 observations/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Equity curve with 2 observations and 1 completed operations/ })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /Candlestick chart with 1 virtual trades/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Trade ledger" })).toBeInTheDocument();
+  });
+
+  it("opens a saved chart and deletes selected research", async () => {
+    vi.mocked(apiClient.getBacktestRuns)
+      .mockResolvedValueOnce([
+        {
+          id: result.id,
+          created_at: result.created_at,
+          symbol_id: result.symbol_id,
+          timeframe: result.timeframe,
+          strategy_name: result.strategy_name,
+          strategy_version: result.strategy_version,
+          data_start: result.data_start,
+          data_end: result.data_end,
+          total_trades: 1,
+          final_balance: "10001",
+          return_pct: "0.01",
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    render(<StrategiesPage />);
+
+    const openChart = await screen.findByRole("button", {
+      name: /Open history and trade chart/,
+    });
+    fireEvent.click(openChart);
+    expect(await screen.findByRole("heading", { name: "Trade ledger" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Select research/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete selected" }));
+
+    await waitFor(() => expect(apiClient.deleteBacktest).toHaveBeenCalledWith(result.id));
+    expect(await screen.findByText("0 runs")).toBeInTheDocument();
   });
 });

@@ -11,33 +11,35 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useMt5Status } from "@/hooks/use-mt5-status";
+import { supportedLocales, useI18n } from "@/lib/i18n";
 
 const links = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/market-data", label: "Market Data", icon: ChartCandlestick },
-  { href: "/trades", label: "Trades", icon: TableProperties },
-  { href: "/strategies", label: "Strategies", icon: FlaskConical },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/", label: "nav.dashboard" as const, icon: LayoutDashboard },
+  { href: "/market-data", label: "nav.marketData" as const, icon: ChartCandlestick },
+  { href: "/trades", label: "nav.trades" as const, icon: TableProperties },
+  { href: "/strategies", label: "nav.strategies" as const, icon: FlaskConical },
+  { href: "/settings", label: "nav.settings" as const, icon: Settings },
 ] as const;
 
 export function Navigation(): React.JSX.Element {
   const pathname = usePathname();
+  const { locale, setLocale, t } = useI18n();
   const { error, status } = useMt5Status();
   const connected = status?.connected === true;
   const checking = status === null && error === null;
   const environmentState = connected ? "online" : checking ? "checking" : "offline";
   const environmentLabel = connected
-    ? "Online environment"
+    ? t("status.online")
     : checking
-      ? "Checking environment"
-      : "Demo environment";
+      ? t("status.checking")
+      : t("status.demo");
   const environmentDetail = connected
-    ? "MT5 market feed online"
+    ? t("status.feedOnline")
     : error
-      ? "Connection status unavailable"
+      ? t("status.unavailable")
       : status?.configured
-        ? "MT5 feed offline · sample data"
-        : "Sample market feed";
+        ? t("status.feedOffline")
+        : t("status.sampleFeed");
 
   return (
     <aside className="sidebar">
@@ -54,11 +56,24 @@ export function Navigation(): React.JSX.Element {
           return (
             <Link className={active ? "nav-link active" : "nav-link"} href={href} key={href}>
               <Icon aria-hidden="true" size={18} strokeWidth={1.8} />
-              {label}
+              {t(label)}
             </Link>
           );
         })}
       </nav>
+      <div className="language-switcher" aria-label={t("language.label")}>
+        {supportedLocales.map((item) => (
+          <button
+            aria-pressed={locale === item.code}
+            className={locale === item.code ? "active" : undefined}
+            key={item.code}
+            onClick={() => setLocale(item.code)}
+            type="button"
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
       <div
         aria-live="polite"
         className={`sidebar-status ${environmentState}`}

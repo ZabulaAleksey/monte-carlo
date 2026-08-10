@@ -1,9 +1,11 @@
 import type { CandleRecord, VirtualTradeRecord } from "@/lib/api/types";
 import { mapTradesToCandles, sortCandles } from "@/lib/backtests";
+import { useI18n } from "@/lib/i18n";
 
 interface CandlestickTradeChartProps {
   candles: CandleRecord[];
   trades: VirtualTradeRecord[];
+  visibleUntil?: string;
 }
 
 const MINIMUM_WIDTH = 900;
@@ -13,10 +15,12 @@ const PADDING = 30;
 export function CandlestickTradeChart({
   candles,
   trades,
+  visibleUntil,
 }: CandlestickTradeChartProps): React.JSX.Element {
+  const { t } = useI18n();
   const visible = sortCandles(candles);
   if (visible.length === 0) {
-    return <div className="chart-empty">No candles are available for this run.</div>;
+    return <div className="chart-empty">{t("replay.empty")}</div>;
   }
   const lows = visible.map((item) => Number(item.low));
   const highs = visible.map((item) => Number(item.high));
@@ -30,13 +34,13 @@ export function CandlestickTradeChart({
   const y = (price: number): number =>
     PADDING + ((maximum - price) / range) * plotHeight;
   const x = (index: number): number => PADDING + step * index + step / 2;
-  const markers = mapTradesToCandles(visible, trades);
+  const markers = mapTradesToCandles(visible, trades, visibleUntil);
 
   return (
     <div className="chart-frame">
       <div className="chart-caption">
-        <span>{visible.length} sequential candles</span>
-        <span>Triangles: entry / circles: exit</span>
+        <span>{t("replay.candles", { count: visible.length })}</span>
+        <span>{t("replay.markers")}</span>
       </div>
       <svg
         aria-label={`Candlestick chart with ${trades.length} virtual trades`}

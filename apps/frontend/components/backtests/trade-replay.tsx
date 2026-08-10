@@ -1,0 +1,125 @@
+"use client";
+
+import { Pause, Play, Square } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+import { CandlestickTradeChart } from "@/components/backtests/candlestick-trade-chart";
+import type { CandleRecord, VirtualTradeRecord } from "@/lib/api/types";
+import { sortCandles } from "@/lib/backtests";
+import { useI18n } from "@/lib/i18n";
+
+interface TradeReplayProps {
+  candles: CandleRecord[];
+  trades: VirtualTradeRecord[];
+}
+
+const SPEEDS = [0.5, 1, 2, 4] as const;
+
+export function TradeReplay({ candles, trades }: TradeReplayProps): React.JSX.Element {
+  const { t } = useI18n();
+  const sorted = useMemo(() => sortCandles(candles), [candles]);
+  const [enabled, setEnabled] = useState(true);
+  const [playing, setPlaying] = useState(true);
+  const [speed, setSpeed] = useState<number>(1);
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    setIndex(0);
+    setPlaying(true);
+  }, [candles]);
+
+  useEffect(() => {
+    if (!enabled || !playing || sorted.length === 0 || index >= sorted.length - 1) {
+      return undefined;
+    }
+    const step = Math.max(1, Math.ceil(sorted.length / 240));
+    const timer = window.setTimeout(() => {
+      setIndex((current) => Math.min(current + step, sorted.length - 1));
+    }, Math.max(45, 220 / speed));
+    return () => window.clearTimeout(timer);
+  }, [enabled, index, playing, sorted.length, speed]);
+
+  useEffect(() => {
+    if (index >= sorted.length - 1) setPlaying(false);
+  }, [index, sorted.length]);
+
+  const visibleCount = enabled ? Math.min(index + 1, sorted.length) : sorted.length;
+  const visibleCandles = sorted.slice(0, visibleCount);
+  const nextCandle = enabled && visibleCount < sorted.length ? sorted[visibleCount] : undefined;
+  const visibleUntil = nextCandle?.open_time;
+
+  const toggleEnabled = (checked: boolean): void => {
+    setEnabled(checked);
+    setPlaying(false);
+    setIndex(checked ? 0 : Math.max(sorted.length - 1, 0));
+  };
+
+  return (
+    <section className="panel result-chart-panel">
+      <div className="panel-heading replay-heading">
+        <div>
+          <span className="eyebrow">{t("replay.eyebrow")}</span>
+          <h2>{t("replay.title")}</h2>
+        </div>
+        <span className="muted">{t("replay.hint")}</span>
+      </div>
+      <div className="replay-toolbar">
+        <label className="replay-toggle">
+          <input
+            checked={enabled}
+            onChange={(event) => toggleEnabled(event.target.checked)}
+            type="checkbox"
+          />
+          {t("replay.show")}
+        </label>
+        <label>
+          {t("replay.speed")}
+          <select
+            disabled={!enabled}
+            onChange={(event) => setSpeed(Number(event.target.value))}
+            value={speed}
+          >
+            {SPEEDS.map((item) => <option key={item} value={item}>{item}×</option>)}
+          </select>
+        </label>
+        <div className="replay-actions">
+          <button
+            disabled={!enabled || playing || sorted.length === 0}
+            onClick={() => setPlaying(true)}
+            type="button"
+          >
+            <Play size={13} /> {t("replay.play")}
+          </button>
+          <button
+            disabled={!enabled || !playing}
+            onClick={() => setPlaying(false)}
+            type="button"
+          >
+            <Pause size={13} /> {t("replay.pause")}
+          </button>
+          <button
+            disabled={!enabled || sorted.length === 0}
+            onClick={() => {
+              setPlaying(false);
+              setIndex(0);
+            }}
+            type="button"
+          >
+            <Square size={12} /> {t("replay.stop")}
+          </button>
+        </div>
+        <span className="replay-position">
+          {t("replay.progress", {
+            current: sorted.length ? visibleCount : 0,
+            total: sorted.length,
+          })}
+        </span>
+      </div>
+      <CandlestickTradeChart
+        candles={visibleCandles}
+        trades={trades}
+        visibleUntil={visibleUntil}
+      />
+    </section>
+  );
+}

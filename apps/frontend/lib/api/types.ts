@@ -92,7 +92,7 @@ export type BacktestExitReason =
 export interface StrategyParameterDefinition {
   name: string;
   label: string;
-  value_type: "integer";
+  value_type: "integer" | "decimal";
   default: number;
   minimum: number | null;
   maximum: number | null;
@@ -113,14 +113,34 @@ export interface BacktestCreateRequest {
   start_at: string;
   end_at: string;
   initial_capital: string;
-  position_size: string;
-  stop_loss_pct: string | null;
-  take_profit_pct: string | null;
+  position_size?: string;
+  stop_loss_pct?: string | null;
+  take_profit_pct?: string | null;
   commission_per_fill: string;
   swap_per_day: string;
   slippage_mode: SlippageMode;
   slippage_value: string;
-  parameters: Record<string, number>;
+  parameters: Record<string, number | string>;
+}
+
+export type BacktestJobState =
+  | "queued"
+  | "loading_data"
+  | "simulating"
+  | "paused"
+  | "completed"
+  | "stopped"
+  | "failed";
+
+export interface BacktestJobRecord {
+  id: string;
+  state: BacktestJobState;
+  stage: string;
+  progress_pct: string;
+  processed_candles: number;
+  total_candles: number;
+  result_id: string | null;
+  error: string | null;
 }
 
 export interface BacktestSettingsRecord {

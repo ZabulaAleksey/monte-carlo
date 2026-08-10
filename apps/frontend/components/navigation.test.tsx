@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Navigation } from "./navigation";
+import { I18nProvider } from "@/lib/i18n";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
@@ -15,6 +16,8 @@ import { useMt5Status } from "@/hooks/use-mt5-status";
 
 describe("Navigation", () => {
   beforeEach(() => {
+    cleanup();
+    window.localStorage.clear();
     vi.mocked(useMt5Status).mockReturnValue({
       error: null,
       status: {
@@ -51,5 +54,19 @@ describe("Navigation", () => {
 
     expect(screen.getByText("Demo environment")).toBeInTheDocument();
     expect(screen.getByText(/MT5 feed offline/)).toBeInTheDocument();
+  });
+
+  it("switches to Russian and persists the selected locale", () => {
+    render(
+      <I18nProvider>
+        <Navigation />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "RU" }));
+
+    expect(screen.getByText("Онлайн-среда")).toBeInTheDocument();
+    expect(screen.getByText("Дашборд")).toBeInTheDocument();
+    expect(window.localStorage.getItem("montecarlo.locale.v1")).toBe("ru");
   });
 });

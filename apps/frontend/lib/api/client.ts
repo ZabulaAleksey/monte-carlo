@@ -2,6 +2,7 @@ import type {
   AccountRecord,
   ApiInfo,
   BacktestCreateRequest,
+  BacktestJobRecord,
   BacktestResultRecord,
   BacktestRunSummary,
   CandleQuery,
@@ -44,6 +45,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const payload = (await response.json().catch(() => ({}))) as ErrorPayload;
     throw new ApiClientError(payload.error?.message ?? "API request failed", response.status);
   }
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
@@ -80,12 +82,33 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  startBacktestJob: (payload: BacktestCreateRequest): Promise<BacktestJobRecord> =>
+    request<BacktestJobRecord>("/api/v1/backtests/jobs", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getBacktestJob: (jobId: string): Promise<BacktestJobRecord> =>
+    request<BacktestJobRecord>(`/api/v1/backtests/jobs/${jobId}`),
+  pauseBacktestJob: (jobId: string): Promise<BacktestJobRecord> =>
+    request<BacktestJobRecord>(`/api/v1/backtests/jobs/${jobId}/pause`, {
+      method: "POST",
+    }),
+  resumeBacktestJob: (jobId: string): Promise<BacktestJobRecord> =>
+    request<BacktestJobRecord>(`/api/v1/backtests/jobs/${jobId}/resume`, {
+      method: "POST",
+    }),
+  stopBacktestJob: (jobId: string): Promise<BacktestJobRecord> =>
+    request<BacktestJobRecord>(`/api/v1/backtests/jobs/${jobId}/stop`, {
+      method: "POST",
+    }),
   getBacktestRuns: (): Promise<BacktestRunSummary[]> =>
     request<BacktestRunSummary[]>("/api/v1/backtests"),
   getBacktestResult: (runId: string): Promise<BacktestResultRecord> =>
     request<BacktestResultRecord>(`/api/v1/backtests/${runId}`),
   getBacktestTrades: (runId: string): Promise<BacktestResultRecord["trades"]> =>
     request<BacktestResultRecord["trades"]>(`/api/v1/backtests/${runId}/trades`),
+  deleteBacktest: (runId: string): Promise<void> =>
+    request<void>(`/api/v1/backtests/${runId}`, { method: "DELETE" }),
 };
 
 export { API_URL };

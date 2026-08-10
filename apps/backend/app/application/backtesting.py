@@ -14,7 +14,11 @@ from app.domain.backtesting.execution import (
     RelativeSlippageModel,
     RiskManager,
 )
-from app.domain.backtesting.interfaces import BacktestRunRepository, HistoricalDataProvider
+from app.domain.backtesting.interfaces import (
+    BacktestControl,
+    BacktestRunRepository,
+    HistoricalDataProvider,
+)
 from app.domain.backtesting.models import (
     BacktestRunSummary,
     BacktestSettings,
@@ -52,26 +56,32 @@ class BacktestService:
     def strategies(self) -> tuple[StrategyDefinition, ...]:
         return strategy_catalog()
 
-    async def run(self, request: BacktestRunRequest) -> StoredBacktestResult:
+    async def run(
+        self,
+        request: BacktestRunRequest,
+        control: BacktestControl | None = None,
+    ) -> StoredBacktestResult:
         if await self._symbols.get(request.symbol_id) is None:
             raise NotFoundError("Symbol not found")
         strategy = create_strategy(request.strategy_name)
+        strategy.validate_parameters(request.parameters)
+        resolved_settings = strategy.configure(request.parameters, request.settings)
         slippage = (
-            FixedSlippageModel(request.settings.slippage_value)
-            if request.settings.slippage_mode == SlippageMode.FIXED
-            else RelativeSlippageModel(request.settings.slippage_value)
+            FixedSlippageModel(resolved_settings.slippage_value)
+            if resolved_settings.slippage_mode == SlippageMode.FIXED
+            else RelativeSlippageModel(resolved_settings.slippage_value)
         )
         engine = BacktestEngine(
             self._data_provider,
             PositionManager(),
             RiskManager(
-                request.settings.stop_loss_pct,
-                request.settings.take_profit_pct,
+                resolved_settings.stop_loss_pct,
+                resolved_settings.take_profit_pct,
             ),
             OrderSimulator(
-                FixedCommissionModel(request.settings.commission_per_fill),
+                FixedCommissionModel(resolved_settings.commission_per_fill),
                 slippage,
-                request.settings.swap_per_day,
+                resolved_settings.swap_per_day,
             ),
         )
         result = await engine.run(
@@ -81,7 +91,8 @@ class BacktestService:
             end_at=request.end_at,
             strategy=strategy,
             parameters=request.parameters,
-            settings=request.settings,
+            settings=resolved_settings,
+            control=control,
         )
         return await self._repository.add(result)
 
@@ -96,3 +107,7 @@ class BacktestService:
 
     async def trades(self, run_id: UUID) -> tuple[VirtualTrade, ...]:
         return (await self.get(run_id)).result.trades
+
+    async def delete(self, run_id: UUID) -> None:
+        if not await self._repository.delete(run_id):
+            raise NotFoundError("Backtest run not found")

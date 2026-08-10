@@ -179,6 +179,18 @@ class SqlAlchemyBacktestRunRepository:
             return None
         return StoredBacktestResult(model.id, _utc(model.created_at), self._result(model))
 
+    async def delete(self, run_id: UUID) -> bool:
+        model = await self._session.get(BacktestRunModel, run_id)
+        if model is None:
+            return False
+        await self._session.delete(model)
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
+        return True
+
     def _result(self, model: BacktestRunModel) -> BacktestResult:
         settings = BacktestSettings(
             initial_capital=Decimal(str(model.settings["initial_capital"])),

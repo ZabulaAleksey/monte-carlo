@@ -12,7 +12,7 @@ from app.domain.backtesting.execution import (
     RiskManager,
     quantize_decimal,
 )
-from app.domain.backtesting.interfaces import HistoricalDataProvider, Strategy
+from app.domain.backtesting.interfaces import BacktestControl, HistoricalDataProvider, Strategy
 from app.domain.backtesting.models import (
     MAX_BACKTEST_CANDLES,
     BacktestMetrics,
@@ -54,6 +54,7 @@ class BacktestEngine:
         strategy: Strategy,
         parameters: dict[str, object],
         settings: BacktestSettings,
+        control: BacktestControl | None = None,
     ) -> BacktestResult:
         self._validate_request(start_at, end_at, settings)
         strategy.validate_parameters(parameters)
@@ -66,6 +67,8 @@ class BacktestEngine:
             commission_per_fill=quantize_decimal(settings.commission_per_fill),
             swap_per_day=quantize_decimal(settings.swap_per_day),
         )
+        if control is not None:
+            await control.checkpoint("loading_data")
         supplied = await self._data_provider.get_candles(
             symbol_id, normalized_timeframe, start_at, end_at
         )
@@ -89,6 +92,8 @@ class BacktestEngine:
             )
         if len({candle.open_time for candle in candles}) != len(candles):
             raise DomainError("Historical data contains duplicate candle timestamps")
+        if control is not None:
+            await control.checkpoint("simulating", 0, len(candles))
 
         immutable_parameters = MappingProxyType(dict(parameters))
         history: list[Candle] = []
@@ -98,7 +103,7 @@ class BacktestEngine:
         peak_equity = settings.initial_capital
         pending_signal = Signal.HOLD
 
-        for candle in candles:
+        for candle_index, candle in enumerate(candles, start=1):
             candle_close_time = candle.open_time + candle_duration
             balance = self._execute_pending_signal(
                 pending_signal,
@@ -148,6 +153,8 @@ class BacktestEngine:
                     drawdown_pct=self._drawdown(peak_equity, equity),
                 )
             )
+            if control is not None:
+                await control.checkpoint("simulating", candle_index, len(candles))
 
         last_candle = candles[-1]
         if self._positions.current is not None:

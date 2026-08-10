@@ -1,9 +1,20 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.backtest_dependencies import (
+    get_backtest_job_manager,
+    get_backtest_service,
+)
+from app.application.backtest_jobs import BacktestJobManager
+from app.application.backtesting import BacktestRunRequest
+from app.domain.backtesting.interfaces import BacktestControl
+from app.domain.backtesting.models import StoredBacktestResult
+from app.main import app
 from tests.test_trading_data import create_symbol
 
 
@@ -34,6 +45,12 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
     strategies = await client.get("/api/v1/backtests/strategies")
     assert strategies.status_code == 200
     assert strategies.json()[0]["name"] == "moving_average_cross"
+    assert strategies.json()[0]["version"] == "1.1.0"
+    assert any(
+        parameter["name"] == "position_size"
+        and parameter["value_type"] == "decimal"
+        for parameter in strategies.json()[0]["parameters"]
+    )
     assert "not presented as profitable" in strategies.json()[0]["description"]
 
     payload = {
@@ -55,7 +72,7 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
     created = await client.post("/api/v1/backtests", json=payload)
     assert created.status_code == 201, created.text
     result = created.json()
-    assert result["strategy_version"] == "1.0.0"
+    assert result["strategy_version"] == "1.1.0"
     assert result["candle_count"] == 8
     assert len(result["trades"]) == 2
     assert len(result["equity_curve"]) == 8
@@ -79,6 +96,11 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
     assert repeated.json()["metrics"] == result["metrics"]
     assert repeated.json()["trades"] == result["trades"]
 
+    deleted = await client.delete(f"/api/v1/backtests/{result['id']}")
+    assert deleted.status_code == 204
+    missing = await client.get(f"/api/v1/backtests/{result['id']}")
+    assert missing.status_code == 404
+
 
 @pytest.mark.asyncio
 async def test_backtest_rejects_range_without_candles(client: AsyncClient) -> None:
@@ -98,3 +120,71 @@ async def test_backtest_rejects_range_without_candles(client: AsyncClient) -> No
     assert response.json()["error"]["message"] == (
         "No historical candles found for the requested range"
     )
+
+
+@pytest.mark.asyncio
+async def test_backtest_job_api_reports_progress_and_result(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    symbol = await create_symbol(client, "GBPUSD")
+    start = datetime(2026, 2, 1, tzinfo=UTC)
+    for index, close in enumerate(["5", "4", "3", "4", "5", "4", "3", "2"]):
+        response = await client.post(
+            "/api/v1/candles",
+            json={
+                "symbol_id": symbol["id"],
+                "timeframe": "H1",
+                "open_time": (start + timedelta(hours=index)).isoformat(),
+                "open": close,
+                "high": str(Decimal(close) + Decimal("0.2")),
+                "low": str(Decimal(close) - Decimal("0.2")),
+                "close": close,
+                "volume": "100",
+            },
+        )
+        assert response.status_code == 201
+
+    async def runner(
+        request: BacktestRunRequest,
+        control: BacktestControl,
+    ) -> StoredBacktestResult:
+        return await get_backtest_service(session).run(request, control)
+
+    manager = BacktestJobManager(runner)
+    app.dependency_overrides[get_backtest_job_manager] = lambda: manager
+    started = await client.post(
+        "/api/v1/backtests/jobs",
+        json={
+            "strategy_name": "moving_average_cross",
+            "symbol_id": symbol["id"],
+            "timeframe": "H1",
+            "start_at": start.isoformat(),
+            "end_at": (start + timedelta(hours=7)).isoformat(),
+            "parameters": {
+                "short_window": 2,
+                "long_window": 3,
+                "position_size": "1",
+                "stop_loss_pct": "1",
+                "take_profit_pct": "2",
+            },
+        },
+    )
+    assert started.status_code == 202
+
+    snapshot = started.json()
+    for _ in range(100):
+        status_response = await client.get(
+            f"/api/v1/backtests/jobs/{snapshot['id']}"
+        )
+        assert status_response.status_code == 200
+        snapshot = status_response.json()
+        if snapshot["state"] in {"completed", "failed", "stopped"}:
+            break
+        await asyncio.sleep(0)
+
+    assert snapshot["state"] == "completed", snapshot
+    assert snapshot["progress_pct"] == "100.00"
+    result = await client.get(f"/api/v1/backtests/{snapshot['result_id']}")
+    assert result.status_code == 200
+    assert result.json()["settings"]["position_size"] == "1.00000000"

@@ -56,6 +56,23 @@ describe("backtest chart helpers", () => {
     expect(markers[1]).toMatchObject({ candleIndex: 1, kind: "exit" });
   });
 
+  it("does not render a future exit during animated replay", () => {
+    const candles = [
+      candle("one", "2026-01-01T01:00:00Z"),
+      candle("two", "2026-01-01T02:00:00Z"),
+    ];
+
+    const markers = mapTradesToCandles(
+      candles,
+      [trade],
+      "2026-01-01T01:45:00Z",
+    );
+
+    expect(markers).toEqual([
+      expect.objectContaining({ kind: "entry", tradeSequence: 1 }),
+    ]);
+  });
+
   it("keeps a stop reported at candle close on the candle that triggered it", () => {
     const candles = [
       candle("one", "2026-01-01T01:00:00Z"),

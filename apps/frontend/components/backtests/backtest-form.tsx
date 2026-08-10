@@ -1,19 +1,33 @@
 "use client";
 
-import { Play } from "lucide-react";
+import { Pause, Play, RotateCcw, Square } from "lucide-react";
 import { useState } from "react";
 
 import type {
   BacktestCreateRequest,
+  BacktestJobRecord,
   SlippageMode,
   StrategyDefinition,
   SymbolRecord,
 } from "@/lib/api/types";
+import { useI18n } from "@/lib/i18n";
+
+const advisorLabelKeys = {
+  short_window: "advisor.short_window",
+  long_window: "advisor.long_window",
+  position_size: "advisor.position_size",
+  stop_loss_pct: "advisor.stop_loss_pct",
+  take_profit_pct: "advisor.take_profit_pct",
+} as const;
 
 interface BacktestFormProps {
   busy: boolean;
+  job: BacktestJobRecord | null;
   strategies: StrategyDefinition[];
   symbols: SymbolRecord[];
+  onPause: () => Promise<void>;
+  onResume: () => Promise<void>;
+  onStop: () => Promise<void>;
   onSubmit: (payload: BacktestCreateRequest) => Promise<void>;
 }
 
@@ -24,9 +38,6 @@ interface FormState {
   startAt: string;
   endAt: string;
   initialCapital: string;
-  positionSize: string;
-  stopLossPct: string;
-  takeProfitPct: string;
   commissionPerFill: string;
   swapPerDay: string;
   slippageMode: SlippageMode;
@@ -50,10 +61,15 @@ function initialParameters(strategy: StrategyDefinition | undefined): Record<str
 
 export function BacktestForm({
   busy,
+  job,
   strategies,
   symbols,
+  onPause,
+  onResume,
+  onStop,
   onSubmit,
 }: BacktestFormProps): React.JSX.Element {
+  const { t } = useI18n();
   const [form, setForm] = useState<FormState>(() => {
     const end = new Date();
     const start = new Date(end.getTime() - 48 * 60 * 60 * 1000);
@@ -64,9 +80,6 @@ export function BacktestForm({
       startAt: localDateInput(start),
       endAt: localDateInput(end),
       initialCapital: "10000",
-      positionSize: "10000",
-      stopLossPct: "1",
-      takeProfitPct: "2",
       commissionPerFill: "0",
       swapPerDay: "0",
       slippageMode: "fixed",
@@ -75,6 +88,12 @@ export function BacktestForm({
     };
   });
   const selectedStrategy = strategies.find((item) => item.name === form.strategyName);
+  const strategyTitle = (strategy: StrategyDefinition): string =>
+    strategy.name === "moving_average_cross" ? t("strategy.maTitle") : strategy.title;
+  const advisorLabel = (name: string, fallback: string): string => {
+    const key = advisorLabelKeys[name as keyof typeof advisorLabelKeys];
+    return key ? t(key) : fallback;
+  };
 
   const update = (field: keyof Omit<FormState, "parameters">, value: string): void => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -91,6 +110,15 @@ export function BacktestForm({
 
   const submit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    const parameters = Object.fromEntries(
+      (selectedStrategy?.parameters ?? []).map((parameter) => {
+        const value = form.parameters[parameter.name] ?? String(parameter.default);
+        return [
+          parameter.name,
+          parameter.value_type === "integer" ? Number(value) : value,
+        ];
+      }),
+    );
     void onSubmit({
       strategy_name: form.strategyName,
       symbol_id: form.symbolId,
@@ -98,211 +126,235 @@ export function BacktestForm({
       start_at: new Date(form.startAt).toISOString(),
       end_at: new Date(form.endAt).toISOString(),
       initial_capital: form.initialCapital,
-      position_size: form.positionSize,
-      stop_loss_pct: form.stopLossPct || null,
-      take_profit_pct: form.takeProfitPct || null,
       commission_per_fill: form.commissionPerFill,
       swap_per_day: form.swapPerDay,
       slippage_mode: form.slippageMode,
       slippage_value: form.slippageValue,
-      parameters: Object.fromEntries(
-        Object.entries(form.parameters).map(([key, value]) => [key, Number(value)]),
-      ),
+      parameters,
     });
   };
+
+  const jobMessage = job
+    ? {
+        queued: t("job.queued"),
+        loading_data: t("job.loading_data"),
+        simulating: t("job.simulating"),
+        paused: t("job.paused"),
+        completed: t("job.completed"),
+        stopped: t("job.stopped"),
+        failed: t("job.failed"),
+      }[job.state]
+    : "";
 
   return (
     <form className="backtest-form panel" onSubmit={submit}>
       <div className="panel-heading">
         <div>
-          <span className="eyebrow">Test setup</span>
-          <h2>Run configuration</h2>
+          <span className="eyebrow">{t("form.eyebrow")}</span>
+          <h2>{t("form.title")}</h2>
         </div>
-        <span className="tag">No future data</span>
+        <span className="tag">{t("form.noFuture")}</span>
       </div>
 
-      <div className="form-fields">
-        <label className="form-field form-field-wide">
-          <span>Strategy</span>
-          <select
-            aria-label="Strategy"
-            onChange={(event) => selectStrategy(event.target.value)}
-            value={form.strategyName}
-          >
-            {strategies.map((strategy) => (
-              <option key={strategy.name} value={strategy.name}>
-                {strategy.title} / v{strategy.version}
-              </option>
-            ))}
-          </select>
-          <small>{selectedStrategy?.description}</small>
-        </label>
-        <label className="form-field">
-          <span>Instrument</span>
-          <select
-            aria-label="Instrument"
-            onChange={(event) => update("symbolId", event.target.value)}
-            required
-            value={form.symbolId}
-          >
-            {symbols.map((symbol) => (
-              <option key={symbol.id} value={symbol.id}>
-                {symbol.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="form-field">
-          <span>Timeframe</span>
-          <select
-            aria-label="Timeframe"
-            onChange={(event) => update("timeframe", event.target.value)}
-            value={form.timeframe}
-          >
-            {["M1", "M5", "M15", "H1", "H4", "D1"].map((timeframe) => (
-              <option key={timeframe}>{timeframe}</option>
-            ))}
-          </select>
-        </label>
-        <label className="form-field">
-          <span>From</span>
-          <input
-            aria-label="From"
-            onChange={(event) => update("startAt", event.target.value)}
-            required
-            type="datetime-local"
-            value={form.startAt}
-          />
-        </label>
-        <label className="form-field">
-          <span>To</span>
-          <input
-            aria-label="To"
-            onChange={(event) => update("endAt", event.target.value)}
-            required
-            type="datetime-local"
-            value={form.endAt}
-          />
-        </label>
-        <label className="form-field">
-          <span>Starting capital</span>
-          <input
-            aria-label="Starting capital"
-            min="0.01"
-            onChange={(event) => update("initialCapital", event.target.value)}
-            required
-            step="0.01"
-            type="number"
-            value={form.initialCapital}
-          />
-        </label>
-        <label className="form-field">
-          <span>Position size / units</span>
-          <input
-            aria-label="Position size"
-            min="0.00000001"
-            onChange={(event) => update("positionSize", event.target.value)}
-            required
-            step="any"
-            type="number"
-            value={form.positionSize}
-          />
-        </label>
-        <label className="form-field">
-          <span>Stop loss / %</span>
-          <input
-            aria-label="Stop loss"
-            min="0.0001"
-            onChange={(event) => update("stopLossPct", event.target.value)}
-            placeholder="Disabled"
-            step="any"
-            type="number"
-            value={form.stopLossPct}
-          />
-        </label>
-        <label className="form-field">
-          <span>Take profit / %</span>
-          <input
-            aria-label="Take profit"
-            min="0.0001"
-            onChange={(event) => update("takeProfitPct", event.target.value)}
-            placeholder="Disabled"
-            step="any"
-            type="number"
-            value={form.takeProfitPct}
-          />
-        </label>
-        <label className="form-field">
-          <span>Commission / fill</span>
-          <input
-            aria-label="Commission per fill"
-            min="0"
-            onChange={(event) => update("commissionPerFill", event.target.value)}
-            step="any"
-            type="number"
-            value={form.commissionPerFill}
-          />
-        </label>
-        <label className="form-field">
-          <span>Swap / position / day</span>
-          <input
-            aria-label="Swap per day"
-            onChange={(event) => update("swapPerDay", event.target.value)}
-            step="any"
-            type="number"
-            value={form.swapPerDay}
-          />
-        </label>
-        <label className="form-field">
-          <span>Slippage model</span>
-          <select
-            aria-label="Slippage model"
-            onChange={(event) => update("slippageMode", event.target.value)}
-            value={form.slippageMode}
-          >
-            <option value="fixed">Fixed price</option>
-            <option value="relative">Relative / bps</option>
-          </select>
-        </label>
-        <label className="form-field">
-          <span>{form.slippageMode === "fixed" ? "Slippage / price" : "Slippage / bps"}</span>
-          <input
-            aria-label="Slippage value"
-            min="0"
-            onChange={(event) => update("slippageValue", event.target.value)}
-            step="any"
-            type="number"
-            value={form.slippageValue}
-          />
-        </label>
-        {selectedStrategy?.parameters.map((parameter) => (
-          <label className="form-field" key={parameter.name}>
-            <span>{parameter.label}</span>
-            <input
-              aria-label={parameter.label}
-              max={parameter.maximum ?? undefined}
-              min={parameter.minimum ?? undefined}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  parameters: {
-                    ...current.parameters,
-                    [parameter.name]: event.target.value,
-                  },
-                }))
-              }
+      <fieldset className="backtest-fieldset" disabled={busy}>
+        <div className="form-fields">
+          <label className="form-field form-field-wide">
+            <span>{t("form.strategy")}</span>
+            <select
+              aria-label={t("form.strategy")}
+              onChange={(event) => selectStrategy(event.target.value)}
+              value={form.strategyName}
+            >
+              {strategies.map((strategy) => (
+                <option key={strategy.name} value={strategy.name}>
+                  {strategyTitle(strategy)} / v{strategy.version}
+                </option>
+              ))}
+            </select>
+            <small>
+              {selectedStrategy?.name === "moving_average_cross"
+                ? t("strategy.maDescription")
+                : selectedStrategy?.description}
+            </small>
+          </label>
+          <label className="form-field">
+            <span>{t("form.instrument")}</span>
+            <select
+              aria-label={t("form.instrument")}
+              onChange={(event) => update("symbolId", event.target.value)}
               required
-              step="1"
-              type="number"
-              value={form.parameters[parameter.name] ?? ""}
+              value={form.symbolId}
+            >
+              {symbols.map((symbol) => (
+                <option key={symbol.id} value={symbol.id}>{symbol.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field">
+            <span>{t("form.timeframe")}</span>
+            <select
+              aria-label={t("form.timeframe")}
+              onChange={(event) => update("timeframe", event.target.value)}
+              value={form.timeframe}
+            >
+              {["M1", "M5", "M15", "H1", "H4", "D1"].map((timeframe) => (
+                <option key={timeframe}>{timeframe}</option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field">
+            <span>{t("form.from")}</span>
+            <input
+              aria-label={t("form.from")}
+              onChange={(event) => update("startAt", event.target.value)}
+              required
+              type="datetime-local"
+              value={form.startAt}
             />
           </label>
-        ))}
-      </div>
+          <label className="form-field">
+            <span>{t("form.to")}</span>
+            <input
+              aria-label={t("form.to")}
+              onChange={(event) => update("endAt", event.target.value)}
+              required
+              type="datetime-local"
+              value={form.endAt}
+            />
+          </label>
+          <label className="form-field form-field-wide">
+            <span>{t("form.capital")}</span>
+            <input
+              aria-label={t("form.capital")}
+              min="0.01"
+              onChange={(event) => update("initialCapital", event.target.value)}
+              required
+              step="0.01"
+              type="number"
+              value={form.initialCapital}
+            />
+          </label>
+        </div>
+
+        <div className="form-section">
+          <strong>{t("form.advisor")}</strong>
+          <small>{t("form.advisorHint")}</small>
+          <div className="form-fields">
+            {selectedStrategy?.parameters.map((parameter) => (
+              <label className="form-field" key={parameter.name}>
+                <span>{advisorLabel(parameter.name, parameter.label)}</span>
+                <input
+                  aria-label={advisorLabel(parameter.name, parameter.label)}
+                  max={parameter.maximum ?? undefined}
+                  min={parameter.minimum ?? undefined}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      parameters: {
+                        ...current.parameters,
+                        [parameter.name]: event.target.value,
+                      },
+                    }))
+                  }
+                  required
+                  step={parameter.value_type === "integer" ? "1" : "any"}
+                  type="number"
+                  value={form.parameters[parameter.name] ?? ""}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="form-section stress-section">
+          <strong>{t("form.stress")}</strong>
+          <small>{t("form.stressHint")}</small>
+          <div className="form-fields">
+            <label className="form-field">
+              <span>{t("form.commission")}</span>
+              <input
+                aria-label={t("form.commission")}
+                min="0"
+                onChange={(event) => update("commissionPerFill", event.target.value)}
+                step="any"
+                type="number"
+                value={form.commissionPerFill}
+              />
+            </label>
+            <label className="form-field">
+              <span>{t("form.swap")}</span>
+              <input
+                aria-label={t("form.swap")}
+                onChange={(event) => update("swapPerDay", event.target.value)}
+                step="any"
+                type="number"
+                value={form.swapPerDay}
+              />
+            </label>
+            <label className="form-field">
+              <span>{t("form.slippageModel")}</span>
+              <select
+                aria-label={t("form.slippageModel")}
+                onChange={(event) => update("slippageMode", event.target.value)}
+                value={form.slippageMode}
+              >
+                <option value="fixed">{t("form.fixed")}</option>
+                <option value="relative">{t("form.relative")}</option>
+              </select>
+            </label>
+            <label className="form-field">
+              <span>
+                {form.slippageMode === "fixed"
+                  ? t("form.slippagePrice")
+                  : t("form.slippageBps")}
+              </span>
+              <input
+                aria-label={form.slippageMode === "fixed" ? t("form.slippagePrice") : t("form.slippageBps")}
+                min="0"
+                onChange={(event) => update("slippageValue", event.target.value)}
+                step="any"
+                type="number"
+                value={form.slippageValue}
+              />
+            </label>
+          </div>
+        </div>
+      </fieldset>
+
       <button className="primary-button" disabled={busy || !form.symbolId} type="submit">
         <Play aria-hidden="true" size={16} />
-        {busy ? "Running sequential simulation..." : "Run backtest"}
+        {busy ? t("form.running") : t("form.run")}
       </button>
+
+      {busy && job ? (
+        <div className="backtest-job" aria-live="polite">
+          <div className="job-copy">
+            <strong>{jobMessage}</strong>
+            <span>
+              {job.total_candles
+                ? `${job.processed_candles} / ${job.total_candles}`
+                : "—"}
+            </span>
+          </div>
+          <div className="job-progress" role="progressbar" aria-valuenow={Number(job.progress_pct)}>
+            <span style={{ width: `${job.progress_pct}%` }} />
+          </div>
+          <div className="job-actions">
+            {job.state === "paused" ? (
+              <button onClick={() => void onResume()} type="button">
+                <RotateCcw size={14} /> {t("job.resume")}
+              </button>
+            ) : (
+              <button onClick={() => void onPause()} type="button">
+                <Pause size={14} /> {t("job.pause")}
+              </button>
+            )}
+            <button className="danger" onClick={() => void onStop()} type="button">
+              <Square size={13} /> {t("job.stop")}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </form>
   );
 }

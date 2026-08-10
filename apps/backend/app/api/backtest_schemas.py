@@ -7,7 +7,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.domain.backtesting.models import ExitReason, PositionSide, SlippageMode
+from app.domain.backtesting.models import (
+    BacktestJobState,
+    ExitReason,
+    PositionSide,
+    SlippageMode,
+)
 
 StrategyValue = int | float | str | bool
 
@@ -153,8 +158,8 @@ class StrategyParameterResponse(BaseModel):
     label: str
     value_type: str
     default: object
-    minimum: int | None
-    maximum: int | None
+    minimum: int | Decimal | None
+    maximum: int | Decimal | None
 
 
 class StrategyDefinitionResponse(BaseModel):
@@ -165,3 +170,16 @@ class StrategyDefinitionResponse(BaseModel):
     title: str
     description: str
     parameters: list[StrategyParameterResponse]
+
+
+class BacktestJobResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    state: BacktestJobState
+    stage: str
+    progress_pct: Decimal
+    processed_candles: int
+    total_candles: int
+    result_id: UUID | None
+    error: str | None

@@ -34,6 +34,7 @@ export function sampleCandles(candles: CandleRecord[], maximum = 90): CandleReco
 export function mapTradesToCandles(
   candles: CandleRecord[],
   trades: VirtualTradeRecord[],
+  visibleUntil?: string,
 ): TradeMarker[] {
   const timestamps = candles.map((candle) => new Date(candle.open_time).getTime());
   const findIndex = (timestamp: string, previousAtBoundary = false): number => {
@@ -46,6 +47,7 @@ export function mapTradesToCandles(
     return -1;
   };
 
+  const cutoff = visibleUntil ? new Date(visibleUntil).getTime() : Number.POSITIVE_INFINITY;
   return trades.flatMap((trade) => {
     const entryIndex = findIndex(trade.opened_at);
     const exitIndex = findIndex(
@@ -53,7 +55,7 @@ export function mapTradesToCandles(
       ["stop_loss", "take_profit", "end_of_data"].includes(trade.exit_reason),
     );
     const markers: TradeMarker[] = [];
-    if (entryIndex >= 0) {
+    if (entryIndex >= 0 && new Date(trade.opened_at).getTime() <= cutoff) {
       markers.push({
         candleIndex: entryIndex,
         kind: "entry",
@@ -61,7 +63,7 @@ export function mapTradesToCandles(
         tradeSequence: trade.sequence,
       });
     }
-    if (exitIndex >= 0) {
+    if (exitIndex >= 0 && new Date(trade.closed_at).getTime() <= cutoff) {
       markers.push({
         candleIndex: exitIndex,
         kind: "exit",
@@ -96,8 +98,8 @@ export function buildEquityPath(
     .join(" ");
 }
 
-export function formatMoney(value: string | number): string {
-  return new Intl.NumberFormat("en-US", {
+export function formatMoney(value: string | number, locale = "en-US"): string {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 2,
