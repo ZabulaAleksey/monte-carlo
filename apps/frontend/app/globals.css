@@ -140,6 +140,11 @@ button, input, select { font: inherit; }
 
 .table-panel { max-width: 1380px; margin: 0 auto; padding: 0; overflow: hidden; }
 .table-panel .panel-heading { margin: 0; padding: 22px; border-bottom: 1px solid var(--line); }
+.live-quotes-panel { margin-bottom: 14px; }
+.live-quotes-panel .panel-heading p { margin: 7px 0 0; color: var(--muted); font-size: 10px; }
+.quote-bid, .quote-ask { font-family: var(--font-mono); font-weight: 700; }
+.quote-bid { color: #168259; }
+.quote-ask { color: #c85748; }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; }
 th { padding: 11px 16px; color: var(--muted); background: #f2f5f1; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; }

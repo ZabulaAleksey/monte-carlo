@@ -36,6 +36,8 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
   }
 
   const equityValues = points.map((point) => Number(point.equity));
+  const equityMinimum = Math.min(...equityValues);
+  const equityMaximum = Math.max(...equityValues);
   const drawdownValues = points.map((point) => Number(point.drawdown_absolute ?? 0));
   const drawdownBaseline = (equityValues[0] ?? 0) + (drawdownValues[0] ?? 0);
   const drawdownLevelValues = drawdownValues.map(
@@ -73,7 +75,7 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
   return (
     <div className="chart-frame">
       <div className="chart-caption">
-        <span>{t("equity.low", { value: formatMoney(minimum, intlLocale) })}</span>
+        <span>{t("equity.low", { value: formatMoney(equityMinimum, intlLocale) })}</span>
         <div className="equity-legend">
           <span><i className="equity-swatch" />{t("equity.legendEquity")}</span>
           <span><i className="drawdown-swatch" />{t("equity.legendDrawdown")}</span>
@@ -84,7 +86,7 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
             value: formatMoney(drawdownMaximum, intlLocale),
           })}
         </span>
-        <span>{t("equity.high", { value: formatMoney(maximum, intlLocale) })}</span>
+        <span>{t("equity.high", { value: formatMoney(equityMaximum, intlLocale) })}</span>
       </div>
       <svg
         aria-label={t("equity.aria", { points: points.length, trades: trades.length })}

@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { PageHeader } from "@/components/page-header";
+import { useLiveQuotes } from "@/hooks/use-live-quotes";
 import { useMt5Status } from "@/hooks/use-mt5-status";
 import { apiClient } from "@/lib/api/client";
-import type { CandleRecord, SymbolRecord } from "@/lib/api/types";
+import type { CandleRecord, QuoteRecord, SymbolRecord } from "@/lib/api/types";
 import { useI18n } from "@/lib/i18n";
 
 const REFRESH_INTERVAL_MS = 10_000;
@@ -19,20 +20,24 @@ export default function MarketDataPage(): React.JSX.Element {
   const source = connected ? "mt5" : "demo";
   const [symbols, setSymbols] = useState<SymbolRecord[]>([]);
   const [candles, setCandles] = useState<CandleRecord[] | null>(null);
+  const [cachedQuotes, setCachedQuotes] = useState<QuoteRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const { error: quoteError, quotes: liveQuotes } = useLiveQuotes(connected);
 
   useEffect(() => {
     let active = true;
 
     const refresh = async (): Promise<void> => {
       try {
-        const [nextSymbols, nextCandles] = await Promise.all([
+        const [nextSymbols, nextCandles, nextQuotes] = await Promise.all([
           apiClient.getSymbols(),
           apiClient.getCandles({ limit: 100, source }),
+          connected ? Promise.resolve([]) : apiClient.getQuotes(),
         ]);
         if (active) {
           setSymbols(nextSymbols);
           setCandles(nextCandles.filter((candle) => candle.source === source));
+          setCachedQuotes(nextQuotes);
           setError(null);
         }
       } catch (reason: unknown) {
@@ -48,9 +53,13 @@ export default function MarketDataPage(): React.JSX.Element {
       active = false;
       window.clearInterval(intervalId);
     };
-  }, [source]);
+  }, [connected, source]);
 
   const loadingStatus = status === null && statusError === null;
+  const quotes = (connected ? liveQuotes : cachedQuotes).filter(
+    (quote) => quote.source === source,
+  );
+  const visibleError = error ?? quoteError;
 
   return (
     <>
@@ -63,9 +72,52 @@ export default function MarketDataPage(): React.JSX.Element {
             : t("market.descriptionDemo")
         }
       />
-      {error ? <ErrorState message={error} /> : null}
-      {(candles === null || loadingStatus) && !error ? <LoadingState /> : null}
+      {visibleError ? <ErrorState message={visibleError} /> : null}
+      {(candles === null || loadingStatus) && !visibleError ? <LoadingState /> : null}
       {candles !== null && !loadingStatus ? (
+        <>
+        <section className="panel table-panel live-quotes-panel">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">{t("market.quotesEyebrow")}</span>
+              <h2>{t("market.allQuotes")}</h2>
+              <p>{connected ? t("market.ticksActive") : t("market.ticksPaused")}</p>
+            </div>
+            <span className="count-badge">{t("common.rows", { count: quotes.length })}</span>
+          </div>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("common.symbol")}</th>
+                  <th>Bid</th>
+                  <th>Ask</th>
+                  <th>{t("market.spreadPoints")}</th>
+                  <th>{t("market.updated")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quotes.map((quote) => {
+                  const symbol = symbols.find((item) => item.id === quote.symbol_id);
+                  const digits = symbol?.digits ?? 5;
+                  const spread = (Number(quote.ask) - Number(quote.bid)) * 10 ** digits;
+                  return (
+                    <tr key={quote.symbol_id}>
+                      <td><strong>{symbol?.name ?? "—"}</strong></td>
+                      <td className="quote-bid">{Number(quote.bid).toFixed(digits)}</td>
+                      <td className="quote-ask">{Number(quote.ask).toFixed(digits)}</td>
+                      <td>{spread.toFixed(1)}</td>
+                      <td>{new Date(quote.observed_at).toLocaleString(intlLocale)}</td>
+                    </tr>
+                  );
+                })}
+                {quotes.length === 0 ? (
+                  <tr><td className="table-empty" colSpan={5}>{t("market.emptyQuotes")}</td></tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </section>
         <section className="panel table-panel">
           <div className="panel-heading">
             <div>
@@ -131,6 +183,7 @@ export default function MarketDataPage(): React.JSX.Element {
             </table>
           </div>
         </section>
+        </>
       ) : null}
     </>
   );

@@ -174,6 +174,28 @@ export interface HistoricalDataCoverageRecord {
   missing_intervals: HistoricalDataIntervalRecord[];
 }
 
+export type HistoricalDataRequestState =
+  | "pending"
+  | "claimed"
+  | "completed"
+  | "failed";
+
+export interface HistoricalDataRequestRecord {
+  id: string;
+  symbol_id: string;
+  symbol: string;
+  timeframe: string;
+  requested_start: string;
+  requested_end: string;
+  status: HistoricalDataRequestState;
+  requested_at: string;
+  claimed_at: string | null;
+  completed_at: string | null;
+  terminal_id: string | null;
+  candle_count: number;
+  error: string | null;
+}
+
 export interface VirtualTradeRecord {
   sequence: number;
   side: TradeSide;

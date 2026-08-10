@@ -5,7 +5,12 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from app.domain.enums import CandleSource, TradeSide, TradeStatus
+from app.domain.enums import (
+    CandleSource,
+    HistoricalDataRequestState,
+    TradeSide,
+    TradeStatus,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +49,23 @@ class MarketQuote:
     observed_at: datetime
     received_at: datetime
     source: CandleSource
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalDataRequest:
+    id: UUID
+    symbol_id: UUID
+    symbol: str
+    timeframe: str
+    requested_start: datetime
+    requested_end: datetime
+    status: HistoricalDataRequestState
+    requested_at: datetime
+    claimed_at: datetime | None
+    completed_at: datetime | None
+    terminal_id: str | None
+    candle_count: int
+    error: str | None
 
 
 @dataclass(frozen=True, slots=True)

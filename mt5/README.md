@@ -3,7 +3,8 @@
 `Experts/MonteCarloBridge.mq5` is a read-only Expert Advisor. It sends account,
 symbol, live Bid/Ask, closed-candle, open-position and deal-history snapshots
 to FastAPI. It
-does not import `CTrade`, call `OrderSend`, or expose any command endpoint.
+does not import `CTrade` or call `OrderSend`. Its only inbound command is a
+request to read and upload an exact candle range; trading actions are impossible.
 
 ## Installation
 
@@ -21,8 +22,9 @@ does not import `CTrade`, call `OrderSend`, or expose any command endpoint.
    `BridgeBaseUrl` value from `mt5/config.local` to the allowed WebRequest
    URLs.
 7. In the EA **Inputs** tab, copy BridgeBaseUrl, BridgeTerminalId, and
-   MT5_API_KEY from mt5/config.local. Keep CandleLookbackDays=3650 to preload
-   up to ten years, or reduce it when the terminal stores less history.
+   MT5_API_KEY from mt5/config.local. `IncludeAllBrokerQuotes=true` exposes all
+   broker instruments, `QuoteMilliseconds=500` controls quote sampling, and
+   `HistoryRequestSeconds=1` controls historical request polling.
 
 The EA exposes all three values as input parameters in
 `mt5/Experts/MonteCarloBridge.mq5`. It deliberately does not read
@@ -38,7 +40,14 @@ prints request headers, bodies, or the key. Temporary network errors, HTTP 408,
 - Only completed candles are sent. On first synchronization the bridge requests
   the configured CandleLookbackDays range and uploads it in bounded batches;
   later calls request only candles newer than the last successful batch.
-- Live Bid/Ask observations are sent every `QuoteSeconds` (two seconds by default).
+- Changed Bid/Ask observations are sampled every `QuoteMilliseconds` (500 ms by
+  default) and uploaded in batches of at most 500 symbols.
+- The initial Market Watch selection is captured for background candle sync.
+  Expanding live quotes to all broker symbols therefore does not trigger a
+  ten-year candle backfill for every broker instrument.
+- `/strategies` creates an exact From/To request when coverage is incomplete.
+  The EA claims it, retries `CopyRates` while MT5 synchronizes history, uploads
+  idempotent batches, then completes or fails the request explicitly.
 - Initial startup sends a bounded lookback; later calls send new data only.
 - Deal and candle batches are safe to resend because backend uniqueness keys
   make the write idempotent.

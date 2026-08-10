@@ -3,14 +3,16 @@
 //| Read-only data bridge from MetaTrader 5 to the analytics API.    |
 //+------------------------------------------------------------------+
 #property strict
-#property version   "2.00"
+#property version   "2.10"
 #property description "Read-only bridge. It never sends trading orders."
 
 input string BridgeBaseUrl       = "http://127.0.0.1:8000";
 input string BridgeTerminalId    = "mt5-terminal-01";
 input string MT5_API_KEY         = "replace-with-at-least-32-random-characters";
 input int    HeartbeatSeconds    = 30;
-input int    QuoteSeconds        = 2;
+input int    QuoteMilliseconds   = 500;
+input bool   IncludeAllBrokerQuotes = true;
+input int    HistoryRequestSeconds = 1;
 input int    SynchronizeSeconds  = 60;
 input int    RequestTimeoutMs    = 5000;
 input int    RetryCount          = 3;
@@ -22,10 +24,13 @@ input int    TradeLookbackDays   = 30;
 
 datetime g_last_sync_at = 0;
 datetime g_last_heartbeat_at = 0;
-datetime g_last_quote_at = 0;
+ulong    g_last_quote_at_ms = 0;
+datetime g_last_history_request_at = 0;
 datetime g_last_trade_at = 0;
 string   g_symbol_names[];
 datetime g_last_candle_at[];
+string   g_quote_symbol_names[];
+long     g_last_quote_msc[];
 
 string JsonEscape(string value)
   {
@@ -84,6 +89,51 @@ string TimeframeName()
    return value;
   }
 
+ENUM_TIMEFRAMES TimeframeFromName(string value)
+  {
+   StringToUpper(value);
+   if(value=="M1")  return PERIOD_M1;
+   if(value=="M2")  return PERIOD_M2;
+   if(value=="M3")  return PERIOD_M3;
+   if(value=="M4")  return PERIOD_M4;
+   if(value=="M5")  return PERIOD_M5;
+   if(value=="M6")  return PERIOD_M6;
+   if(value=="M10") return PERIOD_M10;
+   if(value=="M12") return PERIOD_M12;
+   if(value=="M15") return PERIOD_M15;
+   if(value=="M20") return PERIOD_M20;
+   if(value=="M30") return PERIOD_M30;
+   if(value=="H1")  return PERIOD_H1;
+   if(value=="H2")  return PERIOD_H2;
+   if(value=="H3")  return PERIOD_H3;
+   if(value=="H4")  return PERIOD_H4;
+   if(value=="H6")  return PERIOD_H6;
+   if(value=="H8")  return PERIOD_H8;
+   if(value=="H12") return PERIOD_H12;
+   if(value=="D1")  return PERIOD_D1;
+   if(value=="W1")  return PERIOD_W1;
+   if(value=="MN1") return PERIOD_MN1;
+   return PERIOD_CURRENT;
+  }
+
+datetime UtcTimeToServer(const datetime utc_time)
+  {
+   datetime trade_server=TimeTradeServer();
+   datetime utc_now=TimeGMT();
+   if(trade_server<=0 || utc_now<=0)
+      return utc_time;
+   return (datetime)((long)utc_time+((long)trade_server-(long)utc_now));
+  }
+
+datetime ParseIsoUtc(string value)
+  {
+   StringReplace(value,"T"," ");
+   StringReplace(value,"Z","");
+   if(StringLen(value)>19)
+      value=StringSubstr(value,0,19);
+   return StringToTime(value);
+  }
+
 bool IsTemporaryHttpStatus(const int status_code)
   {
    return status_code==-1 || status_code==408 || status_code==429 || status_code>=500;
@@ -119,6 +169,45 @@ bool HttpPost(const string path,const string body)
    return false;
   }
 
+int HttpGet(const string path,string &body)
+  {
+   string url=BridgeBaseUrl+path;
+   string headers="X-MT5-API-Key: "+MT5_API_KEY+"\r\n";
+   char data[];
+   ArrayResize(data,0);
+   for(int attempt=0;attempt<=RetryCount;attempt++)
+     {
+      char result[];
+      string response_headers;
+      ResetLastError();
+      int status_code=WebRequest("GET",url,headers,RequestTimeoutMs,
+                                 data,result,response_headers);
+      body=CharArrayToString(result,0,WHOLE_ARRAY,CP_UTF8);
+      if(status_code>=200 && status_code<300)
+         return status_code;
+      int error_code=GetLastError();
+      PrintFormat("MonteCarlo bridge request failed: endpoint=%s status=%d error=%d attempt=%d",
+                  path,status_code,error_code,attempt+1);
+      if(!IsTemporaryHttpStatus(status_code) || attempt>=RetryCount)
+         return status_code;
+      Sleep(250*(attempt+1));
+     }
+   return -1;
+  }
+
+string JsonStringValue(const string json,const string key)
+  {
+   string marker="\""+key+"\":\"";
+   int start=StringFind(json,marker);
+   if(start<0)
+      return "";
+   start+=StringLen(marker);
+   int finish=StringFind(json,"\"",start);
+   if(finish<0)
+      return "";
+   return StringSubstr(json,start,finish-start);
+  }
+
 string RequestPrefix()
   {
    return "{\"terminal_id\":"+JsonString(BridgeTerminalId)+
@@ -152,54 +241,100 @@ bool SendAccount()
    return HttpPost("/api/v1/mt5/account",body);
   }
 
-void RefreshSymbolState()
+void InitializeCandleSymbols()
   {
    int total=SymbolsTotal(true);
-   int previous=ArraySize(g_symbol_names);
    ArrayResize(g_symbol_names,total);
    ArrayResize(g_last_candle_at,total);
    for(int i=0;i<total;i++)
      {
-      string name=SymbolName(i,true);
-      if(i>=previous || g_symbol_names[i]!=name)
-         g_last_candle_at[i]=0;
-      g_symbol_names[i]=name;
+      g_symbol_names[i]=SymbolName(i,true);
+      g_last_candle_at[i]=0;
+     }
+  }
+
+void RefreshQuoteSymbolState()
+  {
+   bool selected_only=!IncludeAllBrokerQuotes;
+   int total=SymbolsTotal(selected_only);
+   int previous=ArraySize(g_quote_symbol_names);
+   ArrayResize(g_quote_symbol_names,total);
+   ArrayResize(g_last_quote_msc,total);
+   for(int i=0;i<total;i++)
+     {
+      string name=SymbolName(i,selected_only);
+      if(i>=previous || g_quote_symbol_names[i]!=name)
+         g_last_quote_msc[i]=0;
+      g_quote_symbol_names[i]=name;
+      if(IncludeAllBrokerQuotes && !SymbolInfoInteger(name,SYMBOL_SELECT))
+         SymbolSelect(name,true);
      }
   }
 
 bool SendSymbols()
   {
-   RefreshSymbolState();
+   RefreshQuoteSymbolState();
    string items="";
-   for(int i=0;i<ArraySize(g_symbol_names);i++)
+   int accepted=0;
+   for(int i=0;i<ArraySize(g_quote_symbol_names);i++)
      {
-      string symbol=g_symbol_names[i];
-      if(i>0)
+      string symbol=g_quote_symbol_names[i];
+      double volume_min=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN);
+      double volume_step=SymbolInfoDouble(symbol,SYMBOL_VOLUME_STEP);
+      double volume_max=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MAX);
+      double contract_size=SymbolInfoDouble(symbol,SYMBOL_TRADE_CONTRACT_SIZE);
+      // Quote-only broker instruments may omit trading constraints. Keep them
+      // visible in Market Data while satisfying the backend symbol contract.
+      if(volume_min<=0.0)
+         volume_min=0.01;
+      volume_min=MathMin(99.0,volume_min);
+      if(volume_step<=0.0)
+         volume_step=volume_min;
+      if(volume_max<volume_min)
+         volume_max=volume_min;
+      volume_max=MathMin(99.0,volume_max);
+      if(contract_size<=0.0)
+         contract_size=1.0;
+      if(accepted>0)
          items+=",";
       items+="{\"name\":"+JsonString(symbol)+
              ",\"description\":"+JsonString(SymbolInfoString(symbol,SYMBOL_DESCRIPTION))+
              ",\"digits\":"+IntegerToString(SymbolInfoInteger(symbol,SYMBOL_DIGITS))+
-             ",\"volume_min\":"+JsonNumber(SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN),8)+
-             ",\"volume_step\":"+JsonNumber(SymbolInfoDouble(symbol,SYMBOL_VOLUME_STEP),8)+
-             ",\"volume_max\":"+JsonNumber(MathMin(99.0,SymbolInfoDouble(symbol,SYMBOL_VOLUME_MAX)),8)+
-             ",\"contract_size\":"+JsonNumber(SymbolInfoDouble(symbol,SYMBOL_TRADE_CONTRACT_SIZE),8)+
+             ",\"volume_min\":"+JsonNumber(volume_min,8)+
+             ",\"volume_step\":"+JsonNumber(volume_step,8)+
+             ",\"volume_max\":"+JsonNumber(volume_max,8)+
+             ",\"contract_size\":"+JsonNumber(contract_size,8)+
              ",\"is_active\":true}";
+      accepted++;
+      if(accepted>=500)
+        {
+         if(!HttpPost("/api/v1/mt5/symbols",
+                      RequestPrefix()+",\"symbols\":["+items+"]}"))
+            return false;
+         items="";
+         accepted=0;
+        }
      }
-   if(StringLen(items)==0)
-      return true;
-   return HttpPost("/api/v1/mt5/symbols",RequestPrefix()+",\"symbols\":["+items+"]}");
+   if(accepted>0 && !HttpPost("/api/v1/mt5/symbols",
+                              RequestPrefix()+",\"symbols\":["+items+"]}"))
+      return false;
+   return true;
   }
 
 bool SendQuotes()
   {
-   RefreshSymbolState();
+   RefreshQuoteSymbolState();
    string items="";
    int accepted=0;
-   for(int i=0;i<ArraySize(g_symbol_names);i++)
+   int batch_indexes[];
+   long batch_times[];
+   for(int i=0;i<ArraySize(g_quote_symbol_names);i++)
      {
-      string symbol=g_symbol_names[i];
+      string symbol=g_quote_symbol_names[i];
       MqlTick tick;
       if(!SymbolInfoTick(symbol,tick) || tick.bid<=0.0 || tick.ask<=0.0)
+         continue;
+      if(tick.time_msc<=g_last_quote_msc[i])
          continue;
       int digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
       if(accepted>0)
@@ -208,15 +343,34 @@ bool SendQuotes()
              ",\"bid\":"+JsonNumber(tick.bid,digits)+
              ",\"ask\":"+JsonNumber(tick.ask,digits)+
              ",\"observed_at\":"+JsonString(ServerIsoUtc((datetime)tick.time))+"}";
+      ArrayResize(batch_indexes,accepted+1);
+      ArrayResize(batch_times,accepted+1);
+      batch_indexes[accepted]=i;
+      batch_times[accepted]=tick.time_msc;
       accepted++;
+      if(accepted>=500)
+        {
+         if(!HttpPost("/api/v1/mt5/quotes",
+                      RequestPrefix()+",\"quotes\":["+items+"]}"))
+            return false;
+         for(int j=0;j<accepted;j++)
+            g_last_quote_msc[batch_indexes[j]]=batch_times[j];
+         items="";
+         accepted=0;
+         ArrayResize(batch_indexes,0);
+         ArrayResize(batch_times,0);
+        }
      }
-   if(accepted==0)
-      return true;
-   bool sent=HttpPost("/api/v1/mt5/quotes",
-                      RequestPrefix()+",\"quotes\":["+items+"]}");
-   if(sent)
-      g_last_quote_at=TimeLocal();
-   return sent;
+   if(accepted>0)
+     {
+      if(!HttpPost("/api/v1/mt5/quotes",
+                   RequestPrefix()+",\"quotes\":["+items+"]}"))
+         return false;
+      for(int j=0;j<accepted;j++)
+         g_last_quote_msc[batch_indexes[j]]=batch_times[j];
+     }
+   g_last_quote_at_ms=GetTickCount64();
+   return true;
   }
 
 bool FlushCandleBatch(const string items,const datetime newest,const int symbol_index)
@@ -304,6 +458,113 @@ bool SendCandles()
       if(!SendCandlesForSymbol(i))
          success=false;
    return success;
+  }
+
+bool FailHistoricalRequest(const string request_id,const string reason)
+  {
+   string body=RequestPrefix()+",\"error\":"+JsonString(reason)+"}";
+   return HttpPost("/api/v1/mt5/history/requests/"+request_id+"/fail",body);
+  }
+
+bool SendRequestedCandles(const string request_id,
+                          const string symbol,
+                          const string timeframe_name,
+                          const datetime start_utc,
+                          const datetime end_utc)
+  {
+   ENUM_TIMEFRAMES timeframe=TimeframeFromName(timeframe_name);
+   if(timeframe==PERIOD_CURRENT)
+      return FailHistoricalRequest(request_id,"Unsupported timeframe: "+timeframe_name);
+   if(!SymbolSelect(symbol,true))
+      return FailHistoricalRequest(request_id,"Broker symbol is unavailable: "+symbol);
+
+   MqlRates rates[];
+   int period_seconds=MathMax(1,PeriodSeconds(timeframe));
+   datetime from_server=UtcTimeToServer(start_utc);
+   datetime to_server=MathMin(UtcTimeToServer(end_utc),
+                              TimeTradeServer()-(datetime)period_seconds);
+   if(to_server<from_server)
+      return FailHistoricalRequest(request_id,
+                                   "The requested range has no completed candles yet");
+   ResetLastError();
+   int copied=CopyRates(symbol,timeframe,from_server,to_server,rates);
+   if(copied<0)
+     {
+      // CopyRates starts terminal-side history synchronization asynchronously.
+      // Keep the leased request claimed; the next poll retries it idempotently.
+      PrintFormat("Historical request is waiting for MT5 data: request=%s symbol=%s error=%d",
+                  request_id,symbol,GetLastError());
+      return false;
+     }
+   if(copied==0)
+      return FailHistoricalRequest(request_id,
+                                   "No broker candles are available for the requested range");
+
+   string items="";
+   int accepted=0;
+   int batch_size=MathMax(1,MathMin(CandleBatchSize,1000));
+   for(int i=0;i<copied;i++)
+     {
+      if(accepted>0)
+         items+=",";
+      items+="{\"symbol\":"+JsonString(symbol)+
+             ",\"timeframe\":"+JsonString(timeframe_name)+
+             ",\"open_time\":"+JsonString(ServerIsoUtc(rates[i].time))+
+             ",\"open\":"+JsonNumber(rates[i].open,8)+
+             ",\"high\":"+JsonNumber(rates[i].high,8)+
+             ",\"low\":"+JsonNumber(rates[i].low,8)+
+             ",\"close\":"+JsonNumber(rates[i].close,8)+
+             ",\"volume\":"+IntegerToString(rates[i].tick_volume)+"}";
+      accepted++;
+      if(accepted>=batch_size)
+        {
+         if(!HttpPost("/api/v1/mt5/candles/batch",
+                      RequestPrefix()+",\"candles\":["+items+"]}"))
+            return false;
+         items="";
+         accepted=0;
+        }
+     }
+   if(accepted>0 && !HttpPost("/api/v1/mt5/candles/batch",
+                               RequestPrefix()+",\"candles\":["+items+"]}"))
+      return false;
+
+   string completion=RequestPrefix()+
+                     ",\"candle_count\":"+IntegerToString(copied)+
+                     ",\"covered_start\":"+JsonString(ServerIsoUtc(rates[0].time))+
+                     ",\"covered_end\":"+JsonString(ServerIsoUtc(rates[copied-1].time))+"}";
+   return HttpPost("/api/v1/mt5/history/requests/"+request_id+"/complete",
+                   completion);
+  }
+
+bool ProcessHistoricalRequest()
+  {
+   string response="";
+   int status_code=HttpGet("/api/v1/mt5/history/requests/next?terminal_id="+
+                           BridgeTerminalId,response);
+   g_last_history_request_at=TimeLocal();
+   if(status_code==204)
+      return true;
+   if(status_code!=200)
+      return false;
+
+   string request_id=JsonStringValue(response,"id");
+   string symbol=JsonStringValue(response,"symbol");
+   string timeframe=JsonStringValue(response,"timeframe");
+   string start_value=JsonStringValue(response,"requested_start");
+   string end_value=JsonStringValue(response,"requested_end");
+   if(StringLen(request_id)==0 || StringLen(symbol)==0 ||
+      StringLen(timeframe)==0 || StringLen(start_value)==0 ||
+      StringLen(end_value)==0)
+     {
+      Print("Historical request response is malformed");
+      return false;
+     }
+   datetime start_utc=ParseIsoUtc(start_value);
+   datetime end_utc=ParseIsoUtc(end_value);
+   if(start_utc<=0 || end_utc<=start_utc)
+      return FailHistoricalRequest(request_id,"Historical request dates are invalid");
+   return SendRequestedCandles(request_id,symbol,timeframe,start_utc,end_utc);
   }
 
 bool SendPositions()
@@ -433,7 +694,8 @@ int OnInit()
       Print("MonteCarlo bridge configuration is incomplete. API key value is not logged.");
       return INIT_PARAMETERS_INCORRECT;
      }
-   if(!EventSetTimer(1))
+   InitializeCandleSymbols();
+   if(!EventSetMillisecondTimer(250))
      {
       PrintFormat("MonteCarlo bridge could not start timer: error=%d",GetLastError());
       return INIT_FAILED;
@@ -442,6 +704,7 @@ int OnInit()
       g_last_heartbeat_at=TimeLocal();
    if(SynchronizeAll())
       g_last_sync_at=TimeLocal();
+   ProcessHistoricalRequest();
    return INIT_SUCCEEDED;
   }
 
@@ -453,13 +716,18 @@ void OnDeinit(const int reason)
 void OnTimer()
   {
    datetime now=TimeLocal();
+   ulong now_ms=GetTickCount64();
    if(g_last_heartbeat_at==0 || now-g_last_heartbeat_at>=MathMax(5,HeartbeatSeconds))
      {
       if(SendHeartbeat())
          g_last_heartbeat_at=now;
      }
-   if(g_last_quote_at==0 || now-g_last_quote_at>=MathMax(1,QuoteSeconds))
+   if(g_last_quote_at_ms==0 ||
+      now_ms-g_last_quote_at_ms>=(ulong)MathMax(100,QuoteMilliseconds))
       SendQuotes();
+   if(g_last_history_request_at==0 ||
+      now-g_last_history_request_at>=MathMax(1,HistoryRequestSeconds))
+      ProcessHistoricalRequest();
    if(g_last_sync_at==0 || now-g_last_sync_at>=MathMax(10,SynchronizeSeconds))
      {
       if(SynchronizeAll())

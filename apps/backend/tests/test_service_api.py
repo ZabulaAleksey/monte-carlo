@@ -50,3 +50,4 @@ async def test_tester_documentation_is_downloadable(client: AsyncClient) -> None
     assert response.headers["content-type"].startswith("text/markdown")
     assert "attachment" in response.headers["content-disposition"]
     assert "allow_partial_data" in response.text
+    assert "history/requests" in response.text

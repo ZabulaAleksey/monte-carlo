@@ -12,6 +12,7 @@ from app.domain.backtesting.models import (
     ExitReason,
     PositionSide,
 )
+from app.domain.enums import HistoricalDataRequestState
 
 StrategyValue = int | float | str | bool
 
@@ -106,6 +107,39 @@ class HistoricalDataCoverageCreate(BaseModel):
         if self.start_at.utcoffset() is None or self.end_at.utcoffset() is None:
             raise ValueError("start_at and end_at must include a timezone")
         return self
+
+
+class HistoricalDataRequestCreate(BaseModel):
+    symbol_id: UUID
+    timeframe: str = Field(min_length=1, max_length=16)
+    start_at: datetime
+    end_at: datetime
+
+    @model_validator(mode="after")
+    def validate_period(self) -> Self:
+        if self.start_at >= self.end_at:
+            raise ValueError("start_at must precede end_at")
+        if self.start_at.utcoffset() is None or self.end_at.utcoffset() is None:
+            raise ValueError("start_at and end_at must include a timezone")
+        return self
+
+
+class HistoricalDataRequestResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    symbol_id: UUID
+    symbol: str
+    timeframe: str
+    requested_start: datetime
+    requested_end: datetime
+    status: HistoricalDataRequestState
+    requested_at: datetime
+    claimed_at: datetime | None
+    completed_at: datetime | None
+    terminal_id: str | None
+    candle_count: int
+    error: str | None
 
 
 class VirtualTradeResponse(BaseModel):

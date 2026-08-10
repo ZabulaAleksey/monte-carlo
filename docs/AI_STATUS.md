@@ -42,12 +42,21 @@ Stage 3 — Strategy engine and backtesting.
 - Dedicated API, PostgreSQL and Guide navigation sections, downloadable tester
   documentation and a standalone multilingual recovery page.
 - Fully localized custom calendar and automatic scrolling to run status/equity.
+- Durable two-way historical-data requests: website/API enqueue exact From/To,
+  MT5 claims with a lease, uploads batches and completes or fails the request.
+- All-broker latest quote snapshots with changed-tick batches and a 500 ms
+  Market Data-only polling hook that is removed on navigation.
+- Equity ordinate now identifies the plotted monetary portfolio-value scale;
+  caption minimum/maximum are calculated from equity rather than the offset
+  drawdown helper series.
 
 ## Known constraints
 
 - A single run currently reads and returns at most 20,000 candles/equity points.
 - Replay animation is client-side after the completed result and candles are
   loaded.
+- Live quotes are latest sampled snapshots. Complete raw tick history is not
+  persisted; that would require a partitioned retention design.
 - Lot P&L currently uses price difference times MT5 contract size. Instruments
   requiring tick-value or account-currency conversion need a richer profit
   specification in a later iteration.

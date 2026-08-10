@@ -9,6 +9,7 @@ import type {
   CandleRecord,
   DatabaseOverviewRecord,
   HistoricalDataCoverageRecord,
+  HistoricalDataRequestRecord,
   Mt5Status,
   QuoteRecord,
   StrategyDefinition,
@@ -97,6 +98,27 @@ export const apiClient = {
       `/api/v1/backtests/history/coverage?${parameters.toString()}`,
     );
   },
+  requestHistoricalData: (
+    symbolId: string,
+    timeframe: string,
+    startAt: string,
+    endAt: string,
+  ): Promise<HistoricalDataRequestRecord> =>
+    request<HistoricalDataRequestRecord>("/api/v1/backtests/history/requests", {
+      method: "POST",
+      body: JSON.stringify({
+        symbol_id: symbolId,
+        timeframe,
+        start_at: startAt,
+        end_at: endAt,
+      }),
+    }),
+  getHistoricalDataRequest: (
+    requestId: string,
+  ): Promise<HistoricalDataRequestRecord> =>
+    request<HistoricalDataRequestRecord>(
+      `/api/v1/backtests/history/requests/${requestId}`,
+    ),
   createBacktest: (payload: BacktestCreateRequest): Promise<BacktestResultRecord> =>
     request<BacktestResultRecord>("/api/v1/backtests", {
       method: "POST",

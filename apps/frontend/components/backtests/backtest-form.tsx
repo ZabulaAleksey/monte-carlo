@@ -405,29 +405,31 @@ export function BacktestForm({
         {busy ? jobMessage || t("job.loading_data") : t("form.run")}
       </button>
 
-      {busy && job ? (
+      {busy ? (
         <div className="backtest-job" aria-live="polite">
           <div className="job-copy">
-            <strong>{jobMessage}</strong>
+            <strong>{jobMessage || t("job.loading_data")}</strong>
             <span>
-              {job.total_candles
+              {job?.total_candles
                 ? `${job.processed_candles} / ${job.total_candles}`
                 : "—"}
             </span>
           </div>
-          <div className="job-progress" role="progressbar" aria-valuenow={Number(job.progress_pct)}>
-            <span style={{ width: `${job.progress_pct}%` }} />
-          </div>
+          {job ? (
+            <div className="job-progress" role="progressbar" aria-valuenow={Number(job.progress_pct)}>
+              <span style={{ width: `${job.progress_pct}%` }} />
+            </div>
+          ) : null}
           <div className="job-actions">
-            {job.state === "paused" ? (
+            {job?.state === "paused" ? (
               <button onClick={() => void onResume()} type="button">
                 <RotateCcw size={14} /> {t("job.resume")}
               </button>
-            ) : (
+            ) : job ? (
               <button onClick={() => void onPause()} type="button">
                 <Pause size={14} /> {t("job.pause")}
               </button>
-            )}
+            ) : null}
             <button className="danger" onClick={() => void onStop()} type="button">
               <Square size={13} /> {t("job.stop")}
             </button>

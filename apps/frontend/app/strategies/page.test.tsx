@@ -10,12 +10,14 @@ vi.mock("@/lib/api/client", () => ({
     getBacktestResult: vi.fn(),
     getBacktestJob: vi.fn(),
     getHistoricalDataCoverage: vi.fn(),
+    getHistoricalDataRequest: vi.fn(),
     getBacktestRuns: vi.fn(),
     getBacktestStrategies: vi.fn(),
     getBacktestTrades: vi.fn(),
     getCandles: vi.fn(),
     getSymbols: vi.fn(),
     pauseBacktestJob: vi.fn(),
+    requestHistoricalData: vi.fn(),
     resumeBacktestJob: vi.fn(),
     startBacktestJob: vi.fn(),
     stopBacktestJob: vi.fn(),
@@ -256,6 +258,21 @@ describe("StrategiesPage", () => {
       data_complete: false,
       warnings: ["partial"],
     });
+    vi.mocked(apiClient.requestHistoricalData).mockResolvedValue({
+      id: "history-1",
+      symbol_id: "symbol-1",
+      symbol: "EURUSD",
+      timeframe: "H1",
+      requested_start: result.requested_start,
+      requested_end: result.requested_end,
+      status: "failed",
+      requested_at: "2026-01-01T00:00:00Z",
+      claimed_at: null,
+      completed_at: "2026-01-01T00:00:01Z",
+      terminal_id: null,
+      candle_count: 0,
+      error: "Broker history is unavailable",
+    });
 
     render(<StrategiesPage />);
     await screen.findByRole("heading", { name: "Run configuration" });
@@ -270,6 +287,78 @@ describe("StrategiesPage", () => {
     );
     expect(await screen.findByText(/Partial result: 8 candles/)).toBeVisible();
   }, 6_000);
+
+  it("queues an incomplete range and starts only after MT5 completes it", async () => {
+    const incompleteCoverage = {
+      symbol_id: "symbol-1",
+      timeframe: "H1",
+      requested_start: result.requested_start,
+      requested_end: result.requested_end,
+      candle_count: 2,
+      complete: false,
+      cached_intervals: [],
+      missing_intervals: [{
+        start_at: result.requested_start,
+        end_at: result.requested_end,
+      }],
+    };
+    vi.mocked(apiClient.getHistoricalDataCoverage)
+      .mockResolvedValueOnce(incompleteCoverage)
+      .mockResolvedValueOnce({
+        ...incompleteCoverage,
+        candle_count: 8,
+        complete: true,
+        cached_intervals: [{
+          start_at: result.requested_start,
+          end_at: result.requested_end,
+        }],
+        missing_intervals: [],
+      });
+    vi.mocked(apiClient.requestHistoricalData).mockResolvedValue({
+      id: "history-queued",
+      symbol_id: "symbol-1",
+      symbol: "EURUSD",
+      timeframe: "H1",
+      requested_start: result.requested_start,
+      requested_end: result.requested_end,
+      status: "pending",
+      requested_at: "2026-01-01T00:00:00Z",
+      claimed_at: null,
+      completed_at: null,
+      terminal_id: null,
+      candle_count: 0,
+      error: null,
+    });
+    vi.mocked(apiClient.getHistoricalDataRequest).mockResolvedValue({
+      id: "history-queued",
+      symbol_id: "symbol-1",
+      symbol: "EURUSD",
+      timeframe: "H1",
+      requested_start: result.requested_start,
+      requested_end: result.requested_end,
+      status: "completed",
+      requested_at: "2026-01-01T00:00:00Z",
+      claimed_at: "2026-01-01T00:00:01Z",
+      completed_at: "2026-01-01T00:00:02Z",
+      terminal_id: "terminal-1",
+      candle_count: 8,
+      error: null,
+    });
+
+    render(<StrategiesPage />);
+    await screen.findByRole("heading", { name: "Run configuration" });
+    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+
+    expect(await screen.findByText(/MT5 is loading history/)).toBeVisible();
+    await waitFor(
+      () => expect(apiClient.startBacktestJob).toHaveBeenCalledWith(
+        expect.objectContaining({ allow_partial_data: false }),
+      ),
+      { timeout: 3_000 },
+    );
+    expect(apiClient.requestHistoricalData).toHaveBeenCalledTimes(1);
+    expect(apiClient.getHistoricalDataRequest).toHaveBeenCalledWith("history-queued");
+  }, 4_000);
 
   it("opens a saved chart and deletes selected research", async () => {
     const secondRun = {

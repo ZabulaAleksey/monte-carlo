@@ -17,6 +17,7 @@ from app.infrastructure.database.models import (
     BacktestTradeModel,
     CandleModel,
     HistoricalDataCoverageModel,
+    HistoricalDataRequestModel,
     MarketQuoteModel,
     PositionModel,
     SymbolModel,
@@ -48,6 +49,7 @@ class SqlAlchemyDatabaseOverviewReader:
                     select(func.count()).select_from(BacktestTradeModel).scalar_subquery().label("backtest_trades"),
                     select(func.count()).select_from(BacktestEquityPointModel).scalar_subquery().label("backtest_equity_points"),
                     select(func.count()).select_from(HistoricalDataCoverageModel).scalar_subquery().label("historical_data_coverage"),
+                    select(func.count()).select_from(HistoricalDataRequestModel).scalar_subquery().label("historical_data_requests"),
                 )
             )
         ).one()._mapping
@@ -62,6 +64,7 @@ class SqlAlchemyDatabaseOverviewReader:
             "backtest_trades",
             "backtest_equity_points",
             "historical_data_coverage",
+            "historical_data_requests",
         )
         tables = tuple(
             DatabaseTableStats(name=name, row_count=int(counts[name] or 0))

@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react";
 
 import { apiClient } from "@/lib/api/client";
-import { mergeDashboardSnapshot, mergeLiveQuotes } from "@/lib/dashboard";
+import { mergeDashboardSnapshot } from "@/lib/dashboard";
 import type { DashboardSnapshot } from "@/lib/dashboard";
 
 const REFRESH_INTERVAL_MS = 15_000;
-const QUOTE_REFRESH_INTERVAL_MS = 2_000;
 
 export interface DashboardQuery {
   data: DashboardSnapshot | null;
@@ -48,21 +47,9 @@ export function useDashboardData(): DashboardQuery {
 
     void refresh();
     const intervalId = window.setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
-    const quoteIntervalId = window.setInterval(() => {
-      void apiClient.getQuotes().then((quotes) => {
-        if (active) {
-          setData((current) =>
-            current
-              ? { ...current, quotes, candles: mergeLiveQuotes(current.candles, quotes) }
-              : current,
-          );
-        }
-      }).catch(() => undefined);
-    }, QUOTE_REFRESH_INTERVAL_MS);
     return () => {
       active = false;
       window.clearInterval(intervalId);
-      window.clearInterval(quoteIntervalId);
     };
   }, []);
 

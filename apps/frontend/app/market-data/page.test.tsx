@@ -10,6 +10,7 @@ vi.mock("@/hooks/use-mt5-status", () => ({
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     getCandles: vi.fn(),
+    getQuotes: vi.fn(),
     getSymbols: vi.fn(),
   },
 }));
@@ -57,6 +58,17 @@ describe("MarketDataPage", () => {
         source: "demo",
       },
     ]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([
+      {
+        symbol_id: "eurusd",
+        terminal_id: "terminal-1",
+        bid: "1.10550",
+        ask: "1.10570",
+        observed_at: "2026-08-10T10:05:00Z",
+        received_at: "2026-08-10T10:05:00Z",
+        source: "mt5",
+      },
+    ]);
   });
 
   it("requests and renders only MT5 candles while connected", async () => {
@@ -64,6 +76,8 @@ describe("MarketDataPage", () => {
 
     expect(await screen.findByText("1.10555")).toBeInTheDocument();
     expect(screen.queryByText("1.00555")).not.toBeInTheDocument();
+    expect(await screen.findByText("1.10550")).toBeInTheDocument();
+    expect(screen.getByText("All broker instruments")).toBeInTheDocument();
     expect(screen.getByText("MT5 online")).toBeInTheDocument();
     expect(apiClient.getCandles).toHaveBeenCalledWith({ limit: 100, source: "mt5" });
   });
@@ -87,6 +101,7 @@ describe("MarketDataPage", () => {
         source: "demo",
       },
     ]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([]);
 
     render(<MarketDataPage />);
 

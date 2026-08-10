@@ -16,3 +16,10 @@ class TradeStatus(StrEnum):
     OPEN = "open"
     CLOSED = "closed"
     CANCELLED = "cancelled"
+
+
+class HistoricalDataRequestState(StrEnum):
+    PENDING = "pending"
+    CLAIMED = "claimed"
+    COMPLETED = "completed"
+    FAILED = "failed"

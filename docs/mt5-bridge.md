@@ -2,9 +2,11 @@
 
 ## Security boundary
 
-The bridge is one-way: MetaTrader sends observations to FastAPI. The backend
-does not expose order-placement, order-modification, or position-closing
-commands. Every write request must include `X-MT5-API-Key`; the expected value
+The bridge is read-only but data orchestration is two-way: MetaTrader sends
+observations to FastAPI, while the terminal polls for exact historical-data
+requests created by the site or tester API. The backend does not expose
+order-placement, order-modification, or position-closing commands. Every MT5
+request must include `X-MT5-API-Key`; the expected value
 is loaded from `MT5_API_KEY` as a Pydantic `SecretStr` and compared with a
 constant-time comparison.
 
@@ -22,6 +24,9 @@ endpoint reveals connection timestamps but never authentication material.
 | `POST` | `/api/v1/mt5/candles/batch` | Upsert up to 1,000 candles |
 | `POST` | `/api/v1/mt5/candles/coverage` | Confirm a fully stored candle range |
 | `POST` | `/api/v1/mt5/quotes` | Upsert the latest Bid/Ask per symbol |
+| `GET` | `/api/v1/mt5/history/requests/next` | Atomically claim the next requested range |
+| `POST` | `/api/v1/mt5/history/requests/{id}/complete` | Confirm uploaded request candles |
+| `POST` | `/api/v1/mt5/history/requests/{id}/fail` | Report unavailable broker history |
 | `POST` | `/api/v1/mt5/positions` | Replace an account's open-position snapshot |
 | `POST` | `/api/v1/mt5/trades/batch` | Upsert up to 1,000 history records |
 | `GET` | `/api/v1/mt5/status` | Read connection state for the frontend |
@@ -37,6 +42,10 @@ consistent.
 - Candles use `(symbol_id, timeframe, open_time)`.
 - Quotes keep one latest Bid/Ask record per symbol. An observation older than
   the stored quote is ignored.
+- Quote batches contain only symbols whose `time_msc` changed. By default the
+  EA subscribes to all broker symbols and samples changed ticks every 500 ms.
+  Raw tick history is deliberately not persisted: PostgreSQL stores one bounded
+  latest snapshot per symbol.
 - A successful MT5 candle upsert sets `source=mt5`, including when it replaces
   a matching candle that was previously marked as demo data.
 - Initial candle synchronization covers CandleLookbackDays and is split into
@@ -46,6 +55,10 @@ consistent.
   and copied count. The backend verifies that at least this many MT5 candles
   were stored before recording coverage. A failed confirmation rewinds the
   in-memory cursor so the next timer retries the idempotent upload.
+- Site-created historical requests are deduplicated while pending or claimed.
+  PostgreSQL workers use `FOR UPDATE SKIP LOCKED`; a 15-minute lease allows a
+  disconnected terminal's request to be recovered. The same terminal may retry
+  its claimed request while MT5 downloads older bars asynchronously.
 - Trades use `(account_id, external_id)`.
 - Positions use `(account_id, external_id)` and are treated as a complete
   current snapshot. Positions omitted from a later snapshot are removed.
@@ -64,8 +77,8 @@ uploads update `last_sync_at`; heartbeat updates `last_heartbeat_at`.
 
 ## Expert Advisor setup
 
-See [`mt5/README.md`](../mt5/README.md). The EA sends live Bid/Ask every two
-seconds by default, plus completed candles, account state, open-position
+See [`mt5/README.md`](../mt5/README.md). The EA samples changed Bid/Ask up to
+every 500 ms by default, plus completed candles, account state, open-position
 snapshots and history deals. It retries network
 errors, HTTP 408, 429 and 5xx responses. Client errors are not retried because
 they require configuration or payload correction.
@@ -80,7 +93,8 @@ Before attaching it to a chart, add the backend origin to MetaTrader's allowed
 WebRequest URLs. The function is unavailable in Strategy Tester, so use a demo
 terminal for integration testing.
 
-After updating the EA, compile and reattach or restart it so its in-memory
-candle cursor starts from zero and the initial `CandleLookbackDays` backfill is
-performed. MetaTrader can require several timer cycles to download older broker
-history before `CopyRates` returns it.
+After updating the EA, compile and reattach or restart it. The terminal polls
+for requested ranges every `HistoryRequestSeconds`; `CopyRates` may need several
+polls while MetaTrader downloads older broker history. The website waits up to
+60 seconds, then visibly falls back to the confirmed continuous cache while the
+queued request remains available for a later retry.

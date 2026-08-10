@@ -103,6 +103,9 @@ cannot execute arbitrary SQL.
   synthetic MVP prices from being mixed into a connected terminal view.
 - `historical_data_coverage` stores source-confirmed reusable intervals per
   symbol and timeframe. The lookup index follows the range-query access path.
+- `historical_data_requests` is a durable site-to-terminal queue. Active exact
+  ranges are deduplicated by a partial unique index; `(status, requested_at)`
+  supports `FOR UPDATE SKIP LOCKED` claims and a lease recovers abandoned work.
 - `accounts` identifies an external trading account.
 - `trades` belongs to an account and symbol and is unique by account and
   external ticket.
@@ -132,15 +135,22 @@ method, path, status and duration.
 
 ## MetaTrader bridge
 
-MT5 synchronization is isolated behind an application-level gateway. Protected
-write routes validate the bridge API key before calling `Mt5SyncService`; the
-SQLAlchemy adapter performs one transaction per payload. There are no backend
-ports or MQL functions for trading commands.
+MT5 synchronization is isolated behind application-level gateways. Protected
+routes validate the bridge API key; SQLAlchemy adapters perform bounded
+transactions. The data path is two-way only for orchestration: the site queues
+an exact read request, while the EA returns candles or an availability error.
+There are no backend ports or MQL functions for trading commands.
 
 `mt5_terminals` stores heartbeat and synchronization timestamps. `positions`
 stores the latest open-position snapshot. Existing candle and trade uniqueness
 constraints are reused for retry-safe batch upserts. See
 [`mt5-bridge.md`](mt5-bridge.md) for the complete contract.
+
+Live quotes use a bounded latest-state model rather than an unbounded raw tick
+table. The EA samples changed `time_msc` values in batches; only `/market-data`
+mounts the 500 ms browser polling hook, and effect cleanup stops it immediately
+when navigation unmounts that route. Other pages receive only their normal
+low-frequency snapshots.
 
 The same backtest router is exposed under `/api/v1/tester/backtests` for
 non-browser clients. See [`backtesting-api.md`](backtesting-api.md).

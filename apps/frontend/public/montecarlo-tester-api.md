@@ -9,6 +9,26 @@ The framework-independent tester API is available at `/api/v1/tester/backtests`.
 Inspect `complete`, `candle_count`, `cached_intervals`, and `missing_intervals`
 before starting a test.
 
+When coverage is incomplete, queue an exact read-only request for the connected
+MT5 terminal:
+
+```http
+POST /api/v1/tester/backtests/history/requests
+Content-Type: application/json
+
+{
+  "symbol_id": "00000000-0000-0000-0000-000000000000",
+  "timeframe": "H1",
+  "start_at": "2026-01-01T00:00:00Z",
+  "end_at": "2026-02-01T00:00:00Z"
+}
+```
+
+The `202` response has a request `id` and a `pending`, `claimed`, `completed`,
+or `failed` state. Poll
+`GET /api/v1/tester/backtests/history/requests/{request_id}`, then recheck
+coverage because broker history may cover only part of the requested period.
+
 ## Run a backtest
 
 ```http

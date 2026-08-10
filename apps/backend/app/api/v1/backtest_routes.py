@@ -19,9 +19,12 @@ from app.api.backtest_schemas import (
     EquityPointResponse,
     HistoricalDataCoverageCreate,
     HistoricalDataCoverageResponse,
+    HistoricalDataRequestCreate,
+    HistoricalDataRequestResponse,
     StrategyDefinitionResponse,
     VirtualTradeResponse,
 )
+from app.api.historical_data_dependencies import HistoricalDataRequestServiceDependency
 from app.application.backtesting import BacktestRunRequest
 from app.domain.backtesting.models import BacktestSettings, StoredBacktestResult
 
@@ -180,6 +183,35 @@ async def confirm_historical_data_coverage(
         payload.end_at,
     )
     return HistoricalDataCoverageResponse.model_validate(coverage)
+
+
+@router.post(
+    "/history/requests",
+    response_model=HistoricalDataRequestResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def request_historical_data(
+    payload: HistoricalDataRequestCreate,
+    service: HistoricalDataRequestServiceDependency,
+) -> HistoricalDataRequestResponse:
+    request = await service.request(
+        payload.symbol_id,
+        payload.timeframe,
+        payload.start_at,
+        payload.end_at,
+    )
+    return HistoricalDataRequestResponse.model_validate(request)
+
+
+@router.get(
+    "/history/requests/{request_id}",
+    response_model=HistoricalDataRequestResponse,
+)
+async def get_historical_data_request(
+    request_id: UUID,
+    service: HistoricalDataRequestServiceDependency,
+) -> HistoricalDataRequestResponse:
+    return HistoricalDataRequestResponse.model_validate(await service.get(request_id))
 
 
 @router.get("/{run_id}", response_model=BacktestResultResponse)

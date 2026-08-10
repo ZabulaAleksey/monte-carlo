@@ -37,7 +37,7 @@ describe("EquityChart", () => {
     expect(container.querySelector(".equity-line")).toBeInTheDocument();
     expect(container.querySelector(".drawdown-line")).toBeInTheDocument();
     expect(screen.getByText("Equity")).toBeInTheDocument();
-    expect(screen.getByText("Equity / absolute drawdown")).toBeInTheDocument();
+    expect(screen.getByText("Portfolio value, USD")).toBeInTheDocument();
     expect(screen.getByText("Time")).toBeInTheDocument();
     expect(screen.getByText("Max drawdown $200.00")).toBeInTheDocument();
     expect(screen.queryByText("Drawdown, %")).not.toBeInTheDocument();

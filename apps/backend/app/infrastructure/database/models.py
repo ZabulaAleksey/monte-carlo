@@ -15,10 +15,11 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.domain.enums import CandleSource
+from app.domain.enums import CandleSource, HistoricalDataRequestState
 from app.infrastructure.database.base import Base
 
 
@@ -47,6 +48,9 @@ class SymbolModel(Base):
     backtest_runs: Mapped[list[BacktestRunModel]] = relationship(back_populates="symbol")
     quote: Mapped[MarketQuoteModel | None] = relationship(
         back_populates="symbol", uselist=False
+    )
+    historical_requests: Mapped[list[HistoricalDataRequestModel]] = relationship(
+        back_populates="symbol"
     )
 
 
@@ -98,6 +102,72 @@ class HistoricalDataCoverageModel(Base):
     covered_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     source: Mapped[str] = mapped_column(String(16))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class HistoricalDataRequestModel(Base):
+    __tablename__ = "historical_data_requests"
+    __table_args__ = (
+        CheckConstraint(
+            "requested_end > requested_start",
+            name="ck_historical_requests_valid_range",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'claimed', 'completed', 'failed')",
+            name="ck_historical_requests_status",
+        ),
+        CheckConstraint(
+            "candle_count >= 0",
+            name="ck_historical_requests_candle_count",
+        ),
+        Index(
+            "ix_historical_requests_queue",
+            "status",
+            "requested_at",
+        ),
+        Index(
+            "ix_historical_requests_symbol",
+            "symbol_id",
+            "timeframe",
+            "requested_start",
+            "requested_end",
+        ),
+        Index(
+            "uq_historical_requests_active_range",
+            "symbol_id",
+            "timeframe",
+            "requested_start",
+            "requested_end",
+            unique=True,
+            postgresql_where=text("status IN ('pending', 'claimed')"),
+            sqlite_where=text("status IN ('pending', 'claimed')"),
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    symbol_id: Mapped[UUID] = mapped_column(
+        ForeignKey("symbols.id", ondelete="CASCADE")
+    )
+    timeframe: Mapped[str] = mapped_column(String(16))
+    requested_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    requested_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(
+        String(16), default=HistoricalDataRequestState.PENDING.value
+    )
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    terminal_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    candle_count: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
+    symbol: Mapped[SymbolModel] = relationship(back_populates="historical_requests")
 
 
 class MarketQuoteModel(Base):

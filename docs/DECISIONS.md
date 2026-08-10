@@ -1,5 +1,46 @@
 # Technical decisions
 
+## 2026-08-10 — Durable history queue and route-scoped tick snapshots
+
+Status: accepted for Stage 3.
+
+### Decision
+
+Incomplete coverage creates a durable `historical_data_requests` job instead
+of hoping that the EA's periodic lookback eventually reaches the selected
+dates. An authenticated terminal atomically claims the oldest eligible job,
+uploads idempotent candle batches and explicitly completes or fails it.
+
+The EA exposes all broker symbols and sends only changed latest quotes in
+bounded batches. PostgreSQL keeps one quote snapshot per symbol; the frontend
+polls that snapshot every 500 ms only while `/market-data` is mounted.
+
+### Reason
+
+From/To is user intent and must reach the data source. A durable queue survives
+browser refreshes and disconnected terminals, while `SKIP LOCKED`, an active
+partial unique index and a lease make claims safe for multiple terminals.
+Persisting every raw tick would create unbounded storage and write pressure
+before tick-history use cases are defined.
+
+### Alternatives considered
+
+- Increase the periodic candle lookback for every symbol. Rejected because it
+  still cannot express an exact requested range and repeats expensive reads.
+- Poll quotes globally from the layout. Rejected because every URL would create
+  high-frequency traffic even when no quote board is visible.
+- Store every tick immediately. Deferred in favor of a partitioned time-series
+  design if tick replay or audit becomes a concrete requirement.
+
+### Consequences
+
+- Schema revision `0009` is required before the new endpoints are used.
+- The UI waits up to 60 seconds, then visibly uses confirmed partial data while
+  the durable request remains available to MT5.
+- Leaving Market Data clears the 500 ms timer; Dashboard stays on its 15-second
+  snapshot cadence.
+- Fast quotes show the latest sampled state, not a complete tick archive.
+
 ## 2026-08-10 — Explicit partial-data fallback and read-only operations UI
 
 Status: accepted for Stage 3.

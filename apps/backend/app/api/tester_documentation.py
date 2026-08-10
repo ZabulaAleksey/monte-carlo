@@ -15,6 +15,25 @@ GET /api/v1/tester/backtests/history/coverage
 The response includes `complete`, `candle_count`, `cached_intervals` and
 `missing_intervals`.
 
+If coverage is incomplete, queue an exact read request for the connected MT5
+terminal:
+
+```http
+POST /api/v1/tester/backtests/history/requests
+Content-Type: application/json
+
+{
+  "symbol_id": "<uuid>",
+  "timeframe": "H1",
+  "start_at": "2026-01-01T00:00:00Z",
+  "end_at": "2026-02-01T00:00:00Z"
+}
+```
+
+Poll `GET /api/v1/tester/backtests/history/requests/{request_id}` until its
+state is `completed` or `failed`, then check coverage again. Broker history may
+cover only part of the requested period.
+
 ## Synchronous run
 
 ```http
