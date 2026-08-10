@@ -73,6 +73,33 @@ class CandleModel(Base):
     symbol: Mapped[SymbolModel] = relationship(back_populates="candles")
 
 
+class HistoricalDataCoverageModel(Base):
+    __tablename__ = "historical_data_coverage"
+    __table_args__ = (
+        CheckConstraint(
+            "covered_end >= covered_start",
+            name="ck_historical_coverage_valid_range",
+        ),
+        Index(
+            "ix_historical_coverage_lookup",
+            "symbol_id",
+            "timeframe",
+            "covered_start",
+            "covered_end",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    symbol_id: Mapped[UUID] = mapped_column(
+        ForeignKey("symbols.id", ondelete="CASCADE")
+    )
+    timeframe: Mapped[str] = mapped_column(String(16))
+    covered_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    covered_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(16))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class MarketQuoteModel(Base):
     __tablename__ = "market_quotes"
     __table_args__ = (

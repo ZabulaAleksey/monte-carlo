@@ -32,11 +32,6 @@ class ExitReason(StrEnum):
     END_OF_DATA = "end_of_data"
 
 
-class SlippageMode(StrEnum):
-    FIXED = "fixed"
-    RELATIVE = "relative"
-
-
 class BacktestJobState(StrEnum):
     QUEUED = "queued"
     LOADING_DATA = "loading_data"
@@ -54,10 +49,28 @@ class BacktestSettings:
     contract_size: Decimal = Decimal("1")
     stop_loss_pct: Decimal | None = None
     take_profit_pct: Decimal | None = None
-    commission_per_fill: Decimal = Decimal("0")
-    swap_per_lot_per_day: Decimal = Decimal("0")
-    slippage_mode: SlippageMode = SlippageMode.FIXED
-    slippage_value: Decimal = Decimal("0")
+    price_digits: int = 5
+    commission_pct_per_fill: Decimal = Decimal("0")
+    swap_pct_per_lot_per_day: Decimal = Decimal("0")
+    slippage_points: Decimal = Decimal("0")
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalDataInterval:
+    start_at: datetime
+    end_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalDataCoverage:
+    symbol_id: UUID
+    timeframe: str
+    requested_start: datetime
+    requested_end: datetime
+    candle_count: int
+    complete: bool
+    cached_intervals: tuple[HistoricalDataInterval, ...]
+    missing_intervals: tuple[HistoricalDataInterval, ...]
 
 
 @dataclass(frozen=True, slots=True)

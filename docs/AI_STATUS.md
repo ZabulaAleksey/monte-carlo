@@ -22,10 +22,19 @@ Stage 3 — Strategy engine and backtesting.
 - Configurable monetary swap per lot per crossed calendar day.
 - Initial MT5 candle backfill controlled by `CandleLookbackDays` (3650 days by
   default), with visible candle-loading state before simulation.
+- Source-confirmed historical coverage cache with range merging, engine-side
+  completeness enforcement and reuse of overlapping date intervals.
+- A stable `/api/v1/tester/backtests` API namespace and documented contracts
+  for external clients.
 - Replay Stop preserves the current frame; speed survives run changes; saved
   research opens immediately at its final frame.
 - Price charts rescale to the visible viewport; equity charts include a
   drawdown series and labeled equity/drawdown/time axes.
+- Price charts include quote-value y axes; equity dates include the year and
+  both equity/drawdown animate on the common replay clock.
+- Run From/To dates persist in versioned local storage.
+- Commission and daily swap use signed notional percentages; slippage uses
+  quote points capped at six informative digits.
 
 ## Known constraints
 
@@ -35,7 +44,7 @@ Stage 3 — Strategy engine and backtesting.
 - Lot P&L currently uses price difference times MT5 contract size. Instruments
   requiring tick-value or account-currency conversion need a richer profit
   specification in a later iteration.
-- Backtest commission and swap are currently explicit run inputs. MT5 deal
+- Backtest commission and swap are explicit run inputs. MT5 deal
   history stores realized commission/swap, but no historical cost profile is
   inferred automatically yet.
 

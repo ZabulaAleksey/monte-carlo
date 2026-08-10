@@ -58,6 +58,15 @@ class CandleSyncCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class CandleCoverageCommand:
+    symbol: str
+    timeframe: str
+    covered_start: datetime
+    covered_end: datetime
+    expected_candles: int
+
+
+@dataclass(frozen=True, slots=True)
 class QuoteSyncCommand:
     symbol: str
     bid: Decimal
@@ -138,6 +147,10 @@ class Mt5SyncGateway(Protocol):
         self, terminal_id: str, commands: list[CandleSyncCommand]
     ) -> SyncResult: ...
 
+    async def record_candle_coverage(
+        self, terminal_id: str, command: CandleCoverageCommand
+    ) -> SyncResult: ...
+
     async def upsert_quotes(
         self, terminal_id: str, commands: list[QuoteSyncCommand]
     ) -> SyncResult: ...
@@ -181,6 +194,11 @@ class Mt5SyncService:
 
     async def candles(self, terminal_id: str, commands: list[CandleSyncCommand]) -> SyncResult:
         return await self._gateway.upsert_candles(terminal_id, commands)
+
+    async def candle_coverage(
+        self, terminal_id: str, command: CandleCoverageCommand
+    ) -> SyncResult:
+        return await self._gateway.record_candle_coverage(terminal_id, command)
 
     async def quotes(self, terminal_id: str, commands: list[QuoteSyncCommand]) -> SyncResult:
         return await self._gateway.upsert_quotes(terminal_id, commands)

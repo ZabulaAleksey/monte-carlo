@@ -109,7 +109,7 @@ export function buildPeriodSeparators(
     return new Intl.DateTimeFormat(locale, {
       day: monthly ? undefined : "2-digit",
       month: "short",
-      year: monthly ? "numeric" : undefined,
+      year: "numeric",
       timeZone: "UTC",
     }).format(date);
   };

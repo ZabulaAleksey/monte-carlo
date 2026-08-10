@@ -129,7 +129,7 @@ describe("backtest chart helpers", () => {
     ];
 
     expect(buildPeriodSeparators(hourly, "en-US")).toEqual([
-      expect.objectContaining({ candleIndex: 1, label: "Feb 01" }),
+      expect.objectContaining({ candleIndex: 1, label: "Feb 01, 2026" }),
     ]);
     expect(buildPeriodSeparators(weekly, "en-US")).toEqual([
       expect.objectContaining({ candleIndex: 1, label: "Feb 2026" }),

@@ -5,13 +5,12 @@ from decimal import Decimal
 from typing import Self
 from uuid import UUID
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.backtesting.models import (
     BacktestJobState,
     ExitReason,
     PositionSide,
-    SlippageMode,
 )
 
 StrategyValue = int | float | str | bool
@@ -35,18 +34,18 @@ class BacktestCreate(BaseModel):
     take_profit_pct: Decimal | None = Field(
         default=Decimal("2"), gt=0, max_digits=16, decimal_places=8
     )
-    commission_per_fill: Decimal = Field(
-        default=Decimal("0"), ge=0, max_digits=24, decimal_places=8
+    commission_pct_per_fill: Decimal = Field(
+        default=Decimal("0"), ge=0, le=100, max_digits=16, decimal_places=8
     )
-    swap_per_lot_per_day: Decimal = Field(
+    swap_pct_per_lot_per_day: Decimal = Field(
         default=Decimal("0"),
-        validation_alias=AliasChoices("swap_per_lot_per_day", "swap_per_day"),
-        max_digits=24,
+        ge=-100,
+        le=100,
+        max_digits=16,
         decimal_places=8,
     )
-    slippage_mode: SlippageMode = SlippageMode.FIXED
-    slippage_value: Decimal = Field(
-        default=Decimal("0"), ge=0, max_digits=24, decimal_places=8
+    slippage_points: Decimal = Field(
+        default=Decimal("0"), ge=0, max_digits=16, decimal_places=6
     )
     parameters: dict[str, StrategyValue] = Field(default_factory=dict)
 
@@ -65,12 +64,47 @@ class BacktestSettingsResponse(BaseModel):
     initial_capital: Decimal
     position_size: Decimal
     contract_size: Decimal
+    price_digits: int
     stop_loss_pct: Decimal | None
     take_profit_pct: Decimal | None
-    commission_per_fill: Decimal
-    swap_per_lot_per_day: Decimal
-    slippage_mode: SlippageMode
-    slippage_value: Decimal
+    commission_pct_per_fill: Decimal
+    swap_pct_per_lot_per_day: Decimal
+    slippage_points: Decimal
+
+
+class HistoricalDataIntervalResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    start_at: datetime
+    end_at: datetime
+
+
+class HistoricalDataCoverageResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    symbol_id: UUID
+    timeframe: str
+    requested_start: datetime
+    requested_end: datetime
+    candle_count: int
+    complete: bool
+    cached_intervals: list[HistoricalDataIntervalResponse]
+    missing_intervals: list[HistoricalDataIntervalResponse]
+
+
+class HistoricalDataCoverageCreate(BaseModel):
+    symbol_id: UUID
+    timeframe: str = Field(min_length=1, max_length=16)
+    start_at: datetime
+    end_at: datetime
+
+    @model_validator(mode="after")
+    def validate_period(self) -> Self:
+        if self.start_at > self.end_at:
+            raise ValueError("start_at must not exceed end_at")
+        if self.start_at.utcoffset() is None or self.end_at.utcoffset() is None:
+            raise ValueError("start_at and end_at must include a timezone")
+        return self
 
 
 class VirtualTradeResponse(BaseModel):

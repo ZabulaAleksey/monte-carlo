@@ -9,20 +9,20 @@ import pytest
 from app.application.backtesting import BacktestService
 from app.domain.backtesting.engine import BacktestEngine
 from app.domain.backtesting.execution import (
-    FixedCommissionModel,
-    FixedSlippageModel,
+    NotionalCommissionModel,
     OrderSimulator,
+    PointSlippageModel,
     PositionManager,
-    RelativeSlippageModel,
     RiskManager,
 )
 from app.domain.backtesting.models import (
     MAX_BACKTEST_CANDLES,
     BacktestSettings,
     ExitReason,
+    HistoricalDataCoverage,
+    HistoricalDataInterval,
     PositionSide,
     Signal,
-    SlippageMode,
     StrategyContext,
 )
 from app.domain.entities import Candle, Symbol
@@ -46,6 +46,37 @@ class MemoryHistoricalDataProvider:
     ) -> list[Candle]:
         del symbol_id, timeframe, start_at, end_at
         return list(self.candles)
+
+    async def get_coverage(
+        self,
+        symbol_id: UUID,
+        timeframe: str,
+        start_at: datetime,
+        end_at: datetime,
+    ) -> HistoricalDataCoverage:
+        return HistoricalDataCoverage(
+            symbol_id,
+            timeframe,
+            start_at,
+            end_at,
+            len(self.candles),
+            True,
+            (HistoricalDataInterval(start_at, end_at),),
+            (),
+        )
+
+    async def record_coverage(
+        self,
+        symbol_id: UUID,
+        timeframe: str,
+        start_at: datetime,
+        end_at: datetime,
+        source: str,
+    ) -> HistoricalDataCoverage:
+        del source
+        return await self.get_coverage(
+            symbol_id, timeframe, start_at, end_at
+        )
 
 
 class ScriptedStrategy:
@@ -108,25 +139,25 @@ def candle(
 
 def settings(
     *,
-    commission: str = "0",
+    commission_pct: str = "0",
     contract_size: str = "1",
+    price_digits: int = 2,
     position_size: str = "1",
     stop_loss_pct: str | None = None,
-    swap_per_lot_per_day: str = "0",
+    swap_pct_per_lot_per_day: str = "0",
     take_profit_pct: str | None = None,
-    slippage_mode: SlippageMode = SlippageMode.FIXED,
-    slippage_value: str = "0",
+    slippage_points: str = "0",
 ) -> BacktestSettings:
     return BacktestSettings(
         initial_capital=Decimal("1000"),
         position_size=Decimal(position_size),
         contract_size=Decimal(contract_size),
+        price_digits=price_digits,
         stop_loss_pct=Decimal(stop_loss_pct) if stop_loss_pct else None,
         take_profit_pct=Decimal(take_profit_pct) if take_profit_pct else None,
-        commission_per_fill=Decimal(commission),
-        swap_per_lot_per_day=Decimal(swap_per_lot_per_day),
-        slippage_mode=slippage_mode,
-        slippage_value=Decimal(slippage_value),
+        commission_pct_per_fill=Decimal(commission_pct),
+        swap_pct_per_lot_per_day=Decimal(swap_pct_per_lot_per_day),
+        slippage_points=Decimal(slippage_points),
     )
 
 
@@ -135,19 +166,20 @@ async def run_engine(
     strategy: ScriptedStrategy,
     configuration: BacktestSettings,
 ):
-    slippage = (
-        FixedSlippageModel(configuration.slippage_value)
-        if configuration.slippage_mode == SlippageMode.FIXED
-        else RelativeSlippageModel(configuration.slippage_value)
-    )
     engine = BacktestEngine(
         MemoryHistoricalDataProvider(candles),
         PositionManager(),
         RiskManager(configuration.stop_loss_pct, configuration.take_profit_pct),
         OrderSimulator(
-            FixedCommissionModel(configuration.commission_per_fill),
-            slippage,
-            configuration.swap_per_lot_per_day,
+            NotionalCommissionModel(
+                configuration.commission_pct_per_fill,
+                configuration.contract_size,
+            ),
+            PointSlippageModel(
+                configuration.slippage_points,
+                configuration.price_digits,
+            ),
+            configuration.swap_pct_per_lot_per_day,
             configuration.contract_size,
         ),
     )
@@ -176,8 +208,8 @@ async def test_strategy_never_receives_future_candles() -> None:
         PositionManager(),
         RiskManager(None, None),
         OrderSimulator(
-            FixedCommissionModel(Decimal("0")),
-            FixedSlippageModel(Decimal("0")),
+            NotionalCommissionModel(Decimal("0"), Decimal("1")),
+            PointSlippageModel(Decimal("0"), 2),
             Decimal("0"),
         ),
     )
@@ -232,13 +264,13 @@ async def test_commission_is_charged_on_entry_and_exit() -> None:
     result = await run_engine(
         candles,
         ScriptedStrategy({1: Signal.BUY, 2: Signal.CLOSE}),
-        settings(commission="2"),
+        settings(commission_pct="1"),
     )
 
-    assert result.trades[0].commission == Decimal("4")
-    assert result.trades[0].net_profit == Decimal("0")
-    assert result.metrics.final_balance == Decimal("1000")
-    assert result.metrics.total_commission == Decimal("4")
+    assert result.trades[0].commission == Decimal("2.06")
+    assert result.trades[0].net_profit == Decimal("1.94")
+    assert result.metrics.final_balance == Decimal("1001.94")
+    assert result.metrics.total_commission == Decimal("2.06")
 
 
 @pytest.mark.asyncio
@@ -259,12 +291,12 @@ async def test_lot_profit_uses_the_symbol_contract_size() -> None:
     assert result.metrics.final_balance == Decimal("1010")
 
 
-def test_swap_is_a_monetary_daily_rate_per_lot() -> None:
+def test_swap_is_a_daily_percentage_of_lot_notional() -> None:
     manager = PositionManager()
     simulator = OrderSimulator(
-        FixedCommissionModel(Decimal("0")),
-        FixedSlippageModel(Decimal("0")),
-        Decimal("-3"),
+        NotionalCommissionModel(Decimal("0"), Decimal("100000")),
+        PointSlippageModel(Decimal("0"), 5),
+        Decimal("-0.01"),
         Decimal("100000"),
     )
     simulator.open_position(
@@ -285,8 +317,8 @@ def test_swap_is_a_monetary_daily_rate_per_lot() -> None:
     )
 
     assert trade.gross_profit == Decimal("0")
-    assert trade.swap == Decimal("-0.6")
-    assert trade.net_profit == Decimal("-0.6")
+    assert trade.swap == Decimal("-2.2")
+    assert trade.net_profit == Decimal("-2.2")
 
 
 @pytest.mark.asyncio
@@ -327,20 +359,7 @@ async def test_take_profit_closes_position() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("mode", "value", "expected_open", "expected_close", "expected_profit"),
-    [
-        (SlippageMode.FIXED, "0.5", "101.5", "104.5", "3.0"),
-        (SlippageMode.RELATIVE, "100", "102.01", "103.95", "1.94"),
-    ],
-)
-async def test_fixed_and_relative_slippage(
-    mode: SlippageMode,
-    value: str,
-    expected_open: str,
-    expected_close: str,
-    expected_profit: str,
-) -> None:
+async def test_slippage_uses_quote_points() -> None:
     candles = [
         candle(1, open_price="100"),
         candle(2, open_price="101"),
@@ -349,13 +368,45 @@ async def test_fixed_and_relative_slippage(
     result = await run_engine(
         candles,
         ScriptedStrategy({1: Signal.BUY, 2: Signal.CLOSE}),
-        settings(slippage_mode=mode, slippage_value=value),
+        settings(slippage_points="50"),
     )
 
     trade = result.trades[0]
-    assert trade.open_price == Decimal(expected_open)
-    assert trade.close_price == Decimal(expected_close)
-    assert trade.net_profit == Decimal(expected_profit)
+    assert trade.open_price == Decimal("101.5")
+    assert trade.close_price == Decimal("104.5")
+    assert trade.net_profit == Decimal("3")
+
+
+def test_slippage_point_is_capped_at_the_sixth_quote_digit() -> None:
+    model = PointSlippageModel(Decimal("1"), 8)
+
+    assert model.apply(
+        Decimal("1.12345678"), is_buy_order=True
+    ) == Decimal("1.12345778")
+    assert model.apply(
+        Decimal("1.12345678"), is_buy_order=False
+    ) == Decimal("1.12345578")
+
+
+@pytest.mark.asyncio
+async def test_drawdown_tracks_current_unrealized_position_loss() -> None:
+    candles = [
+        candle(1, open_price="100"),
+        candle(2, open_price="100", low="89", close="90"),
+        candle(3, open_price="100", high="111", close="110"),
+    ]
+
+    result = await run_engine(
+        candles,
+        ScriptedStrategy({1: Signal.BUY}),
+        settings(),
+    )
+
+    unrealized = result.equity_curve[1]
+    assert unrealized.balance == Decimal("1000")
+    assert unrealized.equity == Decimal("990")
+    assert unrealized.drawdown_pct == Decimal("1")
+    assert result.equity_curve[-1].drawdown_pct == Decimal("0")
 
 
 @pytest.mark.asyncio
@@ -365,7 +416,7 @@ async def test_remaining_position_is_closed_and_result_is_reproducible() -> None
         candle(2, open_price="102", close="104"),
         candle(3, open_price="105", close="106"),
     ]
-    configuration = settings(commission="0.25", slippage_value="0.1")
+    configuration = settings(commission_pct="0.25", slippage_points="10")
     first = await run_engine(candles, ScriptedStrategy({1: Signal.BUY}), configuration)
     second = await run_engine(candles, ScriptedStrategy({1: Signal.BUY}), configuration)
 

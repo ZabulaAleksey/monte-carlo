@@ -65,11 +65,28 @@ class BacktestEngine:
             initial_capital=quantize_decimal(settings.initial_capital),
             position_size=quantize_decimal(settings.position_size),
             contract_size=quantize_decimal(settings.contract_size),
-            commission_per_fill=quantize_decimal(settings.commission_per_fill),
-            swap_per_lot_per_day=quantize_decimal(settings.swap_per_lot_per_day),
+            commission_pct_per_fill=quantize_decimal(
+                settings.commission_pct_per_fill
+            ),
+            swap_pct_per_lot_per_day=quantize_decimal(
+                settings.swap_pct_per_lot_per_day
+            ),
+            slippage_points=quantize_decimal(settings.slippage_points),
         )
         if control is not None:
             await control.checkpoint("loading_data")
+        coverage = await self._data_provider.get_coverage(
+            symbol_id, normalized_timeframe, start_at, end_at
+        )
+        if not coverage.complete:
+            missing = ", ".join(
+                f"{item.start_at.isoformat()}..{item.end_at.isoformat()}"
+                for item in coverage.missing_intervals
+            )
+            raise DomainError(
+                "Historical data cache is incomplete for the requested range"
+                + (f": {missing}" if missing else "")
+            )
         supplied = await self._data_provider.get_candles(
             symbol_id, normalized_timeframe, start_at, end_at
         )
@@ -204,6 +221,8 @@ class BacktestEngine:
             raise DomainError("Position size must be greater than zero")
         if settings.contract_size <= 0:
             raise DomainError("Contract size must be greater than zero")
+        if settings.price_digits < 0:
+            raise DomainError("Price digits cannot be negative")
 
     @staticmethod
     def _timeframe_duration(timeframe: str) -> timedelta:

@@ -18,6 +18,25 @@ from app.main import app
 from tests.test_trading_data import create_symbol
 
 
+async def confirm_coverage(
+    client: AsyncClient,
+    symbol_id: str,
+    start_at: datetime,
+    end_at: datetime,
+) -> None:
+    response = await client.put(
+        "/api/v1/backtests/history/coverage",
+        json={
+            "symbol_id": symbol_id,
+            "timeframe": "H1",
+            "start_at": start_at.isoformat(),
+            "end_at": end_at.isoformat(),
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["complete"] is True
+
+
 @pytest.mark.asyncio
 async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
     client: AsyncClient,
@@ -41,6 +60,9 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
             },
         )
         assert response.status_code == 201
+    await confirm_coverage(
+        client, symbol["id"], start, start + timedelta(hours=7)
+    )
 
     strategies = await client.get("/api/v1/backtests/strategies")
     assert strategies.status_code == 200
@@ -63,10 +85,9 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
         "position_size": "1",
         "stop_loss_pct": None,
         "take_profit_pct": None,
-        "commission_per_fill": "0.1",
-        "swap_per_day": "-0.1",
-        "slippage_mode": "fixed",
-        "slippage_value": "0",
+        "commission_pct_per_fill": "0.1",
+        "swap_pct_per_lot_per_day": "-0.1",
+        "slippage_points": "0",
         "parameters": {"short_window": 2, "long_window": 3},
     }
     created = await client.post("/api/v1/backtests", json=payload)
@@ -74,7 +95,8 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
     result = created.json()
     assert result["strategy_version"] == "1.2.0"
     assert result["settings"]["contract_size"] == "1.00000000"
-    assert result["settings"]["swap_per_lot_per_day"] == "-0.10000000"
+    assert result["settings"]["price_digits"] == 5
+    assert result["settings"]["swap_pct_per_lot_per_day"] == "-0.10000000"
     assert result["candle_count"] == 8
     assert len(result["trades"]) == 2
     assert len(result["equity_curve"]) == 8
@@ -98,7 +120,7 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
     assert repeated.json()["metrics"] == result["metrics"]
     assert repeated.json()["trades"] == result["trades"]
 
-    other_payload = {**payload, "commission_per_fill": "2"}
+    other_payload = {**payload, "commission_pct_per_fill": "2"}
     other = await client.post("/api/v1/backtests", json=other_payload)
     assert other.status_code == 201
     assert other.json()["trades"] != result["trades"]
@@ -137,9 +159,7 @@ async def test_backtest_rejects_range_without_candles(client: AsyncClient) -> No
         },
     )
     assert response.status_code == 400
-    assert response.json()["error"]["message"] == (
-        "No historical candles found for the requested range"
-    )
+    assert "Historical data cache is incomplete" in response.json()["error"]["message"]
 
 
 @pytest.mark.asyncio
@@ -209,6 +229,9 @@ async def test_backtest_job_api_reports_progress_and_result(
             },
         )
         assert response.status_code == 201
+    await confirm_coverage(
+        client, symbol["id"], start, start + timedelta(hours=7)
+    )
 
     async def runner(
         request: BacktestRunRequest,
@@ -253,3 +276,79 @@ async def test_backtest_job_api_reports_progress_and_result(
     result = await client.get(f"/api/v1/backtests/{snapshot['result_id']}")
     assert result.status_code == 200
     assert result.json()["settings"]["position_size"] == "1.00000000"
+
+
+@pytest.mark.asyncio
+async def test_external_tester_api_reuses_cached_overlapping_ranges(
+    client: AsyncClient,
+) -> None:
+    symbol = await create_symbol(client, "USDJPY")
+    start = datetime(2025, 12, 31, tzinfo=UTC)
+    for index in range(8):
+        response = await client.post(
+            "/api/v1/candles",
+            json={
+                "symbol_id": symbol["id"],
+                "timeframe": "H1",
+                "open_time": (start + timedelta(hours=index)).isoformat(),
+                "open": "150",
+                "high": "151",
+                "low": "149",
+                "close": str(150 + (index % 2)),
+                "volume": "100",
+            },
+        )
+        assert response.status_code == 201
+
+    first = await client.put(
+        "/api/v1/tester/backtests/history/coverage",
+        json={
+            "symbol_id": symbol["id"],
+            "timeframe": "H1",
+            "start_at": start.isoformat(),
+            "end_at": (start + timedelta(hours=3)).isoformat(),
+        },
+    )
+    second = await client.put(
+        "/api/v1/tester/backtests/history/coverage",
+        json={
+            "symbol_id": symbol["id"],
+            "timeframe": "H1",
+            "start_at": (start + timedelta(hours=3)).isoformat(),
+            "end_at": (start + timedelta(hours=7)).isoformat(),
+        },
+    )
+    coverage = await client.get(
+        "/api/v1/tester/backtests/history/coverage",
+        params={
+            "symbol_id": symbol["id"],
+            "timeframe": "H1",
+            "start_at": start.isoformat(),
+            "end_at": (start + timedelta(hours=7)).isoformat(),
+        },
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert coverage.status_code == 200
+    assert coverage.json()["complete"] is True
+    assert coverage.json()["candle_count"] == 8
+    assert len(coverage.json()["cached_intervals"]) == 1
+
+    result = await client.post(
+        "/api/v1/tester/backtests",
+        json={
+            "strategy_name": "moving_average_cross",
+            "symbol_id": symbol["id"],
+            "timeframe": "H1",
+            "start_at": start.isoformat(),
+            "end_at": (start + timedelta(hours=7)).isoformat(),
+            "parameters": {
+                "short_window": 2,
+                "long_window": 3,
+                "position_size": "0.01",
+            },
+        },
+    )
+    assert result.status_code == 201, result.text
+    assert result.json()["candle_count"] == 8

@@ -8,11 +8,10 @@ from uuid import UUID
 from app.application.ports import SymbolRepository
 from app.domain.backtesting.engine import BacktestEngine
 from app.domain.backtesting.execution import (
-    FixedCommissionModel,
-    FixedSlippageModel,
+    NotionalCommissionModel,
     OrderSimulator,
+    PointSlippageModel,
     PositionManager,
-    RelativeSlippageModel,
     RiskManager,
 )
 from app.domain.backtesting.interfaces import (
@@ -23,7 +22,7 @@ from app.domain.backtesting.interfaces import (
 from app.domain.backtesting.models import (
     BacktestRunSummary,
     BacktestSettings,
-    SlippageMode,
+    HistoricalDataCoverage,
     StoredBacktestResult,
     StrategyDefinition,
     VirtualTrade,
@@ -73,11 +72,7 @@ class BacktestService:
         resolved_settings = replace(
             resolved_settings,
             contract_size=symbol.contract_size,
-        )
-        slippage = (
-            FixedSlippageModel(resolved_settings.slippage_value)
-            if resolved_settings.slippage_mode == SlippageMode.FIXED
-            else RelativeSlippageModel(resolved_settings.slippage_value)
+            price_digits=symbol.digits,
         )
         engine = BacktestEngine(
             self._data_provider,
@@ -87,9 +82,15 @@ class BacktestService:
                 resolved_settings.take_profit_pct,
             ),
             OrderSimulator(
-                FixedCommissionModel(resolved_settings.commission_per_fill),
-                slippage,
-                resolved_settings.swap_per_lot_per_day,
+                NotionalCommissionModel(
+                    resolved_settings.commission_pct_per_fill,
+                    resolved_settings.contract_size,
+                ),
+                PointSlippageModel(
+                    resolved_settings.slippage_points,
+                    resolved_settings.price_digits,
+                ),
+                resolved_settings.swap_pct_per_lot_per_day,
                 resolved_settings.contract_size,
             ),
         )
@@ -104,6 +105,38 @@ class BacktestService:
             control=control,
         )
         return await self._repository.add(result)
+
+    async def coverage(
+        self,
+        symbol_id: UUID,
+        timeframe: str,
+        start_at: datetime,
+        end_at: datetime,
+    ) -> HistoricalDataCoverage:
+        if await self._symbols.get(symbol_id) is None:
+            raise NotFoundError("Symbol not found")
+        if start_at > end_at:
+            raise DomainError("Coverage start cannot exceed end")
+        return await self._data_provider.get_coverage(
+            symbol_id, timeframe.strip().upper(), start_at, end_at
+        )
+
+    async def record_coverage(
+        self,
+        symbol_id: UUID,
+        timeframe: str,
+        start_at: datetime,
+        end_at: datetime,
+        source: str = "api",
+    ) -> HistoricalDataCoverage:
+        if await self._symbols.get(symbol_id) is None:
+            raise NotFoundError("Symbol not found")
+        if start_at > end_at:
+            raise DomainError("Coverage start cannot exceed end")
+        coverage = await self._data_provider.record_coverage(
+            symbol_id, timeframe.strip().upper(), start_at, end_at, source
+        )
+        return coverage
 
     @staticmethod
     def _validate_lot_size(position_size: Decimal, symbol: Symbol) -> None:

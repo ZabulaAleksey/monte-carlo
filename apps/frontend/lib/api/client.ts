@@ -7,6 +7,7 @@ import type {
   BacktestRunSummary,
   CandleQuery,
   CandleRecord,
+  HistoricalDataCoverageRecord,
   Mt5Status,
   QuoteRecord,
   StrategyDefinition,
@@ -77,6 +78,22 @@ export const apiClient = {
   },
   getBacktestStrategies: (): Promise<StrategyDefinition[]> =>
     request<StrategyDefinition[]>("/api/v1/backtests/strategies"),
+  getHistoricalDataCoverage: (
+    symbolId: string,
+    timeframe: string,
+    startAt: string,
+    endAt: string,
+  ): Promise<HistoricalDataCoverageRecord> => {
+    const parameters = new URLSearchParams({
+      symbol_id: symbolId,
+      timeframe,
+      start_at: startAt,
+      end_at: endAt,
+    });
+    return request<HistoricalDataCoverageRecord>(
+      `/api/v1/backtests/history/coverage?${parameters.toString()}`,
+    );
+  },
   createBacktest: (payload: BacktestCreateRequest): Promise<BacktestResultRecord> =>
     request<BacktestResultRecord>("/api/v1/backtests", {
       method: "POST",

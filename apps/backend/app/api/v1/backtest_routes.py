@@ -1,4 +1,6 @@
+from datetime import datetime
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Response, status
@@ -15,6 +17,8 @@ from app.api.backtest_schemas import (
     BacktestRunSummaryResponse,
     BacktestSettingsResponse,
     EquityPointResponse,
+    HistoricalDataCoverageCreate,
+    HistoricalDataCoverageResponse,
     StrategyDefinitionResponse,
     VirtualTradeResponse,
 )
@@ -38,10 +42,9 @@ def _run_request(payload: BacktestCreate) -> BacktestRunRequest:
             contract_size=Decimal("1"),
             stop_loss_pct=payload.stop_loss_pct,
             take_profit_pct=payload.take_profit_pct,
-            commission_per_fill=payload.commission_per_fill,
-            swap_per_lot_per_day=payload.swap_per_lot_per_day,
-            slippage_mode=payload.slippage_mode,
-            slippage_value=payload.slippage_value,
+            commission_pct_per_fill=payload.commission_pct_per_fill,
+            swap_pct_per_lot_per_day=payload.swap_pct_per_lot_per_day,
+            slippage_points=payload.slippage_points,
         ),
     )
 
@@ -142,6 +145,38 @@ async def list_backtests(
         BacktestRunSummaryResponse.model_validate(item)
         for item in await service.list(limit)
     ]
+
+
+@router.get(
+    "/history/coverage",
+    response_model=HistoricalDataCoverageResponse,
+)
+async def get_historical_data_coverage(
+    service: BacktestServiceDependency,
+    symbol_id: UUID,
+    timeframe: Annotated[str, Query(min_length=1, max_length=16)],
+    start_at: Annotated[datetime, Query()],
+    end_at: Annotated[datetime, Query()],
+) -> HistoricalDataCoverageResponse:
+    coverage = await service.coverage(symbol_id, timeframe, start_at, end_at)
+    return HistoricalDataCoverageResponse.model_validate(coverage)
+
+
+@router.put(
+    "/history/coverage",
+    response_model=HistoricalDataCoverageResponse,
+)
+async def confirm_historical_data_coverage(
+    payload: HistoricalDataCoverageCreate,
+    service: BacktestServiceDependency,
+) -> HistoricalDataCoverageResponse:
+    coverage = await service.record_coverage(
+        payload.symbol_id,
+        payload.timeframe,
+        payload.start_at,
+        payload.end_at,
+    )
+    return HistoricalDataCoverageResponse.model_validate(coverage)
 
 
 @router.get("/{run_id}", response_model=BacktestResultResponse)

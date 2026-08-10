@@ -20,6 +20,7 @@ endpoint reveals connection timestamps but never authentication material.
 | `POST` | `/api/v1/mt5/account` | Upsert account metrics |
 | POST | /api/v1/mt5/symbols | Upsert symbols with lot limits and contract size |
 | `POST` | `/api/v1/mt5/candles/batch` | Upsert up to 1,000 candles |
+| `POST` | `/api/v1/mt5/candles/coverage` | Confirm a fully stored candle range |
 | `POST` | `/api/v1/mt5/quotes` | Upsert the latest Bid/Ask per symbol |
 | `POST` | `/api/v1/mt5/positions` | Replace an account's open-position snapshot |
 | `POST` | `/api/v1/mt5/trades/batch` | Upsert up to 1,000 history records |
@@ -41,6 +42,10 @@ consistent.
 - Initial candle synchronization covers CandleLookbackDays and is split into
   batches no larger than 1,000 records. Subsequent synchronization is
   incremental from the last successfully uploaded candle.
+- After all batches, the EA reports the actual first copied time, requested end
+  and copied count. The backend verifies that at least this many MT5 candles
+  were stored before recording coverage. A failed confirmation rewinds the
+  in-memory cursor so the next timer retries the idempotent upload.
 - Trades use `(account_id, external_id)`.
 - Positions use `(account_id, external_id)` and are treated as a complete
   current snapshot. Positions omitted from a later snapshot are removed.

@@ -209,6 +209,8 @@ tbody tr:hover { background: #f7f9f5; }
 .equity-legend i { width: 16px; height: 3px; display: inline-block; border-radius: 2px; background: var(--green); }
 .equity-legend .drawdown-swatch { background: repeating-linear-gradient(to right, var(--red) 0, var(--red) 5px, transparent 5px, transparent 8px); }
 .chart-grid line { stroke: var(--line); stroke-width: .7; stroke-dasharray: 2 4; }
+.price-axis line { stroke: #d9e1db; stroke-width: .65; stroke-dasharray: 2 5; vector-effect: non-scaling-stroke; }
+.price-axis text { fill: #405148; font-family: var(--font-mono); font-size: 8px; font-weight: 650; paint-order: stroke; stroke: #f8faf7; stroke-width: 3px; stroke-linejoin: round; }
 .chart-axis-tick { fill: var(--muted); font-family: var(--font-mono); font-size: 8px; }
 .chart-axis-title { fill: var(--ink); font-family: var(--font-mono); font-size: 8px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .candle line { stroke-width: 1.4; }

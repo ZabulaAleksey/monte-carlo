@@ -9,6 +9,7 @@ from app.domain.backtesting.models import (
     BacktestResult,
     BacktestRunSummary,
     BacktestSettings,
+    HistoricalDataCoverage,
     Signal,
     StoredBacktestResult,
     StrategyContext,
@@ -25,6 +26,23 @@ class HistoricalDataProvider(Protocol):
         start_at: datetime,
         end_at: datetime,
     ) -> list[Candle]: ...
+
+    async def get_coverage(
+        self,
+        symbol_id: UUID,
+        timeframe: str,
+        start_at: datetime,
+        end_at: datetime,
+    ) -> HistoricalDataCoverage: ...
+
+    async def record_coverage(
+        self,
+        symbol_id: UUID,
+        timeframe: str,
+        start_at: datetime,
+        end_at: datetime,
+        source: str,
+    ) -> HistoricalDataCoverage: ...
 
 
 class Strategy(Protocol):

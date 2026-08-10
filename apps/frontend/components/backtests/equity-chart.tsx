@@ -95,9 +95,9 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
           </linearGradient>
         </defs>
         <g className="chart-grid">
-          {equityTicks.map((value) => (
+          {equityTicks.map((value, index) => (
             <line
-              key={value}
+              key={`grid-${value}-${index}`}
               x1={PLOT.left}
               x2={PLOT.right}
               y1={equityY(value)}
@@ -106,10 +106,10 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
           ))}
         </g>
         <g className="equity-axis">
-          {equityTicks.map((value) => (
+          {equityTicks.map((value, index) => (
             <text
               className="chart-axis-tick"
-              key={value}
+              key={`equity-${value}-${index}`}
               textAnchor="end"
               x={PLOT.left - 8}
               y={equityY(value) + 4}
@@ -158,7 +158,14 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
               x={x(index)}
               y={PLOT.bottom + 22}
             >
-              {new Date(points[index]?.timestamp ?? "").toLocaleDateString(intlLocale)}
+              {new Date(points[index]?.timestamp ?? "").toLocaleDateString(
+                intlLocale,
+                {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                },
+              )}
             </text>
           ))}
           <text

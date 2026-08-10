@@ -1,10 +1,9 @@
 from app.domain.backtesting.engine import BacktestEngine
 from app.domain.backtesting.execution import (
-    FixedCommissionModel,
-    FixedSlippageModel,
+    NotionalCommissionModel,
     OrderSimulator,
+    PointSlippageModel,
     PositionManager,
-    RelativeSlippageModel,
     RiskManager,
 )
 from app.domain.backtesting.interfaces import (
@@ -13,18 +12,25 @@ from app.domain.backtesting.interfaces import (
     SlippageModel,
     Strategy,
 )
-from app.domain.backtesting.models import BacktestResult, Signal, StrategyContext
+from app.domain.backtesting.models import (
+    BacktestResult,
+    HistoricalDataCoverage,
+    HistoricalDataInterval,
+    Signal,
+    StrategyContext,
+)
 
 __all__ = [
     "BacktestEngine",
     "BacktestResult",
     "CommissionModel",
-    "FixedCommissionModel",
-    "FixedSlippageModel",
+    "HistoricalDataCoverage",
+    "HistoricalDataInterval",
     "HistoricalDataProvider",
     "OrderSimulator",
+    "NotionalCommissionModel",
+    "PointSlippageModel",
     "PositionManager",
-    "RelativeSlippageModel",
     "RiskManager",
     "Signal",
     "SlippageModel",

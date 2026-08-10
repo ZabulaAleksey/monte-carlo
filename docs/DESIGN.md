@@ -25,6 +25,12 @@ one select-all checkbox in the table header.
   daily/weekly charts and years for monthly charts.
 - While animation is enabled, Virtual execution reveals trades at entry and
   withholds close information until exit. Disabling animation shows all rows.
+- The equity and independent drawdown curves use the same replay clock as
+  candles and orders. Drawdown is based on current equity, including unrealized
+  position P&L and accrued swap.
+- Equity time ticks always include a year. The candle execution map displays
+  quote values on its vertical axis with instrument precision capped at six
+  digits.
 - Selecting saved research replaces the ledger with the trades returned by
   that run's dedicated endpoint; rows from another run are never retained.
 
@@ -38,6 +44,11 @@ one select-all checkbox in the table header.
   browser-native picker chrome follows operating-system settings.
 - Starting capital uses a $100 minimum and step so mouse spinner controls
   change the value in $100 increments.
+- The selected From/To values use the versioned
+  `montecarlo.backtest.period.v1` local-storage record and are restored before
+  the form's first meaningful render.
+- Stress inputs show their calculation units directly: commission percentage
+  per execution, signed daily swap percentage and quote-point slippage.
 
 ## Responsive and accessible behavior
 

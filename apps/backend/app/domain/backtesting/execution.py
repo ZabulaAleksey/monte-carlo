@@ -14,7 +14,6 @@ from app.domain.entities import Candle
 from app.domain.exceptions import DomainError
 
 HUNDRED = Decimal("100")
-TEN_THOUSAND = Decimal("10000")
 DECIMAL_QUANTUM = Decimal("0.00000001")
 
 
@@ -23,39 +22,35 @@ def quantize_decimal(value: Decimal) -> Decimal:
     return abs(quantized) if quantized.is_zero() else quantized
 
 
-class FixedCommissionModel:
-    def __init__(self, amount_per_fill: Decimal) -> None:
-        if amount_per_fill < 0:
+class NotionalCommissionModel:
+    """Commission percentage of traded notional, charged on every fill."""
+
+    def __init__(self, percentage_per_fill: Decimal, contract_size: Decimal) -> None:
+        if percentage_per_fill < 0:
             raise DomainError("Commission cannot be negative")
-        self._amount_per_fill = amount_per_fill
+        if contract_size <= 0:
+            raise DomainError("Contract size must be greater than zero")
+        self._rate = percentage_per_fill / HUNDRED
+        self._contract_size = contract_size
 
     def calculate(self, price: Decimal, quantity: Decimal) -> Decimal:
-        del price, quantity
-        return quantize_decimal(self._amount_per_fill)
+        return quantize_decimal(
+            price * quantity * self._contract_size * self._rate
+        )
 
 
-class FixedSlippageModel:
-    def __init__(self, amount: Decimal) -> None:
-        if amount < 0:
+class PointSlippageModel:
+    """Slippage in quote points, capped at the sixth informative price digit."""
+
+    def __init__(self, points: Decimal, price_digits: int) -> None:
+        if points < 0:
             raise DomainError("Slippage cannot be negative")
-        self._amount = amount
+        if price_digits < 0:
+            raise DomainError("Price digits cannot be negative")
+        self._amount = points * (Decimal("10") ** -min(price_digits, 6))
 
     def apply(self, price: Decimal, *, is_buy_order: bool) -> Decimal:
         adjusted = price + self._amount if is_buy_order else price - self._amount
-        return quantize_decimal(adjusted)
-
-
-class RelativeSlippageModel:
-    """Relative slippage expressed in basis points."""
-
-    def __init__(self, basis_points: Decimal) -> None:
-        if basis_points < 0:
-            raise DomainError("Slippage cannot be negative")
-        self._rate = basis_points / TEN_THOUSAND
-
-    def apply(self, price: Decimal, *, is_buy_order: bool) -> Decimal:
-        adjustment = price * self._rate
-        adjusted = price + adjustment if is_buy_order else price - adjustment
         return quantize_decimal(adjusted)
 
 
@@ -178,12 +173,12 @@ class OrderSimulator:
         self,
         commission_model: CommissionModel,
         slippage_model: SlippageModel,
-        swap_per_lot_per_day: Decimal,
+        swap_pct_per_lot_per_day: Decimal,
         contract_size: Decimal = Decimal("1"),
     ) -> None:
         self._commission_model = commission_model
         self._slippage_model = slippage_model
-        self._swap_per_lot_per_day = swap_per_lot_per_day
+        self._swap_rate_per_day = swap_pct_per_lot_per_day / HUNDRED
         self._contract_size = contract_size
 
     def open_position(
@@ -268,5 +263,9 @@ class OrderSimulator:
     def accrued_swap(self, position: OpenPosition, timestamp: datetime) -> Decimal:
         days = max((timestamp.date() - position.opened_at.date()).days, 0)
         return quantize_decimal(
-            self._swap_per_lot_per_day * position.quantity * Decimal(days)
+            position.open_price
+            * position.quantity
+            * self._contract_size
+            * self._swap_rate_per_day
+            * Decimal(days)
         )

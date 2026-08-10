@@ -5,12 +5,13 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import delete, select, tuple_
+from sqlalchemy import delete, func, select, tuple_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.mt5 import (
     AccountSyncCommand,
+    CandleCoverageCommand,
     CandleSyncCommand,
     HeartbeatCommand,
     PositionSyncCommand,
@@ -22,6 +23,7 @@ from app.application.mt5 import (
 )
 from app.domain.enums import CandleSource
 from app.domain.exceptions import NotFoundError, SynchronizationError
+from app.infrastructure.database.backtesting import SqlAlchemyHistoricalDataProvider
 from app.infrastructure.database.models import (
     AccountModel,
     CandleModel,
@@ -211,6 +213,46 @@ class SqlAlchemyMt5SyncGateway:
             model.source = CandleSource.MT5.value
         await self._commit("candles", terminal_id)
         return SyncResult(len(commands), created, updated)
+
+    async def record_candle_coverage(
+        self, terminal_id: str, command: CandleCoverageCommand
+    ) -> SyncResult:
+        await self._touch_sync(terminal_id)
+        symbol_name = command.symbol.strip().upper()
+        symbol = await self._session.scalar(
+            select(SymbolModel).where(SymbolModel.name == symbol_name)
+        )
+        if symbol is None:
+            raise NotFoundError(f"Unknown symbol: {symbol_name}")
+        stored_count = int(
+            await self._session.scalar(
+                select(func.count())
+                .select_from(CandleModel)
+                .where(
+                    CandleModel.symbol_id == symbol.id,
+                    CandleModel.timeframe == command.timeframe.upper(),
+                    CandleModel.open_time >= command.covered_start,
+                    CandleModel.open_time <= command.covered_end,
+                    CandleModel.source == CandleSource.MT5.value,
+                )
+            )
+            or 0
+        )
+        if stored_count < command.expected_candles:
+            raise SynchronizationError(
+                "Historical candle coverage cannot be confirmed before all "
+                "reported candles are stored"
+            )
+        provider = SqlAlchemyHistoricalDataProvider(self._session)
+        await provider.record_coverage(
+            symbol.id,
+            command.timeframe,
+            command.covered_start,
+            command.covered_end,
+            CandleSource.MT5.value,
+        )
+        await self._commit("candle_coverage", terminal_id)
+        return SyncResult(stored_count, 0, 1)
 
     async def upsert_quotes(
         self, terminal_id: str, commands: list[QuoteSyncCommand]

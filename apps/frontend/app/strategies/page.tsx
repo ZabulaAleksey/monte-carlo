@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { BacktestForm } from "@/components/backtests/backtest-form";
 import { BacktestRunsTable } from "@/components/backtests/backtest-runs-table";
-import { EquityChart } from "@/components/backtests/equity-chart";
 import { TradeReplay } from "@/components/backtests/trade-replay";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
@@ -109,6 +108,17 @@ export default function StrategiesPage(): React.JSX.Element {
     setJob(null);
     setError(null);
     try {
+      const coverage = await apiClient.getHistoricalDataCoverage(
+        payload.symbol_id,
+        payload.timeframe,
+        payload.start_at,
+        payload.end_at,
+      );
+      if (!coverage.complete) {
+        throw new Error(
+          t("error.historyIncomplete", { count: coverage.candle_count }),
+        );
+      }
       let current = await apiClient.startBacktestJob(payload);
       if (sequence !== jobSequence.current) return;
       setJob(current);
@@ -310,18 +320,12 @@ export default function StrategiesPage(): React.JSX.Element {
                   </article>
                 </div>
 
-                <section className="panel result-chart-panel">
-                  <div className="panel-heading">
-                    <div><span className="eyebrow">{t("equity.eyebrow")}</span><h2>{t("equity.title")}</h2></div>
-                    <span className="muted">{t("equity.hint")}</span>
-                  </div>
-                  <EquityChart points={result.equity_curve} trades={result.trades} />
-                </section>
-
                 <TradeReplay
                   key={result.id}
                   candles={candles}
+                  equityPoints={result.equity_curve}
                   onSpeedChange={setReplaySpeed}
+                  priceDigits={selectedSymbol?.digits}
                   speed={replaySpeed}
                   startAtEnd={!replayFromStart}
                   trades={result.trades}
@@ -332,7 +336,7 @@ export default function StrategiesPage(): React.JSX.Element {
                   <div><span>{t("settings.risk")}</span><strong>{result.settings.stop_loss_pct ?? "off"}% / {result.settings.take_profit_pct ?? "off"}%</strong></div>
                   <div><span>{t("settings.commission")}</span><strong>{formatMoney(result.metrics.total_commission, intlLocale)}</strong></div>
                   <div><span>{t("settings.swap")}</span><strong>{formatMoney(result.metrics.total_swap, intlLocale)}</strong></div>
-                  <div><span>{t("settings.slippage")}</span><strong>{result.settings.slippage_value} {result.settings.slippage_mode === "relative" ? "bps" : "price"}</strong></div>
+                  <div><span>{t("settings.slippage")}</span><strong>{result.settings.slippage_points} {t("common.points")}</strong></div>
                   <div>
                     <span>{t("settings.parameters")}</span>
                     <strong>

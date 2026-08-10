@@ -232,6 +232,7 @@ bool FlushCandleBatch(const string items,const datetime newest,const int symbol_
 bool SendCandlesForSymbol(const int symbol_index)
   {
    string symbol=g_symbol_names[symbol_index];
+   datetime previous_last=g_last_candle_at[symbol_index];
    int period_seconds=PeriodSeconds(CandleTimeframe);
    datetime to_time=TimeTradeServer()-(datetime)MathMax(1,period_seconds);
    datetime from_time=g_last_candle_at[symbol_index]>0
@@ -280,9 +281,20 @@ bool SendCandlesForSymbol(const int symbol_index)
          accepted=0;
         }
      }
-   if(accepted==0)
+   if(accepted>0 && !FlushCandleBatch(items,batch_newest,symbol_index))
+      return false;
+   string coverage=RequestPrefix()+
+                   ",\"symbol\":"+JsonString(symbol)+
+                   ",\"timeframe\":"+JsonString(TimeframeName())+
+                   ",\"covered_start\":"+JsonString(ServerIsoUtc(rates[0].time))+
+                   ",\"covered_end\":"+JsonString(ServerIsoUtc(to_time))+
+                   ",\"expected_candles\":"+IntegerToString(copied)+"}";
+   if(HttpPost("/api/v1/mt5/candles/coverage",coverage))
       return true;
-   return FlushCandleBatch(items,batch_newest,symbol_index);
+   // Candle upserts are idempotent. Rewind the local cursor so a failed
+   // coverage confirmation retries the complete interval on the next timer.
+   g_last_candle_at[symbol_index]=previous_last;
+   return false;
   }
 
 bool SendCandles()

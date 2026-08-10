@@ -99,6 +99,25 @@ class Mt5CandlesRequest(Mt5RequestBase):
     candles: list[Mt5CandleItem] = Field(min_length=1, max_length=1000)
 
 
+class Mt5CandleCoverageRequest(Mt5RequestBase):
+    symbol: str = Field(min_length=1, max_length=32)
+    timeframe: str = Field(min_length=1, max_length=16)
+    covered_start: datetime
+    covered_end: datetime
+    expected_candles: int = Field(ge=1)
+
+    @field_validator("covered_start", "covered_end")
+    @classmethod
+    def validate_coverage_times(cls, value: datetime) -> datetime:
+        return _validate_timestamp(value)
+
+    @model_validator(mode="after")
+    def validate_coverage_range(self) -> Mt5CandleCoverageRequest:
+        if self.covered_start > self.covered_end:
+            raise ValueError("covered_start cannot exceed covered_end")
+        return self
+
+
 class Mt5QuoteItem(BaseModel):
     symbol: str = Field(min_length=1, max_length=32)
     bid: Decimal = Field(gt=0)

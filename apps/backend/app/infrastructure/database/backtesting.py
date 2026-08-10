@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,8 +16,9 @@ from app.domain.backtesting.models import (
     BacktestSettings,
     EquityPoint,
     ExitReason,
+    HistoricalDataCoverage,
+    HistoricalDataInterval,
     PositionSide,
-    SlippageMode,
     StoredBacktestResult,
     VirtualTrade,
 )
@@ -28,6 +29,7 @@ from app.infrastructure.database.models import (
     BacktestRunModel,
     BacktestTradeModel,
     CandleModel,
+    HistoricalDataCoverageModel,
 )
 
 
@@ -72,6 +74,167 @@ class SqlAlchemyHistoricalDataProvider:
             )
             for item in result.all()
         ]
+
+    async def get_coverage(
+        self,
+        symbol_id: UUID,
+        timeframe: str,
+        start_at: datetime,
+        end_at: datetime,
+    ) -> HistoricalDataCoverage:
+        normalized = timeframe.upper()
+        rows = (
+            await self._session.scalars(
+                select(HistoricalDataCoverageModel)
+                .where(
+                    HistoricalDataCoverageModel.symbol_id == symbol_id,
+                    HistoricalDataCoverageModel.timeframe == normalized,
+                    HistoricalDataCoverageModel.covered_end >= start_at,
+                    HistoricalDataCoverageModel.covered_start <= end_at,
+                )
+                .order_by(HistoricalDataCoverageModel.covered_start.asc())
+            )
+        ).all()
+        intervals = self._merge_intervals(
+            [
+                HistoricalDataInterval(_utc(row.covered_start), _utc(row.covered_end))
+                for row in rows
+            ],
+            self._timeframe_duration(normalized),
+        )
+        missing = self._missing_intervals(intervals, start_at, end_at)
+        candle_count = int(
+            await self._session.scalar(
+                select(func.count())
+                .select_from(CandleModel)
+                .where(
+                    CandleModel.symbol_id == symbol_id,
+                    CandleModel.timeframe == normalized,
+                    CandleModel.open_time >= start_at,
+                    CandleModel.open_time <= end_at,
+                )
+            )
+            or 0
+        )
+        return HistoricalDataCoverage(
+            symbol_id=symbol_id,
+            timeframe=normalized,
+            requested_start=start_at,
+            requested_end=end_at,
+            candle_count=candle_count,
+            complete=not missing and bool(intervals),
+            cached_intervals=intervals,
+            missing_intervals=missing,
+        )
+
+    async def record_coverage(
+        self,
+        symbol_id: UUID,
+        timeframe: str,
+        start_at: datetime,
+        end_at: datetime,
+        source: str,
+    ) -> HistoricalDataCoverage:
+        if start_at > end_at:
+            raise ValueError("Coverage start cannot exceed end")
+        normalized = timeframe.upper()
+        tolerance = self._timeframe_duration(normalized)
+        overlapping = (
+            await self._session.scalars(
+                select(HistoricalDataCoverageModel).where(
+                    HistoricalDataCoverageModel.symbol_id == symbol_id,
+                    HistoricalDataCoverageModel.timeframe == normalized,
+                    HistoricalDataCoverageModel.covered_end >= start_at - tolerance,
+                    HistoricalDataCoverageModel.covered_start <= end_at + tolerance,
+                )
+            )
+        ).all()
+        merged_start = min(
+            [start_at, *(_utc(item.covered_start) for item in overlapping)]
+        )
+        merged_end = max([end_at, *(_utc(item.covered_end) for item in overlapping)])
+        if overlapping:
+            await self._session.execute(
+                delete(HistoricalDataCoverageModel).where(
+                    HistoricalDataCoverageModel.id.in_(
+                        [item.id for item in overlapping]
+                    )
+                )
+            )
+        self._session.add(
+            HistoricalDataCoverageModel(
+                id=uuid4(),
+                symbol_id=symbol_id,
+                timeframe=normalized,
+                covered_start=merged_start,
+                covered_end=merged_end,
+                source=source,
+                updated_at=datetime.now(UTC),
+            )
+        )
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
+        return await self.get_coverage(symbol_id, normalized, start_at, end_at)
+
+    @staticmethod
+    def _merge_intervals(
+        intervals: list[HistoricalDataInterval],
+        tolerance: timedelta,
+    ) -> tuple[HistoricalDataInterval, ...]:
+        merged: list[HistoricalDataInterval] = []
+        for interval in intervals:
+            if (
+                not merged
+                or interval.start_at > merged[-1].end_at + tolerance
+            ):
+                merged.append(interval)
+                continue
+            previous = merged[-1]
+            merged[-1] = HistoricalDataInterval(
+                previous.start_at, max(previous.end_at, interval.end_at)
+            )
+        return tuple(merged)
+
+    @staticmethod
+    def _missing_intervals(
+        intervals: tuple[HistoricalDataInterval, ...],
+        start_at: datetime,
+        end_at: datetime,
+    ) -> tuple[HistoricalDataInterval, ...]:
+        missing: list[HistoricalDataInterval] = []
+        cursor = start_at
+        for interval in intervals:
+            if interval.end_at < cursor:
+                continue
+            if interval.start_at > cursor:
+                missing.append(
+                    HistoricalDataInterval(cursor, min(interval.start_at, end_at))
+                )
+            cursor = max(cursor, interval.end_at)
+            if cursor >= end_at:
+                break
+        if cursor < end_at:
+            missing.append(HistoricalDataInterval(cursor, end_at))
+        return tuple(missing)
+
+    @staticmethod
+    def _timeframe_duration(timeframe: str) -> timedelta:
+        if len(timeframe) < 2:
+            return timedelta(0)
+        try:
+            amount = int(timeframe[1:])
+        except ValueError:
+            return timedelta(0)
+        units = {
+            "M": timedelta(minutes=amount),
+            "H": timedelta(hours=amount),
+            "D": timedelta(days=amount),
+            "W": timedelta(weeks=amount),
+        }
+        return units.get(timeframe[0], timedelta(0))
 
 
 class SqlAlchemyBacktestRunRepository:
@@ -211,17 +374,21 @@ class SqlAlchemyBacktestRunRepository:
             contract_size=Decimal(str(model.settings.get("contract_size", "1"))),
             stop_loss_pct=self._optional_decimal(model.settings.get("stop_loss_pct")),
             take_profit_pct=self._optional_decimal(model.settings.get("take_profit_pct")),
-            commission_per_fill=Decimal(str(model.settings["commission_per_fill"])),
-            swap_per_lot_per_day=Decimal(
+            price_digits=int(str(model.settings.get("price_digits", 5))),
+            commission_pct_per_fill=Decimal(
                 str(
                     model.settings.get(
-                        "swap_per_lot_per_day",
-                        model.settings.get("swap_per_day", "0"),
+                        "commission_pct_per_fill",
+                        "0",
                     )
                 )
             ),
-            slippage_mode=SlippageMode(str(model.settings["slippage_mode"])),
-            slippage_value=Decimal(str(model.settings["slippage_value"])),
+            swap_pct_per_lot_per_day=Decimal(
+                str(model.settings.get("swap_pct_per_lot_per_day", "0"))
+            ),
+            slippage_points=Decimal(
+                str(model.settings.get("slippage_points", "0"))
+            ),
         )
         metrics = BacktestMetrics(
             initial_capital=Decimal(str(model.metrics["initial_capital"])),
@@ -297,10 +464,10 @@ class SqlAlchemyBacktestRunRepository:
             "take_profit_pct": (
                 str(settings.take_profit_pct) if settings.take_profit_pct is not None else None
             ),
-            "commission_per_fill": str(settings.commission_per_fill),
-            "swap_per_lot_per_day": str(settings.swap_per_lot_per_day),
-            "slippage_mode": settings.slippage_mode.value,
-            "slippage_value": str(settings.slippage_value),
+            "price_digits": settings.price_digits,
+            "commission_pct_per_fill": str(settings.commission_pct_per_fill),
+            "swap_pct_per_lot_per_day": str(settings.swap_pct_per_lot_per_day),
+            "slippage_points": str(settings.slippage_points),
         }
 
     @staticmethod

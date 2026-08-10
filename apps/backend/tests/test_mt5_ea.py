@@ -39,6 +39,8 @@ def test_mql5_bridge_backfills_candles_and_sends_symbol_trade_spec() -> None:
 
     assert "CopyRates(symbol,CandleTimeframe,from_time,to_time,rates)" in source
     assert "CandleLookbackDays)*86400" in source
+    assert 'HttpPost("/api/v1/mt5/candles/coverage",coverage)' in source
+    assert "g_last_candle_at[symbol_index]=previous_last" in source
     assert "FlushCandleBatch" in source
     assert "SYMBOL_VOLUME_MIN" in source
     assert "SYMBOL_VOLUME_STEP" in source

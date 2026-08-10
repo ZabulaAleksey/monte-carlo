@@ -1,12 +1,11 @@
 "use client";
 
 import { Pause, Play, RotateCcw, Square } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type {
   BacktestCreateRequest,
   BacktestJobRecord,
-  SlippageMode,
   StrategyDefinition,
   SymbolRecord,
 } from "@/lib/api/types";
@@ -38,16 +37,42 @@ interface FormState {
   startAt: string;
   endAt: string;
   initialCapital: string;
-  commissionPerFill: string;
-  swapPerLotPerDay: string;
-  slippageMode: SlippageMode;
-  slippageValue: string;
+  commissionPctPerFill: string;
+  swapPctPerLotPerDay: string;
+  slippagePoints: string;
   parameters: Record<string, string>;
 }
 
 function localDateInput(date: Date): string {
   const adjusted = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
   return adjusted.toISOString().slice(0, 16);
+}
+
+const PERIOD_STORAGE_KEY = "montecarlo.backtest.period.v1";
+
+function initialPeriod(): { startAt: string; endAt: string } {
+  if (typeof window !== "undefined") {
+    try {
+      const stored = JSON.parse(
+        window.localStorage.getItem(PERIOD_STORAGE_KEY) ?? "null",
+      ) as { startAt?: unknown; endAt?: unknown } | null;
+      if (
+        typeof stored?.startAt === "string" &&
+        typeof stored.endAt === "string" &&
+        !Number.isNaN(new Date(stored.startAt).getTime()) &&
+        !Number.isNaN(new Date(stored.endAt).getTime())
+      ) {
+        return { startAt: stored.startAt, endAt: stored.endAt };
+      }
+    } catch {
+      // A valid in-memory default remains available when storage is restricted.
+    }
+  }
+  const end = new Date();
+  end.setMinutes(0, 0, 0);
+  end.setHours(end.getHours() - 1);
+  const start = new Date(end.getTime() - 48 * 60 * 60 * 1000);
+  return { startAt: localDateInput(start), endAt: localDateInput(end) };
 }
 
 function localizedDateInput(value: string, locale: string): string {
@@ -104,22 +129,31 @@ export function BacktestForm({
 }: BacktestFormProps): React.JSX.Element {
   const { intlLocale, t } = useI18n();
   const [form, setForm] = useState<FormState>(() => {
-    const end = new Date();
-    const start = new Date(end.getTime() - 48 * 60 * 60 * 1000);
+    const period = initialPeriod();
     return {
       strategyName: strategies[0]?.name ?? "",
       symbolId: symbols[0]?.id ?? "",
       timeframe: "H1",
-      startAt: localDateInput(start),
-      endAt: localDateInput(end),
+      startAt: period.startAt,
+      endAt: period.endAt,
       initialCapital: "10000",
-      commissionPerFill: "0",
-      swapPerLotPerDay: "0",
-      slippageMode: "fixed",
-      slippageValue: "0",
+      commissionPctPerFill: "0",
+      swapPctPerLotPerDay: "0",
+      slippagePoints: "0",
       parameters: initialParameters(strategies[0], symbols[0]),
     };
   });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        PERIOD_STORAGE_KEY,
+        JSON.stringify({ startAt: form.startAt, endAt: form.endAt }),
+      );
+    } catch {
+      // Date selection still works when persistence is unavailable.
+    }
+  }, [form.endAt, form.startAt]);
   const selectedStrategy = strategies.find((item) => item.name === form.strategyName);
   const selectedSymbol = symbols.find((item) => item.id === form.symbolId);
   const strategyTitle = (strategy: StrategyDefinition): string =>
@@ -175,10 +209,9 @@ export function BacktestForm({
       start_at: new Date(form.startAt).toISOString(),
       end_at: new Date(form.endAt).toISOString(),
       initial_capital: form.initialCapital,
-      commission_per_fill: form.commissionPerFill,
-      swap_per_lot_per_day: form.swapPerLotPerDay,
-      slippage_mode: form.slippageMode,
-      slippage_value: form.slippageValue,
+      commission_pct_per_fill: form.commissionPctPerFill,
+      swap_pct_per_lot_per_day: form.swapPctPerLotPerDay,
+      slippage_points: form.slippagePoints,
       parameters,
     });
   };
@@ -349,46 +382,34 @@ export function BacktestForm({
               <input
                 aria-label={t("form.commission")}
                 min="0"
-                onChange={(event) => update("commissionPerFill", event.target.value)}
+                max="100"
+                onChange={(event) => update("commissionPctPerFill", event.target.value)}
                 step="any"
                 type="number"
-                value={form.commissionPerFill}
+                value={form.commissionPctPerFill}
               />
             </label>
             <label className="form-field">
               <span>{t("form.swap")}</span>
               <input
                 aria-label={t("form.swap")}
-                onChange={(event) => update("swapPerLotPerDay", event.target.value)}
+                max="100"
+                min="-100"
+                onChange={(event) => update("swapPctPerLotPerDay", event.target.value)}
                 step="any"
                 type="number"
-                value={form.swapPerLotPerDay}
+                value={form.swapPctPerLotPerDay}
               />
             </label>
             <label className="form-field">
-              <span>{t("form.slippageModel")}</span>
-              <select
-                aria-label={t("form.slippageModel")}
-                onChange={(event) => update("slippageMode", event.target.value)}
-                value={form.slippageMode}
-              >
-                <option value="fixed">{t("form.fixed")}</option>
-                <option value="relative">{t("form.relative")}</option>
-              </select>
-            </label>
-            <label className="form-field">
-              <span>
-                {form.slippageMode === "fixed"
-                  ? t("form.slippagePrice")
-                  : t("form.slippageBps")}
-              </span>
+              <span>{t("form.slippagePoints")}</span>
               <input
-                aria-label={form.slippageMode === "fixed" ? t("form.slippagePrice") : t("form.slippageBps")}
+                aria-label={t("form.slippagePoints")}
                 min="0"
-                onChange={(event) => update("slippageValue", event.target.value)}
+                onChange={(event) => update("slippagePoints", event.target.value)}
                 step="any"
                 type="number"
-                value={form.slippageValue}
+                value={form.slippagePoints}
               />
             </label>
           </div>

@@ -6,6 +6,7 @@ from app.api.mt5_auth import Mt5AuthDependency
 from app.api.mt5_dependencies import Mt5SyncServiceDependency
 from app.api.mt5_schemas import (
     Mt5AccountRequest,
+    Mt5CandleCoverageRequest,
     Mt5CandlesRequest,
     Mt5HeartbeatRequest,
     Mt5PositionsRequest,
@@ -17,6 +18,7 @@ from app.api.mt5_schemas import (
 )
 from app.application.mt5 import (
     AccountSyncCommand,
+    CandleCoverageCommand,
     CandleSyncCommand,
     HeartbeatCommand,
     PositionSyncCommand,
@@ -67,6 +69,23 @@ async def candles(
 ) -> SyncResultResponse:
     commands = [CandleSyncCommand(**item.model_dump()) for item in payload.candles]
     result = await service.candles(payload.terminal_id, commands)
+    return SyncResultResponse.model_validate(result, from_attributes=True)
+
+
+@router.post("/candles/coverage", response_model=SyncResultResponse)
+async def candle_coverage(
+    payload: Mt5CandleCoverageRequest,
+    service: Mt5SyncServiceDependency,
+    _auth: Mt5AuthDependency,
+) -> SyncResultResponse:
+    command = CandleCoverageCommand(
+        symbol=payload.symbol,
+        timeframe=payload.timeframe,
+        covered_start=payload.covered_start,
+        covered_end=payload.covered_end,
+        expected_candles=payload.expected_candles,
+    )
+    result = await service.candle_coverage(payload.terminal_id, command)
     return SyncResultResponse.model_validate(result, from_attributes=True)
 
 

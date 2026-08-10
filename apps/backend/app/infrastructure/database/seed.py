@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from app.application.services import AccountService, CandleService, SymbolService, TradeService
 from app.domain.enums import CandleSource, TradeSide, TradeStatus
 from app.infrastructure.config import get_settings
+from app.infrastructure.database.backtesting import SqlAlchemyHistoricalDataProvider
 from app.infrastructure.database.models import CandleModel, MarketQuoteModel, TradeModel
 from app.infrastructure.database.repositories import (
     SqlAlchemyAccountRepository,
@@ -68,6 +69,26 @@ async def seed() -> None:
                     source=CandleSource.DEMO,
                 )
                 previous = close
+
+        candle_bounds = (
+            await session.execute(
+                select(
+                    func.min(CandleModel.open_time),
+                    func.max(CandleModel.open_time),
+                ).where(
+                    CandleModel.symbol_id == eurusd.id,
+                    CandleModel.timeframe == "H1",
+                )
+            )
+        ).one()
+        if candle_bounds[0] is not None and candle_bounds[1] is not None:
+            await SqlAlchemyHistoricalDataProvider(session).record_coverage(
+                eurusd.id,
+                "H1",
+                candle_bounds[0],
+                candle_bounds[1],
+                CandleSource.DEMO.value,
+            )
 
         quote = await session.get(MarketQuoteModel, eurusd.id)
         if quote is None:

@@ -69,7 +69,9 @@ describe("CandlestickTradeChart", () => {
     const frame = container.querySelector(".chart-frame") as HTMLDivElement;
     expect(frame.scrollLeft).toBe(444);
     expect(container.querySelectorAll(".period-separator")).toHaveLength(1);
-    expect(screen.getByText("Feb 01")).toBeInTheDocument();
+    expect(screen.getByText(/Feb 01, 2026/)).toBeInTheDocument();
+    expect(container.querySelectorAll(".price-axis text")).toHaveLength(5);
+    expect(screen.getByText("103.00000")).toBeInTheDocument();
     expect(container.querySelectorAll(".trade-connection")).toHaveLength(1);
     expect(container.querySelector('[data-trade-sequence="1"]')).toBeInTheDocument();
     expect(screen.getByText("+$2.00")).toBeInTheDocument();

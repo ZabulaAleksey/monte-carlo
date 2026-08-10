@@ -1,5 +1,40 @@
 # Technical decisions
 
+## 2026-08-10 — Source-confirmed range cache and notional cost units
+
+Status: accepted for Stage 3.
+
+### Decision
+
+Historical completeness is represented by explicit provider-confirmed
+intervals, separate from candle rows. PostgreSQL merges overlapping or
+timeframe-adjacent intervals and indexes them by symbol, timeframe and bounds.
+Both frontend preflight and the engine verify coverage; the engine remains the
+authoritative boundary.
+
+Commission and daily swap are percentages of traded/entry notional. Slippage
+is a number of quote points, where the point uses at most six decimal digits.
+
+### Reason
+
+Inferring completeness from timestamp gaps produces false failures on weekends,
+holidays and instrument-specific sessions. First/last candle checks cannot
+prove that a source completed its requested download. Explicit confirmation
+preserves that information and makes overlapping ranges reusable.
+
+A percentage without a monetary base is ambiguous. Notional
+`price × lots × contract_size` provides a reproducible base across symbols,
+while point slippage matches quote precision.
+
+### Consequences
+
+- MT5 confirms a range only after all reported candles exist in the database.
+- A failed confirmation rewinds the EA cursor, so the idempotent batch retries.
+- Older monetary-cost run JSON remains readable but has no inferred percentage;
+  its saved monetary metrics and trades remain unchanged.
+- Third-party clients receive the same contracts under `/api/v1/tester`.
+
+
 ## 2026-08-10 — Explicit run isolation and locale-first rendering
 
 Status: accepted for Stage 3.

@@ -163,6 +163,19 @@ async def test_candle_and_trade_batches_are_idempotent(client: AsyncClient) -> N
     second_candles = await client.post(
         "/api/v1/mt5/candles/batch", headers=HEADERS, json=candle_payload
     )
+    coverage = await client.post(
+        "/api/v1/mt5/candles/coverage",
+        headers=HEADERS,
+        json={
+            "terminal_id": TERMINAL_ID,
+            "sent_at": now_iso(),
+            "symbol": "EURUSD",
+            "timeframe": "H1",
+            "covered_start": opened_at.isoformat(),
+            "covered_end": opened_at.isoformat(),
+            "expected_candles": 1,
+        },
+    )
     first_trades = await client.post(
         "/api/v1/mt5/trades/batch", headers=HEADERS, json=trade_payload
     )
@@ -173,6 +186,8 @@ async def test_candle_and_trade_batches_are_idempotent(client: AsyncClient) -> N
     assert first_candles.json()["created"] == 1
     assert second_candles.json()["created"] == 0
     assert second_candles.json()["updated"] == 1
+    assert coverage.status_code == 200
+    assert coverage.json()["received"] == 1
     assert first_trades.json()["created"] == 1
     assert second_trades.json()["created"] == 0
     assert second_trades.json()["updated"] == 1
@@ -184,6 +199,18 @@ async def test_candle_and_trade_batches_are_idempotent(client: AsyncClient) -> N
     assert len(mt5_candles) == 1
     assert demo_candles == []
     assert len((await client.get("/api/v1/trades")).json()) == 1
+    symbol_id = (await client.get("/api/v1/symbols")).json()[0]["id"]
+    cached = await client.get(
+        "/api/v1/backtests/history/coverage",
+        params={
+            "symbol_id": symbol_id,
+            "timeframe": "H1",
+            "start_at": opened_at.isoformat(),
+            "end_at": opened_at.isoformat(),
+        },
+    )
+    assert cached.status_code == 200
+    assert cached.json()["complete"] is True
 
 
 @pytest.mark.asyncio

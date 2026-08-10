@@ -9,6 +9,7 @@ vi.mock("@/lib/api/client", () => ({
     deleteBacktest: vi.fn(),
     getBacktestResult: vi.fn(),
     getBacktestJob: vi.fn(),
+    getHistoricalDataCoverage: vi.fn(),
     getBacktestRuns: vi.fn(),
     getBacktestStrategies: vi.fn(),
     getBacktestTrades: vi.fn(),
@@ -42,12 +43,12 @@ const result: BacktestResultRecord = {
     initial_capital: "10000",
     position_size: "1",
     contract_size: "100000",
+    price_digits: 5,
     stop_loss_pct: "1",
     take_profit_pct: "2",
-    commission_per_fill: "0",
-    swap_per_lot_per_day: "0",
-    slippage_mode: "fixed",
-    slippage_value: "0",
+    commission_pct_per_fill: "0",
+    swap_pct_per_lot_per_day: "0",
+    slippage_points: "0",
   },
   trades: [
     {
@@ -122,6 +123,19 @@ describe("StrategiesPage", () => {
       },
     ]);
     vi.mocked(apiClient.getBacktestRuns).mockResolvedValue([]);
+    vi.mocked(apiClient.getHistoricalDataCoverage).mockResolvedValue({
+      symbol_id: "symbol-1",
+      timeframe: "H1",
+      requested_start: result.requested_start,
+      requested_end: result.requested_end,
+      candle_count: 8,
+      complete: true,
+      cached_intervals: [{
+        start_at: result.requested_start,
+        end_at: result.requested_end,
+      }],
+      missing_intervals: [],
+    });
     vi.mocked(apiClient.getCandles).mockResolvedValue([
       {
         id: "candle-1",
@@ -206,6 +220,8 @@ describe("StrategiesPage", () => {
         }),
       ),
     );
+    expect(await screen.findByRole("img", { name: /Equity and drawdown chart with 1 observations and 0 completed operations/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Show animated chart"));
     expect((await screen.findAllByText("$10,001.00")).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole("img", { name: /Equity and drawdown chart with 2 observations and 1 completed operations/ })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /Candlestick chart with 1 virtual trades/ })).toBeInTheDocument();
@@ -421,5 +437,20 @@ describe("StrategiesPage", () => {
       timeStyle: "short",
     }).format(new Date((from as HTMLInputElement).value));
     expect(screen.getByText(localizedValue)).toBeInTheDocument();
+  });
+
+  it("restores the selected backtest period from localStorage", async () => {
+    window.localStorage.setItem(
+      "montecarlo.backtest.period.v1",
+      JSON.stringify({
+        startAt: "2024-02-03T04:00",
+        endAt: "2025-06-07T08:00",
+      }),
+    );
+
+    render(<StrategiesPage />);
+
+    expect(await screen.findByLabelText("From")).toHaveValue("2024-02-03T04:00");
+    expect(screen.getByLabelText("To")).toHaveValue("2025-06-07T08:00");
   });
 });

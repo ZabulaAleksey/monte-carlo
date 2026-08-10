@@ -85,7 +85,6 @@ export interface Mt5Status {
   terminal: Mt5TerminalStatus | null;
 }
 
-export type SlippageMode = "fixed" | "relative";
 export type BacktestExitReason =
   | "signal"
   | "reverse"
@@ -120,10 +119,9 @@ export interface BacktestCreateRequest {
   position_size?: string;
   stop_loss_pct?: string | null;
   take_profit_pct?: string | null;
-  commission_per_fill: string;
-  swap_per_lot_per_day: string;
-  slippage_mode: SlippageMode;
-  slippage_value: string;
+  commission_pct_per_fill: string;
+  swap_pct_per_lot_per_day: string;
+  slippage_points: string;
   parameters: Record<string, number | string>;
 }
 
@@ -151,12 +149,28 @@ export interface BacktestSettingsRecord {
   initial_capital: string;
   position_size: string;
   contract_size: string;
+  price_digits: number;
   stop_loss_pct: string | null;
   take_profit_pct: string | null;
-  commission_per_fill: string;
-  swap_per_lot_per_day: string;
-  slippage_mode: SlippageMode;
-  slippage_value: string;
+  commission_pct_per_fill: string;
+  swap_pct_per_lot_per_day: string;
+  slippage_points: string;
+}
+
+export interface HistoricalDataIntervalRecord {
+  start_at: string;
+  end_at: string;
+}
+
+export interface HistoricalDataCoverageRecord {
+  symbol_id: string;
+  timeframe: string;
+  requested_start: string;
+  requested_end: string;
+  candle_count: number;
+  complete: boolean;
+  cached_intervals: HistoricalDataIntervalRecord[];
+  missing_intervals: HistoricalDataIntervalRecord[];
 }
 
 export interface VirtualTradeRecord {

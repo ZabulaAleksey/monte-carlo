@@ -69,8 +69,16 @@ and makes no profitability claim. Position size is expressed in MT5 lots and
 validated against the synchronized symbol minimum, step and maximum, with an
 additional platform cap of 99 lots. Profit and unrealized equity use the
 symbol's MT5 contract size. SL/TP are percentages from the simulated fill,
-commission is cash per fill, relative slippage is expressed in basis points,
-and swap is a cash rate per lot for each crossed calendar day.
+commission is a percentage of fill notional, slippage is expressed in quote
+points capped at the sixth informative price digit, and swap is a signed
+percentage of entry notional for each crossed calendar day.
+
+Before loading candles, the engine asks the provider for confirmed historical
+coverage of the complete requested interval. Simulation is rejected before the
+first strategy call when any interval is missing. Confirmed overlapping or
+timeframe-adjacent intervals are merged, while the immutable candle cache is
+reused by later runs. This avoids treating exchange closures as missing data:
+the source confirms the requested interval independently of candle cadence.
 
 ## Data model
 
@@ -79,6 +87,8 @@ and swap is a cash rate per lot for each crossed calendar day.
 - `candles` belongs to a symbol and is unique by symbol, timeframe and opening
   time. Its typed `source` field (`demo`, `mt5`, or `api`) prevents
   synthetic MVP prices from being mixed into a connected terminal view.
+- `historical_data_coverage` stores source-confirmed reusable intervals per
+  symbol and timeframe. The lookup index follows the range-query access path.
 - `accounts` identifies an external trading account.
 - `trades` belongs to an account and symbol and is unique by account and
   external ticket.
@@ -117,3 +127,6 @@ ports or MQL functions for trading commands.
 stores the latest open-position snapshot. Existing candle and trade uniqueness
 constraints are reused for retry-safe batch upserts. See
 [`mt5-bridge.md`](mt5-bridge.md) for the complete contract.
+
+The same backtest router is exposed under `/api/v1/tester/backtests` for
+non-browser clients. See [`backtesting-api.md`](backtesting-api.md).

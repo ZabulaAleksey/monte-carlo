@@ -15,6 +15,7 @@ import { useI18n } from "@/lib/i18n";
 interface CandlestickTradeChartProps {
   candles: CandleRecord[];
   followLatest?: boolean;
+  priceDigits?: number;
   trades: VirtualTradeRecord[];
   visibleUntil?: string;
 }
@@ -27,7 +28,9 @@ interface PositionedTradeMarker extends TradeMarker {
 
 interface ViewportRange {
   end: number;
+  offset: number;
   start: number;
+  width: number;
 }
 
 const MINIMUM_WIDTH = 900;
@@ -37,6 +40,7 @@ const PADDING = 30;
 export function CandlestickTradeChart({
   candles,
   followLatest = false,
+  priceDigits = 5,
   trades,
   visibleUntil,
 }: CandlestickTradeChartProps): React.JSX.Element {
@@ -46,6 +50,8 @@ export function CandlestickTradeChart({
   const [viewportRange, setViewportRange] = useState<ViewportRange>({
     start: 0,
     end: Number.MAX_SAFE_INTEGER,
+    offset: 0,
+    width: MINIMUM_WIDTH,
   });
   const width = Math.max(MINIMUM_WIDTH, visible.length * 7 + PADDING * 2);
   const step = visible.length > 0 ? (width - PADDING * 2) / visible.length : 0;
@@ -56,7 +62,12 @@ export function CandlestickTradeChart({
   const updateViewportRange = useCallback((): void => {
     const frame = frameRef.current;
     if (!frame || visible.length === 0 || step <= 0 || frame.clientWidth <= 0) {
-      setViewportRange({ start: 0, end: Math.max(visible.length - 1, 0) });
+      setViewportRange({
+        start: 0,
+        end: Math.max(visible.length - 1, 0),
+        offset: 0,
+        width: frame?.clientWidth ?? MINIMUM_WIDTH,
+      });
       return;
     }
     const start = Math.max(
@@ -67,10 +78,15 @@ export function CandlestickTradeChart({
       visible.length - 1,
       Math.ceil((frame.scrollLeft + frame.clientWidth - PADDING) / step),
     );
+    const offset = frame.scrollLeft;
+    const viewportWidth = frame.clientWidth;
     setViewportRange((current) =>
-      current.start === start && current.end === end
+      current.start === start &&
+      current.end === end &&
+      current.offset === offset &&
+      current.width === viewportWidth
         ? current
-        : { start, end },
+        : { start, end, offset, width: viewportWidth },
     );
   }, [step, visible.length]);
 
@@ -160,6 +176,13 @@ export function CandlestickTradeChart({
     }
   });
   const visibleTradeCount = new Set(markers.map((marker) => marker.tradeSequence)).size;
+  const priceTicks = Array.from(
+    { length: 5 },
+    (_, index) => maximum - (range * index) / 4,
+  );
+  const axisStart = Math.max(0, viewportRange.offset);
+  const axisEnd = Math.min(width, axisStart + viewportRange.width);
+  const normalizedDigits = Math.min(Math.max(priceDigits, 0), 6);
 
   return (
     <div className="chart-frame" ref={frameRef}>
@@ -178,6 +201,21 @@ export function CandlestickTradeChart({
         style={{ minWidth: `${width}px` }}
         viewBox={`0 0 ${width} ${HEIGHT}`}
       >
+        <g className="price-axis">
+          {priceTicks.map((price) => (
+            <g key={price}>
+              <line
+                x1={axisStart}
+                x2={axisEnd}
+                y1={y(price)}
+                y2={y(price)}
+              />
+              <text x={axisStart + 7} y={y(price) - 4}>
+                {price.toFixed(normalizedDigits)}
+              </text>
+            </g>
+          ))}
+        </g>
         {periods.map((period) => {
           const periodX = x(period.candleIndex) - step / 2;
           return (

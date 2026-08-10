@@ -10,6 +10,8 @@
 - Persisted runs, trades, equity curve and metrics.
 - Backtest API and localized research workspace.
 - Interactive execution replay and bulk management of saved research.
+- Reusable source-confirmed candle ranges and external tester API.
+- Synchronized candle/equity/drawdown replay with labeled time and price axes.
 
 ## Current
 

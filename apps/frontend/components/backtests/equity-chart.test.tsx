@@ -40,5 +40,6 @@ describe("EquityChart", () => {
     expect(screen.getByText("Drawdown, %")).toBeInTheDocument();
     expect(screen.getByText("Time")).toBeInTheDocument();
     expect(screen.getByText("2.00%")).toBeInTheDocument();
+    expect(screen.getAllByText(/2026/).length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -5,16 +5,23 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BacktestTradesTable } from "@/components/backtests/backtest-trades-table";
 import { CandlestickTradeChart } from "@/components/backtests/candlestick-trade-chart";
-import type { CandleRecord, VirtualTradeRecord } from "@/lib/api/types";
+import { EquityChart } from "@/components/backtests/equity-chart";
+import type {
+  CandleRecord,
+  EquityPointRecord,
+  VirtualTradeRecord,
+} from "@/lib/api/types";
 import { sortCandles } from "@/lib/backtests";
 import { useI18n } from "@/lib/i18n";
 
 interface TradeReplayProps {
   candles: CandleRecord[];
+  equityPoints?: EquityPointRecord[];
   onSpeedChange?: (speed: number) => void;
   speed?: number;
   startAtEnd?: boolean;
   trades: VirtualTradeRecord[];
+  priceDigits?: number;
 }
 
 const SPEEDS = [0.5, 1, 2, 4, 5, 10, 20, 50, 100] as const;
@@ -23,10 +30,12 @@ const ignoreSpeedChange = (): void => undefined;
 
 export function TradeReplay({
   candles,
+  equityPoints = [],
   onSpeedChange = ignoreSpeedChange,
   speed = 1,
   startAtEnd = false,
   trades,
+  priceDigits = 5,
 }: TradeReplayProps): React.JSX.Element {
   const { t } = useI18n();
   const sorted = useMemo(() => sortCandles(candles), [candles]);
@@ -61,6 +70,17 @@ export function TradeReplay({
   const visibleCandles = sorted.slice(0, visibleCount);
   const nextCandle = enabled && visibleCount < sorted.length ? sorted[visibleCount] : undefined;
   const visibleBefore = nextCandle?.open_time;
+  const cutoff = visibleBefore
+    ? new Date(visibleBefore).getTime()
+    : Number.POSITIVE_INFINITY;
+  const visibleEquity = enabled
+    ? equityPoints.filter(
+        (point) => new Date(point.timestamp).getTime() <= cutoff,
+      )
+    : equityPoints;
+  const visibleClosedTrades = enabled
+    ? trades.filter((trade) => new Date(trade.closed_at).getTime() < cutoff)
+    : trades;
 
   const toggleEnabled = (checked: boolean): void => {
     setEnabled(checked);
@@ -70,6 +90,16 @@ export function TradeReplay({
 
   return (
     <>
+      <section className="panel result-chart-panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">{t("equity.eyebrow")}</span>
+            <h2>{t("equity.title")}</h2>
+          </div>
+          <span className="muted">{t("equity.hint")}</span>
+        </div>
+        <EquityChart points={visibleEquity} trades={visibleClosedTrades} />
+      </section>
       <section className="panel result-chart-panel">
       <div className="panel-heading replay-heading">
         <div>
@@ -141,6 +171,7 @@ export function TradeReplay({
       <CandlestickTradeChart
         candles={visibleCandles}
         followLatest={enabled && followLatest}
+        priceDigits={priceDigits}
         trades={trades}
         visibleUntil={visibleBefore}
       />
