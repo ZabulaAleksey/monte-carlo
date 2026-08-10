@@ -713,10 +713,10 @@ const be: Messages = {
 
 export type Locale = "en" | "ru" | "uk" | "be";
 export const supportedLocales = [
-  { code: "en" as const, flag: "EN", name: "English", intl: "en-US" },
-  { code: "ru" as const, flag: "🇷🇺", name: "Русский", intl: "ru-RU" },
-  { code: "uk" as const, flag: "🇺🇦", name: "Українська", intl: "uk-UA" },
-  { code: "be" as const, flag: "🇧🇾", name: "Беларуская", intl: "be-BY" },
+  { code: "en" as const, name: "English", intl: "en-US" },
+  { code: "ru" as const, name: "Русский", intl: "ru-RU" },
+  { code: "uk" as const, name: "Українська", intl: "uk-UA" },
+  { code: "be" as const, name: "Беларуская", intl: "be-BY" },
 ];
 
 const catalogs: Record<Locale, Messages> = { en, ru, uk, be };

@@ -63,10 +63,23 @@ describe("Navigation", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("EN");
-    expect(screen.getByRole("button", { name: "Русский" })).toHaveTextContent("🇷🇺");
-    expect(screen.getByRole("button", { name: "Українська" })).toHaveTextContent("🇺🇦");
-    expect(screen.getByRole("button", { name: "Беларуская" })).toHaveTextContent("🇧🇾");
+    const flagButtons = [
+      ["English", "en"],
+      ["Русский", "ru"],
+      ["Українська", "uk"],
+      ["Беларуская", "be"],
+    ] as const;
+
+    flagButtons.forEach(([name, locale]) => {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveTextContent("");
+      expect(button.querySelector(`[data-language-flag="${locale}"]`)).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: "English" }).querySelector(
+        '[data-flag-variant="united-kingdom"]',
+      ),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Русский" }));
 

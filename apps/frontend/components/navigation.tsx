@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { LanguageFlag } from "@/components/language-flag";
 import { useMt5Status } from "@/hooks/use-mt5-status";
 import { supportedLocales, useI18n } from "@/lib/i18n";
 
@@ -72,12 +73,7 @@ export function Navigation(): React.JSX.Element {
             title={item.name}
             type="button"
           >
-            <span
-              aria-hidden="true"
-              className={item.code === "en" ? "language-code" : "language-flag"}
-            >
-              {item.flag}
-            </span>
+            <LanguageFlag locale={item.code} />
           </button>
         ))}
       </div>
