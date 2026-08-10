@@ -1,5 +1,38 @@
 # Technical decisions
 
+## 2026-08-10 — Explicit partial-data fallback and read-only operations UI
+
+Status: accepted for Stage 3.
+
+### Decision
+
+Strict tester requests continue to require complete provider-confirmed
+coverage. Interactive and external clients may explicitly set
+`allow_partial_data=true`; the application then selects the largest confirmed
+continuous overlap and persists both requested and actual ranges with a data
+quality flag and warnings.
+
+The website's PostgreSQL section is deliberately read-only. It exposes only
+aggregate table counts, server/schema metadata and candle-cache ranges through
+a typed application service. API documentation is downloadable as a static
+Markdown artifact and from the backend.
+
+### Reason
+
+A missing part of a long historical request should be visible evidence, not a
+generic connection failure or a silent range change. Choosing one confirmed
+continuous interval avoids simulating across unknown holes. Arbitrary SQL and
+browser-visible credentials would make an operational convenience a security
+boundary violation.
+
+### Consequences
+
+- Partial results are reproducible and visibly distinguishable from complete
+  runs.
+- The UI briefly polls coverage, then proceeds with available confirmed data.
+- PostgreSQL changes still require migrations or backend code review.
+- A standalone offline guide remains usable when no container can serve HTTP.
+
 ## 2026-08-10 — Source-confirmed range cache and notional cost units
 
 Status: accepted for Stage 3.

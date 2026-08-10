@@ -36,6 +36,7 @@ def _run_request(payload: BacktestCreate) -> BacktestRunRequest:
         start_at=payload.start_at,
         end_at=payload.end_at,
         parameters=dict(payload.parameters),
+        allow_partial_data=payload.allow_partial_data,
         settings=BacktestSettings(
             initial_capital=payload.initial_capital,
             position_size=payload.position_size,
@@ -70,6 +71,8 @@ def _result_response(stored: StoredBacktestResult) -> BacktestResultResponse:
             EquityPointResponse.model_validate(item) for item in result.equity_curve
         ],
         metrics=BacktestMetricsResponse.model_validate(result.metrics),
+        data_complete=result.data_complete,
+        warnings=list(result.warnings),
     )
 
 

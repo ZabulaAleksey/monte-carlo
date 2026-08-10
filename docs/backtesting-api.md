@@ -20,9 +20,9 @@ GET /api/v1/tester/backtests/history/coverage
 ```
 
 Ответ содержит `complete`, количество сохранённых свечей,
-`cached_intervals` и `missing_intervals`. Запуск разрешён только при
-`complete=true`. Проверка повторяется внутри движка, поэтому клиентская
-preflight-проверка не может создать race condition.
+`cached_intervals` и `missing_intervals`. В строгом режиме запуск разрешён
+только при `complete=true`. Проверка повторяется внутри application service,
+поэтому клиентская preflight-проверка не может создать race condition.
 
 Свечи хранятся в PostgreSQL с уникальным ключом
 `(symbol_id, timeframe, open_time)`. Перекрывающиеся и соседние подтверждённые
@@ -65,6 +65,7 @@ Content-Type: application/json
   "commission_pct_per_fill": "0.002",
   "swap_pct_per_lot_per_day": "-0.001",
   "slippage_points": "3",
+  "allow_partial_data": true,
   "parameters": {
     "short_window": 5,
     "long_window": 20,
@@ -85,6 +86,16 @@ Content-Type: application/json
 Ответ `201` сразу содержит настройки, фактический диапазон, версию и параметры
 стратегии, сделки, equity/drawdown points и итоговые метрики.
 
+При `allow_partial_data=true` и неполном покрытии сервис выбирает крупнейший
+подтверждённый непрерывный интервал. В ответе сохраняются исходные
+`requested_start`/`requested_end`, фактические `data_start`/`data_end`,
+`data_complete=false` и массив `warnings`. Без доступного подтверждённого
+интервала запрос завершается ошибкой `400`.
+
+Абсолютная просадка передаётся в `equity_curve[].drawdown_absolute`, а её
+максимум — в `metrics.max_drawdown_absolute`. Процентные поля сохраняются для
+аналитики и совместимости.
+
 ## Фоновый запуск
 
 - `POST /api/v1/tester/backtests/jobs` — создать job, ответ `202`.
@@ -94,6 +105,8 @@ Content-Type: application/json
 - `GET /api/v1/tester/backtests/{run_id}/trades` — сделки только этого run.
 - `GET /api/v1/tester/backtests` — список сохранённых запусков.
 - `DELETE /api/v1/tester/backtests/{run_id}` — удалить запуск.
+- `GET /api/v1/tester/documentation` — скачать этот контракт в Markdown.
+- `GET /api/v1/database/overview` — read-only состояние PostgreSQL и кешей.
 
 Цены, денежные значения, проценты и объёмы сериализуются decimal-строками.
 Времена передаются в ISO 8601 с часовым поясом.

@@ -41,6 +41,7 @@ class BacktestRunRequest:
     end_at: datetime
     parameters: dict[str, object]
     settings: BacktestSettings
+    allow_partial_data: bool = False
 
 
 class BacktestService:
@@ -74,6 +75,32 @@ class BacktestService:
             contract_size=symbol.contract_size,
             price_digits=symbol.digits,
         )
+        effective_start = request.start_at
+        effective_end = request.end_at
+        data_complete = True
+        warnings: tuple[str, ...] = ()
+        coverage = await self._data_provider.get_coverage(
+            request.symbol_id,
+            request.timeframe.strip().upper(),
+            request.start_at,
+            request.end_at,
+        )
+        if not coverage.complete:
+            if not request.allow_partial_data:
+                raise DomainError(
+                    "Historical data cache is incomplete for the requested range"
+                )
+            usable = self._largest_usable_interval(coverage)
+            if usable is None:
+                raise DomainError(
+                    "No confirmed historical data is available in the requested range"
+                )
+            effective_start, effective_end = usable
+            data_complete = False
+            warnings = (
+                "Requested historical range is incomplete; the backtest used "
+                f"{effective_start.isoformat()}..{effective_end.isoformat()}",
+            )
         engine = BacktestEngine(
             self._data_provider,
             PositionManager(),
@@ -97,14 +124,35 @@ class BacktestService:
         result = await engine.run(
             symbol_id=request.symbol_id,
             timeframe=request.timeframe,
-            start_at=request.start_at,
-            end_at=request.end_at,
+            start_at=effective_start,
+            end_at=effective_end,
             strategy=strategy,
             parameters=request.parameters,
             settings=resolved_settings,
             control=control,
         )
+        result = replace(
+            result,
+            requested_start=request.start_at,
+            requested_end=request.end_at,
+            data_complete=data_complete,
+            warnings=warnings,
+        )
         return await self._repository.add(result)
+
+    @staticmethod
+    def _largest_usable_interval(
+        coverage: HistoricalDataCoverage,
+    ) -> tuple[datetime, datetime] | None:
+        candidates = [
+            (
+                max(interval.start_at, coverage.requested_start),
+                min(interval.end_at, coverage.requested_end),
+            )
+            for interval in coverage.cached_intervals
+        ]
+        usable = [item for item in candidates if item[0] < item[1]]
+        return max(usable, key=lambda item: item[1] - item[0]) if usable else None
 
     async def coverage(
         self,

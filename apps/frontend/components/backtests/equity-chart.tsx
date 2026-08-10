@@ -1,5 +1,5 @@
 import type { EquityPointRecord, VirtualTradeRecord } from "@/lib/api/types";
-import { formatMoney, formatPercent } from "@/lib/backtests";
+import { formatMoney } from "@/lib/backtests";
 import { useI18n } from "@/lib/i18n";
 
 interface EquityChartProps {
@@ -36,25 +36,24 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
   }
 
   const equityValues = points.map((point) => Number(point.equity));
-  const drawdownValues = points.map((point) => Number(point.drawdown_pct));
-  const minimum = Math.min(...equityValues);
-  const maximum = Math.max(...equityValues);
-  const equityRange = maximum - minimum || 1;
+  const drawdownValues = points.map((point) => Number(point.drawdown_absolute ?? 0));
+  const drawdownBaseline = (equityValues[0] ?? 0) + (drawdownValues[0] ?? 0);
+  const drawdownLevelValues = drawdownValues.map(
+    (drawdown) => drawdownBaseline - drawdown,
+  );
+  const minimum = Math.min(...equityValues, ...drawdownLevelValues);
+  const maximum = Math.max(...equityValues, ...drawdownLevelValues);
+  const valueRange = maximum - minimum || 1;
   const drawdownMaximum = Math.max(...drawdownValues);
   const plotWidth = PLOT.right - PLOT.left;
   const plotHeight = PLOT.bottom - PLOT.top;
   const x = (index: number): number =>
     PLOT.left + (index / Math.max(points.length - 1, 1)) * plotWidth;
-  const equityY = (value: number): number =>
-    PLOT.top + ((maximum - value) / equityRange) * plotHeight;
-  const drawdownY = (value: number): number =>
-    PLOT.top + (value / (drawdownMaximum || 1)) * plotHeight;
-  const equityPath = seriesPath(equityValues, x, equityY);
-  const drawdownPath = seriesPath(drawdownValues, x, drawdownY);
-  const equityTicks = [maximum, minimum + equityRange / 2, minimum];
-  const drawdownTicks = drawdownMaximum > 0
-    ? [0, drawdownMaximum / 2, drawdownMaximum]
-    : [0];
+  const valueY = (value: number): number =>
+    PLOT.top + ((maximum - value) / valueRange) * plotHeight;
+  const equityPath = seriesPath(equityValues, x, valueY);
+  const drawdownPath = seriesPath(drawdownLevelValues, x, valueY);
+  const valueTicks = [maximum, minimum + valueRange / 2, minimum];
   const xTickIndices = [
     ...new Set([0, Math.floor((points.length - 1) / 2), points.length - 1]),
   ];
@@ -67,7 +66,7 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
     return {
       trade,
       x: x(resolvedIndex),
-      y: equityY(equityValues[resolvedIndex] ?? maximum),
+      y: valueY(equityValues[resolvedIndex] ?? maximum),
     };
   });
 
@@ -80,6 +79,11 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
           <span><i className="drawdown-swatch" />{t("equity.legendDrawdown")}</span>
         </div>
         <strong>{t("equity.operations", { count: trades.length })}</strong>
+        <span>
+          {t("equity.maxDrawdown", {
+            value: formatMoney(drawdownMaximum, intlLocale),
+          })}
+        </span>
         <span>{t("equity.high", { value: formatMoney(maximum, intlLocale) })}</span>
       </div>
       <svg
@@ -95,24 +99,24 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
           </linearGradient>
         </defs>
         <g className="chart-grid">
-          {equityTicks.map((value, index) => (
+          {valueTicks.map((value, index) => (
             <line
               key={`grid-${value}-${index}`}
               x1={PLOT.left}
               x2={PLOT.right}
-              y1={equityY(value)}
-              y2={equityY(value)}
+              y1={valueY(value)}
+              y2={valueY(value)}
             />
           ))}
         </g>
         <g className="equity-axis">
-          {equityTicks.map((value, index) => (
+          {valueTicks.map((value, index) => (
             <text
               className="chart-axis-tick"
               key={`equity-${value}-${index}`}
               textAnchor="end"
               x={PLOT.left - 8}
-              y={equityY(value) + 4}
+              y={valueY(value) + 4}
             >
               {formatMoney(value, intlLocale)}
             </text>
@@ -124,29 +128,7 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
             x="14"
             y={(PLOT.top + PLOT.bottom) / 2}
           >
-            {t("equity.axisEquity")}
-          </text>
-        </g>
-        <g className="drawdown-axis">
-          {drawdownTicks.map((value) => (
-            <text
-              className="chart-axis-tick"
-              key={value}
-              textAnchor="start"
-              x={PLOT.right + 8}
-              y={drawdownY(value) + 4}
-            >
-              {formatPercent(value)}
-            </text>
-          ))}
-          <text
-            className="chart-axis-title"
-            textAnchor="middle"
-            transform={`rotate(90 ${WIDTH - 14} ${(PLOT.top + PLOT.bottom) / 2})`}
-            x={WIDTH - 14}
-            y={(PLOT.top + PLOT.bottom) / 2}
-          >
-            {t("equity.axisDrawdown")}
+            {t("equity.axisValue")}
           </text>
         </g>
         <g className="time-axis">

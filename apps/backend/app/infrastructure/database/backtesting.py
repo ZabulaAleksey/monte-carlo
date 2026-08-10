@@ -260,6 +260,8 @@ class SqlAlchemyBacktestRunRepository:
             settings=self._settings_json(result.settings),
             parameters=dict(result.parameters),
             metrics=self._metrics_json(result.metrics),
+            data_complete=result.data_complete,
+            warnings=list(result.warnings),
             status="completed",
             created_at=created_at,
         )
@@ -290,6 +292,7 @@ class SqlAlchemyBacktestRunRepository:
                 timestamp=point.timestamp,
                 balance=point.balance,
                 equity=point.equity,
+                drawdown_absolute=point.drawdown_absolute,
                 drawdown_pct=point.drawdown_pct,
             )
             for point in result.equity_curve
@@ -396,6 +399,20 @@ class SqlAlchemyBacktestRunRepository:
             final_equity=Decimal(str(model.metrics["final_equity"])),
             total_net_profit=Decimal(str(model.metrics["total_net_profit"])),
             return_pct=Decimal(str(model.metrics["return_pct"])),
+            max_drawdown_absolute=Decimal(
+                str(
+                    model.metrics.get(
+                        "max_drawdown_absolute",
+                        max(
+                            (
+                                point.drawdown_absolute
+                                for point in model.equity_points
+                            ),
+                            default=Decimal("0"),
+                        ),
+                    )
+                )
+            ),
             max_drawdown_pct=Decimal(str(model.metrics["max_drawdown_pct"])),
             total_trades=int(str(model.metrics["total_trades"])),
             winning_trades=int(str(model.metrics["winning_trades"])),
@@ -412,6 +429,7 @@ class SqlAlchemyBacktestRunRepository:
                 timestamp=_utc(item.timestamp),
                 balance=item.balance,
                 equity=item.equity,
+                drawdown_absolute=item.drawdown_absolute,
                 drawdown_pct=item.drawdown_pct,
             )
             for item in model.equity_points
@@ -431,6 +449,8 @@ class SqlAlchemyBacktestRunRepository:
             trades=trades,
             equity_curve=equity_curve,
             metrics=metrics,
+            data_complete=model.data_complete,
+            warnings=tuple(model.warnings),
         )
 
     @staticmethod
@@ -478,6 +498,7 @@ class SqlAlchemyBacktestRunRepository:
             "final_equity": str(metrics.final_equity),
             "total_net_profit": str(metrics.total_net_profit),
             "return_pct": str(metrics.return_pct),
+            "max_drawdown_absolute": str(metrics.max_drawdown_absolute),
             "max_drawdown_pct": str(metrics.max_drawdown_pct),
             "total_trades": metrics.total_trades,
             "winning_trades": metrics.winning_trades,

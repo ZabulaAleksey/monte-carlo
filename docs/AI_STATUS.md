@@ -35,10 +35,17 @@ Stage 3 — Strategy engine and backtesting.
 - Run From/To dates persist in versioned local storage.
 - Commission and daily swap use signed notional percentages; slippage uses
   quote points capped at six informative digits.
+- Partial historical fallback with persisted requested/actual ranges, visible
+  warnings and a 20,000-candle engine/UI limit.
+- Absolute drawdown persisted per equity point and rendered on the shared
+  monetary axis.
+- Dedicated API, PostgreSQL and Guide navigation sections, downloadable tester
+  documentation and a standalone multilingual recovery page.
+- Fully localized custom calendar and automatic scrolling to run status/equity.
 
 ## Known constraints
 
-- The frontend currently requests at most 2000 candles for a stored run.
+- A single run currently reads and returns at most 20,000 candles/equity points.
 - Replay animation is client-side after the completed result and candles are
   loaded.
 - Lot P&L currently uses price difference times MT5 contract size. Instruments
@@ -51,7 +58,8 @@ Stage 3 — Strategy engine and backtesting.
 ## Next reasonable checks
 
 - Validate marker density on runs with many simultaneous positions.
-- Profile rendering near the 2000-candle frontend limit.
+- Profile rendering near the 20,000-candle frontend limit and design paginated
+  delivery for larger data sets.
 - Design broker/account/symbol cost profiles from synchronized MT5 deals,
   including long/short swap and rollover rules.
 - Add MT5 tick-size/tick-value and profit-currency conversion for instruments

@@ -12,6 +12,11 @@ The Strategies route is split into a configuration/research sidebar and a
 result workspace. Saved research stays compact and supports row selection plus
 one select-all checkbox in the table header.
 
+Starting a run immediately scrolls the result column into view and displays a
+live historical-data status. Completion scrolls to the equity panel. An
+incomplete provider-confirmed range is shown as an amber warning with candle
+count and actual dates; it never appears only below the fold.
+
 ## Animated execution map
 
 - Animation, follow-chart, speed and playback controls share one toolbar.
@@ -26,8 +31,9 @@ one select-all checkbox in the table header.
 - While animation is enabled, Virtual execution reveals trades at entry and
   withholds close information until exit. Disabling animation shows all rows.
 - The equity and independent drawdown curves use the same replay clock as
-  candles and orders. Drawdown is based on current equity, including unrealized
-  position P&L and accrued swap.
+  candles and orders. Drawdown is an absolute monetary amount based on current
+  equity, including unrealized position P&L and accrued swap, and shares the
+  equity value axis.
 - Equity time ticks always include a year. The candle execution map displays
   quote values on its vertical axis with instrument precision capped at six
   digits.
@@ -39,9 +45,9 @@ one select-all checkbox in the table header.
 - The application renders a neutral bootstrap until the versioned locale key
   has been read from local storage, preventing an English frame before the
   selected language appears.
-- The active locale updates both the document language and each native
-  date-time control. A locale-formatted date preview remains visible even when
-  browser-native picker chrome follows operating-system settings.
+- The active locale updates the document language and a custom date-time
+  calendar. Month, weekday, navigation, time and date formatting therefore
+  follow the selected site language instead of the operating-system picker.
 - Starting capital uses a $100 minimum and step so mouse spinner controls
   change the value in $100 increments.
 - The selected From/To values use the versioned
@@ -56,3 +62,14 @@ The chart scrolls inside its own frame and must not create document-level
 horizontal overflow. Controls use native labels, checkboxes and buttons;
 visual-only SVG elements retain translated accessible labels on meaningful
 markers and exits.
+
+## Service and recovery sections
+
+- `/api-docs` links Swagger/OpenAPI and downloads a repository-local Markdown
+  contract that remains available when the backend is offline.
+- `/database` presents a read-only PostgreSQL overview and cached candle ranges.
+- `/guide` documents Docker, Alembic, MT5, market-data verification and tester
+  startup in EN/RU/UA/BE.
+- A service banner links to the guide when backend or MT5 is offline.
+- `public/offline/index.html` is a self-contained localized recovery page that
+  can be opened directly when no Docker container is running.

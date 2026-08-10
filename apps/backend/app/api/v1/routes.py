@@ -22,6 +22,7 @@ from app.api.schemas import (
     TradeCreate,
     TradeResponse,
 )
+from app.domain.backtesting.models import MAX_BACKTEST_CANDLES
 from app.domain.enums import CandleSource
 from app.infrastructure.config import get_settings
 
@@ -76,7 +77,7 @@ async def list_candles(
     start_at: datetime | None = None,
     end_at: datetime | None = None,
     source: CandleSource | None = None,
-    limit: int = Query(default=200, ge=1, le=2000),
+    limit: int = Query(default=200, ge=1, le=MAX_BACKTEST_CANDLES),
 ) -> list[CandleResponse]:
     candles = await service.list(symbol_id, limit, timeframe, start_at, end_at, source)
     return [CandleResponse.model_validate(item) for item in candles]

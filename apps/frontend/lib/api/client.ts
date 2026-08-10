@@ -7,6 +7,7 @@ import type {
   BacktestRunSummary,
   CandleQuery,
   CandleRecord,
+  DatabaseOverviewRecord,
   HistoricalDataCoverageRecord,
   Mt5Status,
   QuoteRecord,
@@ -72,6 +73,8 @@ export const apiClient = {
   },
   getMt5Status: (): Promise<Mt5Status> =>
     request<Mt5Status>("/api/v1/mt5/status"),
+  getDatabaseOverview: (): Promise<DatabaseOverviewRecord> =>
+    request<DatabaseOverviewRecord>("/api/v1/database/overview"),
   getQuotes: (symbolId?: string): Promise<QuoteRecord[]> => {
     const suffix = symbolId ? `?symbol_id=${encodeURIComponent(symbolId)}` : "";
     return request<QuoteRecord[]>(`/api/v1/quotes${suffix}`);

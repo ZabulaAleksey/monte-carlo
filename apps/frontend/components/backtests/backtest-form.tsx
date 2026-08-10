@@ -3,6 +3,7 @@
 import { Pause, Play, RotateCcw, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { LocalizedDateTimeInput } from "@/components/localized-date-time-input";
 import type {
   BacktestCreateRequest,
   BacktestJobRecord,
@@ -75,15 +76,6 @@ function initialPeriod(): { startAt: string; endAt: string } {
   return { startAt: localDateInput(start), endAt: localDateInput(end) };
 }
 
-function localizedDateInput(value: string, locale: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(locale, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
 function normalizeLotValue(value: string, symbol: SymbolRecord | undefined): string {
   if (!symbol) return value;
   const minimum = Number(symbol.volume_min);
@@ -127,7 +119,7 @@ export function BacktestForm({
   onStop,
   onSubmit,
 }: BacktestFormProps): React.JSX.Element {
-  const { intlLocale, t } = useI18n();
+  const { t } = useI18n();
   const [form, setForm] = useState<FormState>(() => {
     const period = initialPeriod();
     return {
@@ -286,27 +278,19 @@ export function BacktestForm({
           </label>
           <label className="form-field">
             <span>{t("form.from")}</span>
-            <input
-              aria-label={t("form.from")}
-              lang={intlLocale}
-              onChange={(event) => update("startAt", event.target.value)}
-              required
-              type="datetime-local"
+            <LocalizedDateTimeInput
+              label={t("form.from")}
+              onChange={(value) => update("startAt", value)}
               value={form.startAt}
             />
-            <small>{localizedDateInput(form.startAt, intlLocale)}</small>
           </label>
           <label className="form-field">
             <span>{t("form.to")}</span>
-            <input
-              aria-label={t("form.to")}
-              lang={intlLocale}
-              onChange={(event) => update("endAt", event.target.value)}
-              required
-              type="datetime-local"
+            <LocalizedDateTimeInput
+              label={t("form.to")}
+              onChange={(value) => update("endAt", value)}
               value={form.endAt}
             />
-            <small>{localizedDateInput(form.endAt, intlLocale)}</small>
           </label>
           <label className="form-field form-field-wide">
             <span>{t("form.capital")}</span>

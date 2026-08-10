@@ -1,15 +1,52 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+from typing import overload
 from uuid import UUID
 
 from app.domain.entities import Candle
 
-MAX_BACKTEST_CANDLES = 2000
+MAX_BACKTEST_CANDLES = 20_000
+
+
+class CandleHistory(Sequence[Candle]):
+    """Read-only prefix of one shared candle tuple.
+
+    A new lightweight view is created for every strategy call. The view keeps
+    future candles inaccessible without copying the complete history.
+    """
+
+    __slots__ = ("__candles", "__end")
+
+    def __init__(self, candles: tuple[Candle, ...], end: int) -> None:
+        self.__candles = candles
+        self.__end = min(max(end, 0), len(candles))
+
+    def __len__(self) -> int:
+        return self.__end
+
+    @overload
+    def __getitem__(self, index: int) -> Candle: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> tuple[Candle, ...]: ...
+
+    def __getitem__(self, index: int | slice) -> Candle | tuple[Candle, ...]:
+        if isinstance(index, slice):
+            start, stop, step = index.indices(self.__end)
+            return tuple(self.__candles[position] for position in range(start, stop, step))
+        position = index if index >= 0 else self.__end + index
+        if position < 0 or position >= self.__end:
+            raise IndexError("candle history index out of range")
+        return self.__candles[position]
+
+    def __iter__(self) -> Iterator[Candle]:
+        for index in range(self.__end):
+            yield self.__candles[index]
 
 
 class Signal(StrEnum):
@@ -88,7 +125,7 @@ class OpenPosition:
 @dataclass(frozen=True, slots=True)
 class StrategyContext:
     current_candle: Candle
-    history: tuple[Candle, ...]
+    history: Sequence[Candle]
     balance: Decimal
     equity: Decimal
     open_positions: tuple[OpenPosition, ...]
@@ -119,6 +156,7 @@ class EquityPoint:
     timestamp: datetime
     balance: Decimal
     equity: Decimal
+    drawdown_absolute: Decimal
     drawdown_pct: Decimal
 
 
@@ -129,6 +167,7 @@ class BacktestMetrics:
     final_equity: Decimal
     total_net_profit: Decimal
     return_pct: Decimal
+    max_drawdown_absolute: Decimal
     max_drawdown_pct: Decimal
     total_trades: int
     winning_trades: int
@@ -155,6 +194,8 @@ class BacktestResult:
     trades: tuple[VirtualTrade, ...]
     equity_curve: tuple[EquityPoint, ...]
     metrics: BacktestMetrics
+    data_complete: bool = True
+    warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

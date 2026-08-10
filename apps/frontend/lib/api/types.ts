@@ -122,6 +122,7 @@ export interface BacktestCreateRequest {
   commission_pct_per_fill: string;
   swap_pct_per_lot_per_day: string;
   slippage_points: string;
+  allow_partial_data?: boolean;
   parameters: Record<string, number | string>;
 }
 
@@ -196,6 +197,7 @@ export interface EquityPointRecord {
   balance: string;
   equity: string;
   drawdown_pct: string;
+  drawdown_absolute: string;
 }
 
 export interface BacktestMetricsRecord {
@@ -205,6 +207,7 @@ export interface BacktestMetricsRecord {
   total_net_profit: string;
   return_pct: string;
   max_drawdown_pct: string;
+  max_drawdown_absolute: string;
   total_trades: number;
   winning_trades: number;
   losing_trades: number;
@@ -231,6 +234,8 @@ export interface BacktestResultRecord {
   trades: VirtualTradeRecord[];
   equity_curve: EquityPointRecord[];
   metrics: BacktestMetricsRecord;
+  data_complete: boolean;
+  warnings: string[];
 }
 
 export interface BacktestRunSummary {
@@ -254,4 +259,32 @@ export interface CandleQuery {
   startAt?: string;
   endAt?: string;
   source?: CandleRecord["source"];
+}
+
+export interface DatabaseTableStatsRecord {
+  name: string;
+  row_count: number;
+}
+
+export interface CandleDatasetStatsRecord {
+  symbol_id: string;
+  symbol: string;
+  timeframe: string;
+  source: string;
+  candle_count: number;
+  first_at: string;
+  last_at: string;
+}
+
+export interface DatabaseOverviewRecord {
+  connected: boolean;
+  read_only: boolean;
+  engine: string;
+  database_name: string;
+  server_version: string;
+  schema_revision: string | null;
+  database_size_bytes: number | null;
+  server_time: string;
+  tables: DatabaseTableStatsRecord[];
+  candle_datasets: CandleDatasetStatsRecord[];
 }

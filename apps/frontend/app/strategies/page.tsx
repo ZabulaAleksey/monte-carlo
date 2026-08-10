@@ -51,8 +51,30 @@ export default function StrategiesPage(): React.JSX.Element {
   const [replayFromStart, setReplayFromStart] = useState(false);
   const [replaySpeed, setReplaySpeed] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{
+    tone: "loading" | "warning" | "success";
+    message: string;
+  } | null>(null);
   const selectionSequence = useRef(0);
   const jobSequence = useRef(0);
+  const resultsRef = useRef<HTMLElement>(null);
+
+  const scrollToResults = (): void => {
+    const target = resultsRef.current;
+    if (typeof target?.scrollIntoView === "function") {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const scrollToEquity = (): void => {
+    window.requestAnimationFrame(() => {
+      const target = resultsRef.current
+        ?.querySelector<HTMLElement>(".result-chart-panel");
+      if (typeof target?.scrollIntoView === "function") {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  };
 
   useEffect(() => {
     let active = true;
@@ -85,7 +107,7 @@ export default function StrategiesPage(): React.JSX.Element {
       timeframe: nextResult.timeframe,
       startAt: nextResult.data_start,
       endAt: nextResult.data_end,
-      limit: 2000,
+      limit: Math.min(Math.max(nextResult.candle_count, 1), 20_000),
     });
 
   const fetchCompletedRun = async (
@@ -107,19 +129,38 @@ export default function StrategiesPage(): React.JSX.Element {
     setRunning(true);
     setJob(null);
     setError(null);
+    setNotice({ tone: "loading", message: t("history.loadingRange") });
+    scrollToResults();
     try {
-      const coverage = await apiClient.getHistoricalDataCoverage(
-        payload.symbol_id,
-        payload.timeframe,
-        payload.start_at,
-        payload.end_at,
+      let coverage = await apiClient.getHistoricalDataCoverage(
+        payload.symbol_id, payload.timeframe, payload.start_at, payload.end_at,
       );
-      if (!coverage.complete) {
-        throw new Error(
-          t("error.historyIncomplete", { count: coverage.candle_count }),
+      for (let attempt = 1; !coverage.complete && attempt < 5; attempt += 1) {
+        setNotice({
+          tone: "loading",
+          message: t("history.waitingRange", {
+            attempt,
+            count: coverage.candle_count,
+          }),
+        });
+        await wait(600);
+        if (sequence !== jobSequence.current) return;
+        coverage = await apiClient.getHistoricalDataCoverage(
+          payload.symbol_id, payload.timeframe, payload.start_at, payload.end_at,
         );
       }
-      let current = await apiClient.startBacktestJob(payload);
+      const allowPartialData = !coverage.complete;
+      setNotice(allowPartialData ? {
+        tone: "warning",
+        message: t("history.partialProceed", { count: coverage.candle_count }),
+      } : {
+        tone: "success",
+        message: t("history.complete", { count: coverage.candle_count }),
+      });
+      let current = await apiClient.startBacktestJob({
+        ...payload,
+        allow_partial_data: allowPartialData,
+      });
       if (sequence !== jobSequence.current) return;
       setJob(current);
 
@@ -140,7 +181,16 @@ export default function StrategiesPage(): React.JSX.Element {
       setResult(completed.result);
       setCandles(completed.candles);
       setReplayFromStart(true);
+      setNotice(completed.result.data_complete === false ? {
+        tone: "warning",
+        message: t("history.partialResult", {
+          count: completed.result.candle_count,
+          from: new Date(completed.result.data_start).toLocaleString(intlLocale),
+          to: new Date(completed.result.data_end).toLocaleString(intlLocale),
+        }),
+      } : null);
       setRuns(await apiClient.getBacktestRuns());
+      scrollToEquity();
     } catch (reason: unknown) {
       if (sequence === jobSequence.current) {
         setError(reason instanceof Error ? reason.message : "Unknown error");
@@ -161,6 +211,15 @@ export default function StrategiesPage(): React.JSX.Element {
       setResult(completed.result);
       setCandles(completed.candles);
       setReplayFromStart(false);
+      setNotice(completed.result.data_complete === false ? {
+        tone: "warning",
+        message: t("history.partialResult", {
+          count: completed.result.candle_count,
+          from: new Date(completed.result.data_start).toLocaleString(intlLocale),
+          to: new Date(completed.result.data_end).toLocaleString(intlLocale),
+        }),
+      } : null);
+      scrollToEquity();
     } catch (reason: unknown) {
       if (selection === selectionSequence.current) {
         setError(reason instanceof Error ? reason.message : "Unknown error");
@@ -267,7 +326,19 @@ export default function StrategiesPage(): React.JSX.Element {
             />
           </aside>
 
-          <section className="backtest-results" aria-busy={loadingRun}>
+          <section className="backtest-results" aria-busy={loadingRun} ref={resultsRef}>
+            {notice ? (
+              <div
+                aria-live="polite"
+                className={"result-notice " + notice.tone}
+                role="status"
+              >
+                <strong>
+                  {notice.tone === "warning" ? t("history.warning") : t("history.status")}
+                </strong>
+                <span>{notice.message}</span>
+              </div>
+            ) : null}
             {loadingRun ? <LoadingState /> : null}
             {!result && !loadingRun ? (
               <div className="backtest-welcome panel">
@@ -310,8 +381,12 @@ export default function StrategiesPage(): React.JSX.Element {
                   </article>
                   <article className="metric-card">
                     <span>{t("metric.drawdown")}</span>
-                    <strong>{formatPercent(result.metrics.max_drawdown_pct)}</strong>
-                    <small><Gauge size={13} /> {t("metric.drawdownHint")}</small>
+                    <strong>
+                      {formatMoney(result.metrics.max_drawdown_absolute ?? "0", intlLocale)}
+                    </strong>
+                    <small>
+                      <Gauge size={13} /> {formatPercent(result.metrics.max_drawdown_pct)} / {t("metric.drawdownHint")}
+                    </small>
                   </article>
                   <article className="metric-card">
                     <span>{t("metric.winRate")}</span>

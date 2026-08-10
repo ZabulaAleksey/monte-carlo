@@ -163,6 +163,66 @@ async def test_backtest_rejects_range_without_candles(client: AsyncClient) -> No
 
 
 @pytest.mark.asyncio
+async def test_backtest_can_use_largest_confirmed_partial_range(
+    client: AsyncClient,
+) -> None:
+    symbol = await create_symbol(client, "PARTIAL")
+    requested_start = datetime(2025, 12, 1, tzinfo=UTC)
+    data_start = requested_start + timedelta(days=2)
+    data_end = data_start + timedelta(hours=7)
+    for index in range(8):
+        close = Decimal("100") + Decimal(index % 3)
+        response = await client.post(
+            "/api/v1/candles",
+            json={
+                "symbol_id": symbol["id"],
+                "timeframe": "H1",
+                "open_time": (data_start + timedelta(hours=index)).isoformat(),
+                "open": str(close),
+                "high": str(close + 1),
+                "low": str(close - 1),
+                "close": str(close),
+                "volume": "100",
+            },
+        )
+        assert response.status_code == 201
+    await confirm_coverage(client, symbol["id"], data_start, data_end)
+
+    response = await client.post(
+        "/api/v1/tester/backtests",
+        json={
+            "strategy_name": "moving_average_cross",
+            "symbol_id": symbol["id"],
+            "timeframe": "H1",
+            "start_at": requested_start.isoformat(),
+            "end_at": (requested_start + timedelta(days=7)).isoformat(),
+            "allow_partial_data": True,
+            "parameters": {
+                "short_window": 2,
+                "long_window": 3,
+                "position_size": "0.01",
+            },
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    result = response.json()
+    assert result["requested_start"] == requested_start.isoformat().replace("+00:00", "Z")
+    assert result["data_start"] == data_start.isoformat().replace("+00:00", "Z")
+    assert result["data_end"] == data_end.isoformat().replace("+00:00", "Z")
+    assert result["candle_count"] == 8
+    assert result["data_complete"] is False
+    assert result["warnings"]
+    assert all("drawdown_absolute" in point for point in result["equity_curve"])
+    assert "max_drawdown_absolute" in result["metrics"]
+
+    stored = await client.get(f"/api/v1/tester/backtests/{result['id']}")
+    assert stored.status_code == 200
+    assert stored.json()["data_complete"] is False
+    assert stored.json()["warnings"] == result["warnings"]
+
+
+@pytest.mark.asyncio
 async def test_backtest_enforces_mt5_lot_minimum_and_step(client: AsyncClient) -> None:
     symbol_response = await client.post(
         "/api/v1/symbols",

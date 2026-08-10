@@ -18,6 +18,7 @@ from app.domain.backtesting.models import (
     BacktestMetrics,
     BacktestResult,
     BacktestSettings,
+    CandleHistory,
     EquityPoint,
     ExitReason,
     PositionSide,
@@ -25,7 +26,6 @@ from app.domain.backtesting.models import (
     StrategyContext,
     VirtualTrade,
 )
-from app.domain.entities import Candle
 from app.domain.exceptions import DomainError
 
 HUNDRED = Decimal("100")
@@ -114,7 +114,6 @@ class BacktestEngine:
             await control.checkpoint("simulating", 0, len(candles))
 
         immutable_parameters = MappingProxyType(dict(parameters))
-        history: list[Candle] = []
         trades: list[VirtualTrade] = []
         equity_curve: list[EquityPoint] = []
         balance = settings.initial_capital
@@ -148,10 +147,9 @@ class BacktestEngine:
                 equity += self._orders.accrued_swap(position, candle_close_time)
             equity = quantize_decimal(equity)
 
-            history.append(candle)
             context = StrategyContext(
                 current_candle=candle,
-                history=tuple(history),
+                history=CandleHistory(candles, candle_index),
                 balance=balance,
                 equity=equity,
                 open_positions=self._positions.positions,
@@ -168,6 +166,7 @@ class BacktestEngine:
                     timestamp=candle_close_time,
                     balance=balance,
                     equity=equity,
+                    drawdown_absolute=self._drawdown_absolute(peak_equity, equity),
                     drawdown_pct=self._drawdown(peak_equity, equity),
                 )
             )
@@ -188,6 +187,7 @@ class BacktestEngine:
                 equity_curve[-1],
                 balance=balance,
                 equity=balance,
+                drawdown_absolute=self._drawdown_absolute(peak_equity, balance),
                 drawdown_pct=self._drawdown(peak_equity, balance),
             )
 
@@ -316,6 +316,10 @@ class BacktestEngine:
         )
 
     @staticmethod
+    def _drawdown_absolute(peak: Decimal, equity: Decimal) -> Decimal:
+        return quantize_decimal(max(peak - equity, Decimal("0")))
+
+    @staticmethod
     def _metrics(
         initial_capital: Decimal,
         final_balance: Decimal,
@@ -335,6 +339,10 @@ class BacktestEngine:
             total_net_profit=quantize_decimal(final_balance - initial_capital),
             return_pct=quantize_decimal(
                 (final_balance - initial_capital) / initial_capital * HUNDRED
+            ),
+            max_drawdown_absolute=max(
+                (point.drawdown_absolute for point in equity_curve),
+                default=Decimal("0"),
             ),
             max_drawdown_pct=max(
                 (point.drawdown_pct for point in equity_curve), default=Decimal("0")

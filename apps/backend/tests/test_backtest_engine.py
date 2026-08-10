@@ -406,7 +406,9 @@ async def test_drawdown_tracks_current_unrealized_position_loss() -> None:
     assert unrealized.balance == Decimal("1000")
     assert unrealized.equity == Decimal("990")
     assert unrealized.drawdown_pct == Decimal("1")
+    assert unrealized.drawdown_absolute == Decimal("10")
     assert result.equity_curve[-1].drawdown_pct == Decimal("0")
+    assert result.metrics.max_drawdown_absolute == Decimal("10")
 
 
 @pytest.mark.asyncio

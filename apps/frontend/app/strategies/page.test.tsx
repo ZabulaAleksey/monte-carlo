@@ -69,8 +69,8 @@ const result: BacktestResultRecord = {
     },
   ],
   equity_curve: [
-    { sequence: 1, timestamp: "2026-01-01T00:00:00Z", balance: "10000", equity: "10000", drawdown_pct: "0" },
-    { sequence: 2, timestamp: "2026-01-01T07:00:00Z", balance: "10001", equity: "10001", drawdown_pct: "0" },
+    { sequence: 1, timestamp: "2026-01-01T00:00:00Z", balance: "10000", equity: "10000", drawdown_pct: "0", drawdown_absolute: "0" },
+    { sequence: 2, timestamp: "2026-01-01T07:00:00Z", balance: "10001", equity: "10001", drawdown_pct: "0", drawdown_absolute: "0" },
   ],
   metrics: {
     initial_capital: "10000",
@@ -79,6 +79,7 @@ const result: BacktestResultRecord = {
     total_net_profit: "1",
     return_pct: "0.01",
     max_drawdown_pct: "0",
+    max_drawdown_absolute: "0",
     total_trades: 1,
     winning_trades: 1,
     losing_trades: 0,
@@ -87,6 +88,8 @@ const result: BacktestResultRecord = {
     total_commission: "0",
     total_swap: "0",
   },
+  data_complete: true,
+  warnings: [],
 };
 
 describe("StrategiesPage", () => {
@@ -190,6 +193,8 @@ describe("StrategiesPage", () => {
   });
 
   it("loads the research form and renders a completed result", async () => {
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
     render(<StrategiesPage />);
 
     expect(await screen.findByRole("heading", { name: "Run configuration" })).toBeInTheDocument();
@@ -226,7 +231,45 @@ describe("StrategiesPage", () => {
     expect(screen.getByRole("img", { name: /Equity and drawdown chart with 2 observations and 1 completed operations/ })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /Candlestick chart with 1 virtual trades/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Trade ledger" })).toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalled();
   });
+
+  it("warns visibly and runs on cached candles when the full range is unavailable", async () => {
+    vi.mocked(apiClient.getHistoricalDataCoverage).mockResolvedValue({
+      symbol_id: "symbol-1",
+      timeframe: "H1",
+      requested_start: result.requested_start,
+      requested_end: result.requested_end,
+      candle_count: 8,
+      complete: false,
+      cached_intervals: [{
+        start_at: result.data_start,
+        end_at: result.data_end,
+      }],
+      missing_intervals: [{
+        start_at: result.requested_start,
+        end_at: result.data_start,
+      }],
+    });
+    vi.mocked(apiClient.getBacktestResult).mockResolvedValue({
+      ...result,
+      data_complete: false,
+      warnings: ["partial"],
+    });
+
+    render(<StrategiesPage />);
+    await screen.findByRole("heading", { name: "Run configuration" });
+    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+
+    expect(await screen.findByText(/Checking and loading candles/)).toBeVisible();
+    await waitFor(
+      () => expect(apiClient.startBacktestJob).toHaveBeenCalledWith(
+        expect.objectContaining({ allow_partial_data: true }),
+      ),
+      { timeout: 4_000 },
+    );
+    expect(await screen.findByText(/Partial result: 8 candles/)).toBeVisible();
+  }, 6_000);
 
   it("opens a saved chart and deletes selected research", async () => {
     const secondRun = {

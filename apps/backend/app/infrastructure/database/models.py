@@ -229,6 +229,8 @@ class BacktestRunModel(Base):
     settings: Mapped[dict[str, object]] = mapped_column(JSON)
     parameters: Mapped[dict[str, object]] = mapped_column(JSON)
     metrics: Mapped[dict[str, object]] = mapped_column(JSON)
+    data_complete: Mapped[bool] = mapped_column(Boolean, default=True)
+    warnings: Mapped[list[str]] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String(16), default="completed")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -281,6 +283,7 @@ class BacktestEquityPointModel(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     balance: Mapped[Decimal] = mapped_column(Numeric(24, 8))
     equity: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    drawdown_absolute: Mapped[Decimal] = mapped_column(Numeric(24, 8), default=0)
     drawdown_pct: Mapped[Decimal] = mapped_column(Numeric(16, 8))
 
     run: Mapped[BacktestRunModel] = relationship(back_populates="equity_points")

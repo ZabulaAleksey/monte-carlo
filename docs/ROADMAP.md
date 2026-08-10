@@ -12,6 +12,10 @@
 - Interactive execution replay and bulk management of saved research.
 - Reusable source-confirmed candle ranges and external tester API.
 - Synchronized candle/equity/drawdown replay with labeled time and price axes.
+- Partial-range fallback with explicit data-quality evidence and a larger
+  20,000-candle ceiling.
+- API documentation, read-only PostgreSQL workspace, service guide and
+  standalone offline recovery page.
 
 ## Current
 
@@ -25,7 +29,7 @@
 - Historical broker cost profiles derived from synchronized MT5 deals, with
   account/symbol/date scope, commission normalization by volume and separate
   long/short rollover handling.
-- Larger-data delivery and rendering optimizations when the 2000-candle UI
+- Larger-data delivery and rendering optimizations when the 20,000-candle UI
   limit becomes restrictive.
 
 ## Later / optional

@@ -1,7 +1,10 @@
 "use client";
 
 import {
+  BookOpen,
   ChartCandlestick,
+  Code2,
+  Database,
   FlaskConical,
   LayoutDashboard,
   Settings,
@@ -19,6 +22,9 @@ const links = [
   { href: "/market-data", label: "nav.marketData" as const, icon: ChartCandlestick },
   { href: "/trades", label: "nav.trades" as const, icon: TableProperties },
   { href: "/strategies", label: "nav.strategies" as const, icon: FlaskConical },
+  { href: "/api-docs", label: "nav.api" as const, icon: Code2 },
+  { href: "/database", label: "nav.database" as const, icon: Database },
+  { href: "/guide", label: "nav.guide" as const, icon: BookOpen },
   { href: "/settings", label: "nav.settings" as const, icon: Settings },
 ] as const;
 

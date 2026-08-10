@@ -61,7 +61,7 @@ queued and executed at the next candle open. SL/TP checks then use that candle's
 OHLC data. If both levels are touched, the reproducible conservative policy is
 stop-first. A final open position is closed at the last candle close.
 Intrabar-dependent equity and exit events are timestamped at candle close.
-Synchronous API runs are capped at 2,000 candles to bound CPU, memory,
+Synchronous API runs are capped at 20,000 candles to bound CPU, memory,
 persistence and response size.
 
 The included moving-average crossover is an infrastructure demonstration only
@@ -74,11 +74,25 @@ points capped at the sixth informative price digit, and swap is a signed
 percentage of entry notional for each crossed calendar day.
 
 Before loading candles, the engine asks the provider for confirmed historical
-coverage of the complete requested interval. Simulation is rejected before the
-first strategy call when any interval is missing. Confirmed overlapping or
+coverage of the complete requested interval. Strict API clients are rejected
+before the first strategy call when any interval is missing. Clients that set
+`allow_partial_data=true` use the largest confirmed continuous overlap; the
+requested and actual ranges, `data_complete` and warnings are persisted.
+Confirmed overlapping or
 timeframe-adjacent intervals are merged, while the immutable candle cache is
 reused by later runs. This avoids treating exchange closures as missing data:
 the source confirms the requested interval independently of candle cadence.
+
+Strategy history is exposed as a read-only prefix view over one immutable
+candle tuple. This preserves the no-future-data contract without copying the
+entire prefix on every candle. Equity points store both percentage and absolute
+drawdown; the frontend renders absolute drawdown on the same monetary axis as
+equity and advances both series on the replay clock.
+
+`GET /api/v1/database/overview` uses a dedicated application port and a
+SQLAlchemy adapter. It exposes counts, schema revision, database size and
+cached candle ranges only. The browser never receives database credentials and
+cannot execute arbitrary SQL.
 
 ## Data model
 

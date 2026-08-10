@@ -48,6 +48,7 @@ class BacktestCreate(BaseModel):
         default=Decimal("0"), ge=0, max_digits=16, decimal_places=6
     )
     parameters: dict[str, StrategyValue] = Field(default_factory=dict)
+    allow_partial_data: bool = False
 
     @model_validator(mode="after")
     def validate_period(self) -> Self:
@@ -133,6 +134,7 @@ class EquityPointResponse(BaseModel):
     timestamp: datetime
     balance: Decimal
     equity: Decimal
+    drawdown_absolute: Decimal
     drawdown_pct: Decimal
 
 
@@ -144,6 +146,7 @@ class BacktestMetricsResponse(BaseModel):
     final_equity: Decimal
     total_net_profit: Decimal
     return_pct: Decimal
+    max_drawdown_absolute: Decimal
     max_drawdown_pct: Decimal
     total_trades: int
     winning_trades: int
@@ -171,6 +174,8 @@ class BacktestResultResponse(BaseModel):
     trades: list[VirtualTradeResponse]
     equity_curve: list[EquityPointResponse]
     metrics: BacktestMetricsResponse
+    data_complete: bool
+    warnings: list[str]
 
 
 class BacktestRunSummaryResponse(BaseModel):

@@ -14,6 +14,7 @@ from app.domain.backtesting.interfaces import (
 )
 from app.domain.backtesting.models import (
     BacktestResult,
+    CandleHistory,
     HistoricalDataCoverage,
     HistoricalDataInterval,
     Signal,
@@ -23,6 +24,7 @@ from app.domain.backtesting.models import (
 __all__ = [
     "BacktestEngine",
     "BacktestResult",
+    "CandleHistory",
     "CommissionModel",
     "HistoricalDataCoverage",
     "HistoricalDataInterval",
