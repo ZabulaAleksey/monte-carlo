@@ -56,17 +56,36 @@ describe("Navigation", () => {
     expect(screen.getByText(/MT5 feed offline/)).toBeInTheDocument();
   });
 
-  it("switches to Russian and persists the selected locale", () => {
+  it("switches languages with flag controls and persists the selected locale", () => {
     render(
       <I18nProvider>
         <Navigation />
       </I18nProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "RU" }));
+    expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("🇬🇧");
+    expect(screen.getByRole("button", { name: "Русский" })).toHaveTextContent("🇷🇺");
+    expect(screen.getByRole("button", { name: "Українська" })).toHaveTextContent("🇺🇦");
+    expect(screen.getByRole("button", { name: "Беларуская" })).toHaveTextContent("🇧🇾");
+
+    fireEvent.click(screen.getByRole("button", { name: "Русский" }));
 
     expect(screen.getByText("Онлайн-среда")).toBeInTheDocument();
     expect(screen.getByText("Дашборд")).toBeInTheDocument();
     expect(window.localStorage.getItem("montecarlo.locale.v1")).toBe("ru");
+  });
+
+  it("switches to Belarusian and persists the locale", () => {
+    render(
+      <I18nProvider>
+        <Navigation />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Беларуская" }));
+
+    expect(screen.getByText("Анлайн-асяроддзе")).toBeInTheDocument();
+    expect(screen.getByText("Панэль")).toBeInTheDocument();
+    expect(window.localStorage.getItem("montecarlo.locale.v1")).toBe("be");
   });
 });

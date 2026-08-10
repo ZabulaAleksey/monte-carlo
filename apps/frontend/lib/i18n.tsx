@@ -169,14 +169,141 @@ const uk: Messages = {
   "trades.eyebrow": "Віртуальне виконання", "trades.side": "Сторона", "trades.opened": "Відкрита", "trades.closed": "Закрита", "trades.entry": "Вхід", "trades.exit": "Вихід", "trades.reason": "Причина", "trades.costs": "Витрати", "trades.pnl": "Чистий P&L",
 };
 
-export type Locale = "en" | "ru" | "uk";
+const be: Messages = {
+  ...ru,
+  "nav.dashboard": "Панэль",
+  "nav.marketData": "Рынак",
+  "nav.trades": "Здзелкі",
+  "nav.strategies": "Стратэгіі",
+  "nav.settings": "Налады",
+  "language.label": "Мова",
+  "status.online": "Анлайн-асяроддзе",
+  "status.checking": "Праверка злучэння",
+  "status.demo": "Дэма-асяроддзе",
+  "status.feedOnline": "Паток MT5 падключаны",
+  "status.unavailable": "Статус злучэння недаступны",
+  "status.feedOffline": "MT5 адключаны · тэставыя даныя",
+  "status.sampleFeed": "Тэставы паток рынку",
+  "backtest.badge": "Дэтэрмінаваны рухавік",
+  "backtest.description": "Наладзьце дарадцу, паслядоўна прайграйце гістарычныя свечкі і праверце кожнае віртуальнае выкананне.",
+  "backtest.eyebrow": "Даследчая прастора",
+  "backtest.title": "Бэктэставанне стратэгій",
+  "backtest.emptyTitle": "Не хапае гістарычных даных",
+  "backtest.emptyText": "Дадайце актыўны інструмент і вызначэнне стратэгіі перад запускам.",
+  "backtest.ready": "Гатова да прайгравання",
+  "backtest.readyTitle": "Стварыце ўзнаўляльную даследчую базу.",
+  "backtest.readyText": "Сігнал разлічваецца пасля закрыцця свечкі і выконваецца на адкрыцці наступнай. Астатнія пазіцыі закрываюцца ў канцы даных.",
+  "form.eyebrow": "Налады тэсту",
+  "form.title": "Канфігурацыя запуску",
+  "form.noFuture": "Без будучых даных",
+  "form.strategy": "Стратэгія",
+  "form.instrument": "Інструмент",
+  "form.timeframe": "Таймфрэйм",
+  "form.from": "Ад",
+  "form.to": "Да",
+  "form.capital": "Стартавы капітал",
+  "form.advisor": "Налады дарадцы",
+  "form.advisorHint": "Лотнасць, stop loss і take profit задаюцца выбраным дарадцам.",
+  "form.stress": "Абцяжарвальныя фактары",
+  "form.stressHint": "Выдаткі на выкананне для больш кансерватыўнай сімуляцыі.",
+  "form.commission": "Камісія / выкананне",
+  "form.swap": "Swap / пазіцыя / дзень",
+  "form.slippageModel": "Мадэль праслізгвання",
+  "form.slippagePrice": "Праслізгванне / цана",
+  "form.slippageBps": "Праслізгванне / б.п.",
+  "form.fixed": "Фіксаванае",
+  "form.relative": "Адноснае / б.п.",
+  "form.run": "Запусціць бэктэставанне",
+  "form.running": "Бэктэст выконваецца",
+  "strategy.maTitle": "Перасячэнне слізгальных сярэдніх",
+  "strategy.maDescription": "Дэманстрацыйны дарадца толькі для праверкі інфраструктуры; ён не пазіцыянуецца як прыбытковы.",
+  "advisor.short_window": "Перыяд хуткай MA",
+  "advisor.long_window": "Перыяд павольнай MA",
+  "advisor.position_size": "Памер пазіцыі / адзінкі",
+  "advisor.stop_loss_pct": "Stop loss / %",
+  "advisor.take_profit_pct": "Take profit / %",
+  "job.queued": "Падрыхтоўка тэсту",
+  "job.loading_data": "Загрузка гістарычных свечак",
+  "job.simulating": "Паслядоўная сімуляцыя",
+  "job.paused": "Сімуляцыя прыпынена",
+  "job.completed": "Сімуляцыя завершана",
+  "job.stopped": "Сімуляцыя спынена",
+  "job.failed": "Памылка сімуляцыі",
+  "job.pause": "Паўза",
+  "job.resume": "Працягнуць",
+  "job.stop": "Стоп",
+  "runs.eyebrow": "Захаваныя даследаванні",
+  "runs.title": "Папярэднія запускі",
+  "runs.count": "{count} запускаў",
+  "runs.empty": "Завершаныя даследаванні з'явяцца тут.",
+  "runs.run": "Запуск",
+  "runs.market": "Рынак",
+  "runs.return": "Даходнасць",
+  "runs.final": "Вынік",
+  "runs.open": "Адкрыць гісторыю і графік здзелак",
+  "runs.select": "Выбраць даследаванне",
+  "runs.delete": "Выдаліць выбраныя",
+  "runs.deleting": "Выдаленне...",
+  "result.completed": "Завершаны запуск",
+  "result.instrument": "Інструмент",
+  "result.candles": "{count} свечак",
+  "result.range": "Дыяпазон даных",
+  "result.to": "да",
+  "metric.balance": "Выніковы баланс",
+  "metric.start": "Старт {value}",
+  "metric.return": "Чыстая даходнасць",
+  "metric.drawdown": "Максімальная прасадка",
+  "metric.drawdownHint": "Ад піка equity да мінімуму",
+  "metric.winRate": "Доля прыбытковых",
+  "metric.trades": "{count} завершаных аперацый",
+  "equity.eyebrow": "Шлях партфеля",
+  "equity.title": "Крывая equity",
+  "equity.hint": "Баланс + пераацэнка адкрытых пазіцый",
+  "equity.low": "Мінімум {value}",
+  "equity.high": "Максімум {value}",
+  "equity.operations": "{count} завершаных аперацый",
+  "equity.empty": "Кропкі equity адсутнічаюць.",
+  "replay.eyebrow": "Карта выканання",
+  "replay.title": "Свечкі і здзелкі",
+  "replay.hint": "Уваходы і выхады не апярэджваюць сігнал",
+  "replay.show": "Паказваць анімацыю графіка",
+  "replay.speed": "Хуткасць",
+  "replay.play": "Старт",
+  "replay.pause": "Паўза",
+  "replay.stop": "Стоп",
+  "replay.progress": "Свечка {current} з {total}",
+  "replay.candles": "{count} паслядоўных свечак",
+  "replay.markers": "Трохкутнікі: уваход / кругі: выхад",
+  "replay.empty": "Для запуску няма свечак.",
+  "settings.position": "Памер пазіцыі",
+  "settings.risk": "SL / TP",
+  "settings.commission": "Камісія",
+  "settings.slippage": "Праслізгванне",
+  "settings.swap": "Swap",
+  "settings.parameters": "Параметры дарадцы",
+  "trades.eyebrow": "Віртуальнае выкананне",
+  "trades.title": "Журнал здзелак",
+  "trades.count": "{count} здзелак",
+  "trades.empty": "Стратэгія не стварыла завершаных здзелак.",
+  "trades.side": "Бок",
+  "trades.opened": "Адкрыта",
+  "trades.closed": "Закрыта",
+  "trades.entry": "Уваход",
+  "trades.exit": "Выхад",
+  "trades.reason": "Прычына",
+  "trades.costs": "Выдаткі",
+  "trades.pnl": "Чысты P&L",
+};
+
+export type Locale = "en" | "ru" | "uk" | "be";
 export const supportedLocales = [
-  { code: "en" as const, label: "EN", intl: "en-US" },
-  { code: "ru" as const, label: "RU", intl: "ru-RU" },
-  { code: "uk" as const, label: "UA", intl: "uk-UA" },
+  { code: "en" as const, flag: "🇬🇧", name: "English", intl: "en-US" },
+  { code: "ru" as const, flag: "🇷🇺", name: "Русский", intl: "ru-RU" },
+  { code: "uk" as const, flag: "🇺🇦", name: "Українська", intl: "uk-UA" },
+  { code: "be" as const, flag: "🇧🇾", name: "Беларуская", intl: "be-BY" },
 ];
 
-const catalogs: Record<Locale, Messages> = { en, ru, uk };
+const catalogs: Record<Locale, Messages> = { en, ru, uk, be };
 const STORAGE_KEY = "montecarlo.locale.v1";
 
 interface I18nValue {
@@ -200,12 +327,16 @@ function interpolate(
   return message.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
 }
 
+function isLocale(value: string | null): value is Locale {
+  return supportedLocales.some(({ code }) => code === value);
+}
+
 export function I18nProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [locale, setLocaleState] = useState<Locale>("en");
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored === "en" || stored === "ru" || stored === "uk") setLocaleState(stored);
+    if (isLocale(stored)) setLocaleState(stored);
   }, []);
 
   const setLocale = useCallback((nextLocale: Locale): void => {

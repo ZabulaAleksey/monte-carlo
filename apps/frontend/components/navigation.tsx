@@ -61,16 +61,18 @@ export function Navigation(): React.JSX.Element {
           );
         })}
       </nav>
-      <div className="language-switcher" aria-label={t("language.label")}>
+      <div className="language-switcher" aria-label={t("language.label")} role="group">
         {supportedLocales.map((item) => (
           <button
+            aria-label={item.name}
             aria-pressed={locale === item.code}
             className={locale === item.code ? "active" : undefined}
             key={item.code}
             onClick={() => setLocale(item.code)}
+            title={item.name}
             type="button"
           >
-            {item.label}
+            <span aria-hidden="true" className="language-flag">{item.flag}</span>
           </button>
         ))}
       </div>
