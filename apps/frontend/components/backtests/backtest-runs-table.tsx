@@ -14,6 +14,7 @@ interface BacktestRunsTableProps {
   onDeleteSelected: () => void;
   onSelect: (runId: string) => void;
   onToggle: (runId: string) => void;
+  onToggleAll: () => void;
 }
 
 export function BacktestRunsTable({
@@ -26,8 +27,11 @@ export function BacktestRunsTable({
   onDeleteSelected,
   onSelect,
   onToggle,
+  onToggleAll,
 }: BacktestRunsTableProps): React.JSX.Element {
   const { intlLocale, t } = useI18n();
+  const allSelected = runs.length > 0 && selectedRunIds.size === runs.length;
+  const partiallySelected = selectedRunIds.size > 0 && !allSelected;
 
   return (
     <section className="panel table-panel backtest-runs">
@@ -58,7 +62,19 @@ export function BacktestRunsTable({
           <table>
             <thead>
               <tr>
-                <th aria-label={t("runs.select")} />
+                <th>
+                  <input
+                    aria-checked={partiallySelected ? "mixed" : allSelected}
+                    aria-label={t("runs.selectAll")}
+                    checked={allSelected}
+                    disabled={busy || deleting || runs.length === 0}
+                    onChange={onToggleAll}
+                    ref={(input) => {
+                      if (input) input.indeterminate = partiallySelected;
+                    }}
+                    type="checkbox"
+                  />
+                </th>
                 <th>{t("runs.run")}</th>
                 <th>{t("runs.market")}</th>
                 <th>{t("runs.return")}</th>

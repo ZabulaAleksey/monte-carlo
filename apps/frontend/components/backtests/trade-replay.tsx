@@ -3,6 +3,7 @@
 import { Pause, Play, Square } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { BacktestTradesTable } from "@/components/backtests/backtest-trades-table";
 import { CandlestickTradeChart } from "@/components/backtests/candlestick-trade-chart";
 import type { CandleRecord, VirtualTradeRecord } from "@/lib/api/types";
 import { sortCandles } from "@/lib/backtests";
@@ -13,12 +14,13 @@ interface TradeReplayProps {
   trades: VirtualTradeRecord[];
 }
 
-const SPEEDS = [0.5, 1, 2, 4] as const;
+const SPEEDS = [0.5, 1, 2, 4, 5, 10, 20, 50, 100] as const;
 
 export function TradeReplay({ candles, trades }: TradeReplayProps): React.JSX.Element {
   const { t } = useI18n();
   const sorted = useMemo(() => sortCandles(candles), [candles]);
   const [enabled, setEnabled] = useState(true);
+  const [followLatest, setFollowLatest] = useState(true);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState<number>(1);
   const [index, setIndex] = useState(0);
@@ -32,10 +34,12 @@ export function TradeReplay({ candles, trades }: TradeReplayProps): React.JSX.El
     if (!enabled || !playing || sorted.length === 0 || index >= sorted.length - 1) {
       return undefined;
     }
-    const step = Math.max(1, Math.ceil(sorted.length / 240));
+    const datasetStep = Math.max(1, Math.ceil(sorted.length / 240));
+    const speedStep = speed > 10 ? Math.ceil(speed / 10) : 1;
+    const step = datasetStep * speedStep;
     const timer = window.setTimeout(() => {
       setIndex((current) => Math.min(current + step, sorted.length - 1));
-    }, Math.max(45, 220 / speed));
+    }, Math.max(20, 220 / Math.min(speed, 10)));
     return () => window.clearTimeout(timer);
   }, [enabled, index, playing, sorted.length, speed]);
 
@@ -46,7 +50,7 @@ export function TradeReplay({ candles, trades }: TradeReplayProps): React.JSX.El
   const visibleCount = enabled ? Math.min(index + 1, sorted.length) : sorted.length;
   const visibleCandles = sorted.slice(0, visibleCount);
   const nextCandle = enabled && visibleCount < sorted.length ? sorted[visibleCount] : undefined;
-  const visibleUntil = nextCandle?.open_time;
+  const visibleBefore = nextCandle?.open_time;
 
   const toggleEnabled = (checked: boolean): void => {
     setEnabled(checked);
@@ -55,7 +59,8 @@ export function TradeReplay({ candles, trades }: TradeReplayProps): React.JSX.El
   };
 
   return (
-    <section className="panel result-chart-panel">
+    <>
+      <section className="panel result-chart-panel">
       <div className="panel-heading replay-heading">
         <div>
           <span className="eyebrow">{t("replay.eyebrow")}</span>
@@ -72,6 +77,15 @@ export function TradeReplay({ candles, trades }: TradeReplayProps): React.JSX.El
           />
           {t("replay.show")}
         </label>
+        <label className="replay-toggle">
+          <input
+            checked={followLatest}
+            disabled={!enabled}
+            onChange={(event) => setFollowLatest(event.target.checked)}
+            type="checkbox"
+          />
+          {t("replay.follow")}
+        </label>
         <label>
           {t("replay.speed")}
           <select
@@ -79,7 +93,7 @@ export function TradeReplay({ candles, trades }: TradeReplayProps): React.JSX.El
             onChange={(event) => setSpeed(Number(event.target.value))}
             value={speed}
           >
-            {SPEEDS.map((item) => <option key={item} value={item}>{item}×</option>)}
+            {SPEEDS.map((item) => <option key={item} value={item}>{item}{"\u00d7"}</option>)}
           </select>
         </label>
         <div className="replay-actions">
@@ -117,9 +131,16 @@ export function TradeReplay({ candles, trades }: TradeReplayProps): React.JSX.El
       </div>
       <CandlestickTradeChart
         candles={visibleCandles}
+        followLatest={enabled && followLatest}
         trades={trades}
-        visibleUntil={visibleUntil}
+        visibleUntil={visibleBefore}
       />
-    </section>
+      </section>
+      <BacktestTradesTable
+        animationEnabled={enabled}
+        trades={trades}
+        visibleBefore={visibleBefore}
+      />
+    </>
   );
 }

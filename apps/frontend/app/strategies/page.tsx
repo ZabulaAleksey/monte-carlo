@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { BacktestForm } from "@/components/backtests/backtest-form";
 import { BacktestRunsTable } from "@/components/backtests/backtest-runs-table";
-import { BacktestTradesTable } from "@/components/backtests/backtest-trades-table";
 import { EquityChart } from "@/components/backtests/equity-chart";
 import { TradeReplay } from "@/components/backtests/trade-replay";
 import { ErrorState } from "@/components/error-state";
@@ -180,6 +179,14 @@ export default function StrategiesPage(): React.JSX.Element {
     });
   };
 
+  const toggleAllRuns = (): void => {
+    setSelectedRunIds((current) =>
+      current.size === runs.length
+        ? new Set()
+        : new Set(runs.map((run) => run.id)),
+    );
+  };
+
   const deleteSelected = async (): Promise<void> => {
     const ids = [...selectedRunIds];
     if (ids.length === 0) return;
@@ -237,6 +244,7 @@ export default function StrategiesPage(): React.JSX.Element {
               onDeleteSelected={() => void deleteSelected()}
               onSelect={(runId) => void selectRun(runId)}
               onToggle={toggleRun}
+              onToggleAll={toggleAllRuns}
               runs={runs}
               selectedId={result?.id ?? null}
               selectedRunIds={selectedRunIds}
@@ -326,7 +334,6 @@ export default function StrategiesPage(): React.JSX.Element {
                   </div>
                 </div>
 
-                <BacktestTradesTable trades={result.trades} />
               </>
             ) : null}
           </section>

@@ -1,0 +1,31 @@
+# Roadmap
+
+## Completed
+
+### Stage 3 — Strategy engine and backtesting
+
+- Historical data provider and deterministic sequential engine.
+- Strategy interface and moving-average demonstration strategy.
+- Commission, swap, slippage, stop loss and take profit simulation.
+- Persisted runs, trades, equity curve and metrics.
+- Backtest API and localized research workspace.
+- Interactive execution replay and bulk management of saved research.
+
+## Current
+
+- Validate Stage 3 behavior on larger historical ranges and denser concurrent
+  trade sets.
+- Refine chart readability without changing deterministic results.
+
+## Planned
+
+- Additional strategy adapters and strategy-specific parameter schemas.
+- Larger-data delivery and rendering optimizations when the 2000-candle UI
+  limit becomes restrictive.
+
+## Later / optional
+
+- Monte Carlo simulation.
+- Genetic optimization.
+
+These optional items are outside the current Stage 3 scope.

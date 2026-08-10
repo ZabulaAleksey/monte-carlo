@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { CandleRecord, VirtualTradeRecord } from "@/lib/api/types";
-import { buildEquityPath, mapTradesToCandles, sortCandles } from "@/lib/backtests";
+import {
+  buildEquityPath,
+  buildPeriodSeparators,
+  mapTradesToCandles,
+  sortCandles,
+} from "@/lib/backtests";
 
 const candle = (id: string, openTime: string): CandleRecord => ({
   id,
@@ -73,6 +78,19 @@ describe("backtest chart helpers", () => {
     ]);
   });
 
+  it("treats the next candle boundary as an exclusive replay cutoff", () => {
+    const candles = [
+      candle("one", "2026-01-01T01:00:00Z"),
+      candle("two", "2026-01-01T02:00:00Z"),
+    ];
+
+    const markers = mapTradesToCandles(candles, [trade], "2026-01-01T02:00:00Z");
+
+    expect(markers).toEqual([
+      expect.objectContaining({ kind: "entry", tradeSequence: 1 }),
+    ]);
+  });
+
   it("keeps a stop reported at candle close on the candle that triggered it", () => {
     const candles = [
       candle("one", "2026-01-01T01:00:00Z"),
@@ -86,6 +104,36 @@ describe("backtest chart helpers", () => {
 
     const markers = mapTradesToCandles(candles, [stoppedTrade]);
     expect(markers[1]).toMatchObject({ candleIndex: 0, kind: "exit" });
+  });
+
+  it("adds net profit to the exit marker", () => {
+    const markers = mapTradesToCandles(
+      [
+        candle("one", "2026-01-01T01:00:00Z"),
+        candle("two", "2026-01-01T02:00:00Z"),
+      ],
+      [trade],
+    );
+
+    expect(markers[1]).toMatchObject({ kind: "exit", netProfit: 2 });
+  });
+
+  it("separates hourly candles by day and weekly candles by month", () => {
+    const hourly = [
+      candle("late-day", "2026-01-31T23:00:00Z"),
+      candle("next-day", "2026-02-01T00:00:00Z"),
+    ];
+    const weekly = [
+      { ...candle("january", "2026-01-26T00:00:00Z"), timeframe: "W1" },
+      { ...candle("february", "2026-02-02T00:00:00Z"), timeframe: "W1" },
+    ];
+
+    expect(buildPeriodSeparators(hourly, "en-US")).toEqual([
+      expect.objectContaining({ candleIndex: 1, label: "Feb 01" }),
+    ]);
+    expect(buildPeriodSeparators(weekly, "en-US")).toEqual([
+      expect.objectContaining({ candleIndex: 1, label: "Feb 2026" }),
+    ]);
   });
 
   it("builds a stable SVG path for flat equity", () => {

@@ -7,8 +7,14 @@ import type {
 export interface TradeMarker {
   candleIndex: number;
   kind: "entry" | "exit";
+  netProfit: number | null;
   side: "buy" | "sell";
   tradeSequence: number;
+}
+
+export interface PeriodSeparator {
+  candleIndex: number;
+  label: string;
 }
 
 export function sortCandles(candles: CandleRecord[]): CandleRecord[] {
@@ -55,24 +61,71 @@ export function mapTradesToCandles(
       ["stop_loss", "take_profit", "end_of_data"].includes(trade.exit_reason),
     );
     const markers: TradeMarker[] = [];
-    if (entryIndex >= 0 && new Date(trade.opened_at).getTime() <= cutoff) {
+    if (entryIndex >= 0 && new Date(trade.opened_at).getTime() < cutoff) {
       markers.push({
         candleIndex: entryIndex,
         kind: "entry",
+        netProfit: null,
         side: trade.side,
         tradeSequence: trade.sequence,
       });
     }
-    if (exitIndex >= 0 && new Date(trade.closed_at).getTime() <= cutoff) {
+    if (exitIndex >= 0 && new Date(trade.closed_at).getTime() < cutoff) {
       markers.push({
         candleIndex: exitIndex,
         kind: "exit",
+        netProfit: Number(trade.net_profit),
         side: trade.side,
         tradeSequence: trade.sequence,
       });
     }
     return markers;
   });
+}
+
+export function buildPeriodSeparators(
+  candles: CandleRecord[],
+  locale = "en-US",
+): PeriodSeparator[] {
+  const sorted = sortCandles(candles);
+  const timeframe = sorted[0]?.timeframe.toUpperCase() ?? "";
+  const yearly = timeframe.startsWith("MN") || timeframe.endsWith("MO");
+  const monthly =
+    !yearly &&
+    (timeframe.startsWith("W") ||
+      timeframe.endsWith("W") ||
+      timeframe.startsWith("D") ||
+      timeframe.endsWith("D"));
+  const keyFor = (date: Date): string => {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    if (yearly) return String(year);
+    if (monthly) return `${year}-${month}`;
+    return `${year}-${month}-${day}`;
+  };
+  const labelFor = (date: Date): string => {
+    if (yearly) return String(date.getUTCFullYear());
+    return new Intl.DateTimeFormat(locale, {
+      day: monthly ? undefined : "2-digit",
+      month: "short",
+      year: monthly ? "numeric" : undefined,
+      timeZone: "UTC",
+    }).format(date);
+  };
+  const separators: PeriodSeparator[] = [];
+  let previousKey = sorted[0] ? keyFor(new Date(sorted[0].open_time)) : "";
+  for (let index = 1; index < sorted.length; index += 1) {
+    const item = sorted[index];
+    if (!item) continue;
+    const date = new Date(item.open_time);
+    const key = keyFor(date);
+    if (key !== previousKey) {
+      separators.push({ candleIndex: index, label: labelFor(date) });
+      previousKey = key;
+    }
+  }
+  return separators;
 }
 
 export function buildEquityPath(

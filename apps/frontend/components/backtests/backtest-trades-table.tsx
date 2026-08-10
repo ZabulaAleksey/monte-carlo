@@ -3,13 +3,23 @@ import { formatMoney } from "@/lib/backtests";
 import { useI18n } from "@/lib/i18n";
 
 interface BacktestTradesTableProps {
+  animationEnabled?: boolean;
   trades: VirtualTradeRecord[];
+  visibleBefore?: string;
 }
 
 export function BacktestTradesTable({
+  animationEnabled = false,
   trades,
+  visibleBefore,
 }: BacktestTradesTableProps): React.JSX.Element {
   const { intlLocale, t } = useI18n();
+  const cutoff = animationEnabled && visibleBefore
+    ? new Date(visibleBefore).getTime()
+    : Number.POSITIVE_INFINITY;
+  const visibleTrades = trades.filter(
+    (trade) => new Date(trade.opened_at).getTime() < cutoff,
+  );
   const exitReason = (reason: VirtualTradeRecord["exit_reason"]): string => ({
     signal: t("trade.reason.signal"),
     reverse: t("trade.reason.reverse"),
@@ -24,10 +34,12 @@ export function BacktestTradesTable({
           <span className="eyebrow">{t("trades.eyebrow")}</span>
           <h2>{t("trades.title")}</h2>
         </div>
-        <span className="count-badge">{t("trades.count", { count: trades.length })}</span>
+        <span className="count-badge">{t("trades.count", { count: visibleTrades.length })}</span>
       </div>
-      {trades.length === 0 ? (
-        <div className="panel-empty compact">{t("trades.empty")}</div>
+      {visibleTrades.length === 0 ? (
+        <div className="panel-empty compact">
+          {animationEnabled && trades.length > 0 ? t("trades.waitingReplay") : t("trades.empty")}
+        </div>
       ) : (
         <div className="table-scroll">
           <table>
@@ -45,8 +57,10 @@ export function BacktestTradesTable({
               </tr>
             </thead>
             <tbody>
-              {trades.map((trade) => (
-                <tr key={trade.sequence}>
+              {visibleTrades.map((trade) => {
+                const closed = new Date(trade.closed_at).getTime() < cutoff;
+                return (
+                <tr className={closed ? undefined : "replay-open-trade"} key={trade.sequence}>
                   <td className="mono">{trade.sequence}</td>
                   <td>
                     <span className={`tag ${trade.side}`}>
@@ -54,16 +68,17 @@ export function BacktestTradesTable({
                     </span>
                   </td>
                   <td>{new Date(trade.opened_at).toLocaleString(intlLocale)}</td>
-                  <td>{new Date(trade.closed_at).toLocaleString(intlLocale)}</td>
+                  <td>{closed ? new Date(trade.closed_at).toLocaleString(intlLocale) : t("common.open")}</td>
                   <td className="mono">{trade.open_price}</td>
-                  <td className="mono">{trade.close_price}</td>
-                  <td>{exitReason(trade.exit_reason)}</td>
-                  <td className="mono">{formatMoney(Number(trade.commission) - Number(trade.swap), intlLocale)}</td>
-                  <td className={Number(trade.net_profit) >= 0 ? "positive mono" : "negative mono"}>
-                    {formatMoney(trade.net_profit, intlLocale)}
+                  <td className="mono">{closed ? trade.close_price : "-"}</td>
+                  <td>{closed ? exitReason(trade.exit_reason) : "-"}</td>
+                  <td className="mono">{closed ? formatMoney(Number(trade.commission) - Number(trade.swap), intlLocale) : "-"}</td>
+                  <td className={closed ? (Number(trade.net_profit) >= 0 ? "positive mono" : "negative mono") : "mono"}>
+                    {closed ? formatMoney(trade.net_profit, intlLocale) : "-"}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

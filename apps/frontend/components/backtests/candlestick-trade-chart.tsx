@@ -1,11 +1,28 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+
 import type { CandleRecord, VirtualTradeRecord } from "@/lib/api/types";
-import { mapTradesToCandles, sortCandles } from "@/lib/backtests";
+import type { TradeMarker } from "@/lib/backtests";
+import {
+  buildPeriodSeparators,
+  formatMoney,
+  mapTradesToCandles,
+  sortCandles,
+} from "@/lib/backtests";
 import { useI18n } from "@/lib/i18n";
 
 interface CandlestickTradeChartProps {
   candles: CandleRecord[];
+  followLatest?: boolean;
   trades: VirtualTradeRecord[];
   visibleUntil?: string;
+}
+
+interface PositionedTradeMarker extends TradeMarker {
+  labelY: number;
+  markerX: number;
+  markerY: number;
 }
 
 const MINIMUM_WIDTH = 900;
@@ -14,11 +31,28 @@ const PADDING = 30;
 
 export function CandlestickTradeChart({
   candles,
+  followLatest = false,
   trades,
   visibleUntil,
 }: CandlestickTradeChartProps): React.JSX.Element {
   const { intlLocale, t } = useI18n();
   const visible = sortCandles(candles);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const width = Math.max(MINIMUM_WIDTH, visible.length * 7 + PADDING * 2);
+  const step = visible.length > 0 ? (width - PADDING * 2) / visible.length : 0;
+  const latestCandleX = visible.length > 0
+    ? PADDING + step * (visible.length - 1) + step / 2
+    : 0;
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (followLatest && frame) {
+      const maximumScroll = Math.max(0, frame.scrollWidth - frame.clientWidth);
+      const target = latestCandleX - frame.clientWidth * 0.72;
+      frame.scrollLeft = Math.max(0, Math.min(maximumScroll, target));
+    }
+  }, [followLatest, latestCandleX]);
+
   if (visible.length === 0) {
     return <div className="chart-empty">{t("replay.empty")}</div>;
   }
@@ -28,27 +62,76 @@ export function CandlestickTradeChart({
   const maximum = Math.max(...highs);
   const range = maximum - minimum || 1;
   const plotHeight = HEIGHT - PADDING * 2;
-  const width = Math.max(MINIMUM_WIDTH, visible.length * 7 + PADDING * 2);
-  const step = (width - PADDING * 2) / visible.length;
   const candleWidth = Math.max(Math.min(step * 0.55, 9), 2);
   const y = (price: number): number =>
     PADDING + ((maximum - price) / range) * plotHeight;
   const x = (index: number): number => PADDING + step * index + step / 2;
   const markers = mapTradesToCandles(visible, trades, visibleUntil);
+  const periods = buildPeriodSeparators(visible, intlLocale);
+  const markerRanks = new Map<string, number>();
+  const positionedMarkers: PositionedTradeMarker[] = markers.map((marker) => {
+    const rankKey = `${marker.kind}-${marker.candleIndex}`;
+    const rank = markerRanks.get(rankKey) ?? 0;
+    markerRanks.set(rankKey, rank + 1);
+    const item = visible[marker.candleIndex];
+    const horizontalOffset = rank === 0
+      ? 0
+      : (rank % 2 === 0 ? 1 : -1) * Math.ceil(rank / 2) * 7;
+    const markerX = x(marker.candleIndex) + horizontalOffset;
+    const baseY = marker.kind === "entry"
+      ? y(Number(item?.low ?? minimum)) + 13
+      : y(Number(item?.high ?? maximum)) - 13;
+    const markerY = Math.max(10, Math.min(HEIGHT - 10, baseY));
+    return {
+      ...marker,
+      labelY: Math.max(12, markerY - rank * 11),
+      markerX,
+      markerY,
+    };
+  });
+  const tradePositions = new Map<
+    number,
+    Partial<Record<TradeMarker["kind"], PositionedTradeMarker>>
+  >();
+  positionedMarkers.forEach((marker) => {
+    const pair = tradePositions.get(marker.tradeSequence) ?? {};
+    pair[marker.kind] = marker;
+    tradePositions.set(marker.tradeSequence, pair);
+  });
+  const connections: Array<{
+    entry: PositionedTradeMarker;
+    exit: PositionedTradeMarker;
+    sequence: number;
+  }> = [];
+  tradePositions.forEach((pair, sequence) => {
+    if (pair.entry && pair.exit) {
+      connections.push({ entry: pair.entry, exit: pair.exit, sequence });
+    }
+  });
+  const visibleTradeCount = new Set(markers.map((marker) => marker.tradeSequence)).size;
 
   return (
-    <div className="chart-frame">
+    <div className="chart-frame" ref={frameRef}>
       <div className="chart-caption">
         <span>{t("replay.candles", { count: visible.length })}</span>
-        <span>{t("replay.markers")}</span>
+        <span>{t("replay.markers")} / {t("replay.guides")}</span>
       </div>
       <svg
-        aria-label={t("replay.chartAria", { count: trades.length })}
+        aria-label={t("replay.chartAria", { count: visibleTradeCount })}
         className="candlestick-chart"
         role="img"
         style={{ minWidth: `${width}px` }}
         viewBox={`0 0 ${width} ${HEIGHT}`}
       >
+        {periods.map((period) => {
+          const periodX = x(period.candleIndex) - step / 2;
+          return (
+            <g className="period-separator" key={`${period.candleIndex}-${period.label}`}>
+              <line x1={periodX} x2={periodX} y1="18" y2={HEIGHT - 12} />
+              <text x={periodX + 4} y="14">{period.label}</text>
+            </g>
+          );
+        })}
         {visible.map((item, index) => {
           const open = Number(item.open);
           const close = Number(item.close);
@@ -76,12 +159,20 @@ export function CandlestickTradeChart({
             </g>
           );
         })}
-        {markers.map((marker) => {
-          const item = visible[marker.candleIndex];
-          if (!item) return null;
-          const markerX = x(marker.candleIndex);
+        {connections.map(({ entry, exit, sequence }) => (
+          <g className={`trade-connection ${entry.side}`} key={`${sequence}-connection`}>
+            <title>#{sequence}</title>
+            <line
+              data-trade-sequence={sequence}
+              x1={entry.markerX}
+              x2={exit.markerX}
+              y1={entry.markerY}
+              y2={exit.markerY}
+            />
+          </g>
+        ))}
+        {positionedMarkers.map((marker) => {
           const isEntry = marker.kind === "entry";
-          const markerY = isEntry ? y(Number(item.low)) + 13 : y(Number(item.high)) - 13;
           const className = `trade-marker ${marker.side} ${marker.kind}`;
           const side = marker.side === "buy" ? t("common.buy") : t("common.sell");
           return isEntry ? (
@@ -92,17 +183,30 @@ export function CandlestickTradeChart({
               })}
               className={className}
               key={`${marker.tradeSequence}-entry`}
-              points={`${markerX},${markerY - 6} ${markerX - 6},${markerY + 5} ${markerX + 6},${markerY + 5}`}
+              points={`${marker.markerX},${marker.markerY - 6} ${marker.markerX - 6},${marker.markerY + 5} ${marker.markerX + 6},${marker.markerY + 5}`}
             />
           ) : (
-            <circle
-              aria-label={t("replay.exitAria", { sequence: marker.tradeSequence })}
-              className={className}
-              cx={markerX}
-              cy={markerY}
-              key={`${marker.tradeSequence}-exit`}
-              r="5"
-            />
+            <g key={`${marker.tradeSequence}-exit`}>
+              <circle
+                aria-label={t("replay.exitPnlAria", {
+                  sequence: marker.tradeSequence,
+                  value: `${Number(marker.netProfit) >= 0 ? "+" : "-"}${formatMoney(Math.abs(Number(marker.netProfit)), intlLocale)}`,
+                })}
+                className={className}
+                cx={marker.markerX}
+                cy={marker.markerY}
+                r="5"
+              />
+              <text
+                aria-hidden="true"
+                className={`trade-exit-pnl ${Number(marker.netProfit) >= 0 ? "positive" : "negative"}`}
+                textAnchor={marker.markerX > width - 90 ? "end" : "start"}
+                x={marker.markerX > width - 90 ? marker.markerX - 8 : marker.markerX + 8}
+                y={marker.labelY + 3}
+              >
+                {Number(marker.netProfit) >= 0 ? "+" : "-"}{formatMoney(Math.abs(Number(marker.netProfit)), intlLocale)}
+              </text>
+            </g>
           );
         })}
       </svg>

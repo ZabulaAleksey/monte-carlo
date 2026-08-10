@@ -167,6 +167,19 @@ describe("StrategiesPage", () => {
   });
 
   it("opens a saved chart and deletes selected research", async () => {
+    const secondRun = {
+      id: "run-2",
+      created_at: "2026-01-02T08:00:00Z",
+      symbol_id: result.symbol_id,
+      timeframe: result.timeframe,
+      strategy_name: result.strategy_name,
+      strategy_version: result.strategy_version,
+      data_start: result.data_start,
+      data_end: result.data_end,
+      total_trades: 2,
+      final_balance: "9999",
+      return_pct: "-0.01",
+    };
     vi.mocked(apiClient.getBacktestRuns)
       .mockResolvedValueOnce([
         {
@@ -182,21 +195,23 @@ describe("StrategiesPage", () => {
           final_balance: "10001",
           return_pct: "0.01",
         },
+        secondRun,
       ])
       .mockResolvedValueOnce([]);
 
     render(<StrategiesPage />);
 
-    const openChart = await screen.findByRole("button", {
+    const openCharts = await screen.findAllByRole("button", {
       name: /Open history and trade chart/,
     });
-    fireEvent.click(openChart);
+    fireEvent.click(openCharts[0] as HTMLElement);
     expect(await screen.findByRole("heading", { name: "Trade ledger" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /Select research/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all research" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete selected" }));
 
     await waitFor(() => expect(apiClient.deleteBacktest).toHaveBeenCalledWith(result.id));
+    expect(apiClient.deleteBacktest).toHaveBeenCalledWith(secondRun.id);
     expect(await screen.findByText("0 runs")).toBeInTheDocument();
   });
 });
