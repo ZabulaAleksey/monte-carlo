@@ -1,8 +1,8 @@
-# Infrastructure
+# Инфраструктура
 
-The local infrastructure is orchestrated by the root `docker-compose.yml`.
-PostgreSQL data is stored in the named `postgres_data` volume. Schema changes
-are versioned in `apps/backend/alembic/versions`; the backend container applies
-pending migrations before it starts serving traffic.
+Локальная инфраструктура координируется корневым `docker-compose.yml`.
+Данные PostgreSQL хранятся в именованном томе `postgres_data`. Изменения схемы
+версионируются в `apps/backend/alembic/versions`; контейнер backend применяет
+ожидающие миграции перед началом обработки трафика.
 
-No production credentials or cloud resources are stored in this directory.
+В этом каталоге не хранятся production-учётные данные или облачные ресурсы.

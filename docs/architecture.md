@@ -1,12 +1,12 @@
-# Architecture
+# Архитектура
 
-## Context
+## Контекст
 
-This repository is the first runnable foundation of a trading analytics
-platform. It deliberately excludes strategies, backtesting, Monte Carlo
-simulation and genetic optimization.
+Этот репозиторий является первой запускаемой основой платформы торговой
+аналитики. Стратегии, бэктестинг, симуляция Монте-Карло и генетическая
+оптимизация намеренно пока не включены.
 
-## Components
+## Компоненты
 
 ```text
 Browser
@@ -24,57 +24,55 @@ Next.js frontend ───────► FastAPI /api/v1
                          PostgreSQL 16
 ```
 
-The repository is split into deployable applications under `apps/`, local
-runtime infrastructure under `infra/`, and technical documentation under
-`docs/`.
+Репозиторий разделён на развёртываемые приложения в `apps/`, локальную
+инфраструктуру выполнения в `infra/` и техническую документацию в `docs/`.
 
-## Backend boundaries
+## Границы backend
 
-- `api` owns HTTP routing, request/response schemas and error translation.
-- `application` coordinates use cases and defines repository protocols.
-- `domain` contains typed entities, enums and business errors with no FastAPI
-  or SQLAlchemy dependency.
-- `infrastructure` implements configuration, logging and database adapters.
+- `api` отвечает за HTTP-маршрутизацию, схемы запросов и ответов и преобразование ошибок.
+- `application` координирует сценарии использования и определяет протоколы репозиториев.
+- `domain` содержит типизированные сущности, перечисления и бизнес-ошибки без
+  зависимостей от FastAPI или SQLAlchemy.
+- `infrastructure` реализует конфигурацию, журналирование и адаптеры базы данных.
 
-API routes do not contain persistence or trading rules. SQLAlchemy models are
-kept separate from domain entities so persistence concerns do not leak into the
-application layer.
+Маршруты API не содержат правила хранения или торговли. Модели SQLAlchemy
+отделены от доменных сущностей, чтобы особенности хранения не проникали в
+слой приложения.
 
-## Data model
+## Модель данных
 
-- `symbols` is the normalized instrument catalog.
-- `candles` belongs to a symbol and is unique by symbol, timeframe and opening
-  time. Its typed `source` field (`demo`, `mt5`, or `api`) prevents
-  synthetic MVP prices from being mixed into a connected terminal view.
-- `accounts` identifies an external trading account.
-- `trades` belongs to an account and symbol and is unique by account and
-  external ticket.
+- `symbols` — нормализованный каталог инструментов.
+- `candles` относится к символу и уникальна по символу, таймфрейму и времени
+  открытия. Типизированное поле `source` (`demo`, `mt5` или `api`) не позволяет
+  смешивать синтетические цены MVP с данными подключённого терминала.
+- `accounts` идентифицирует внешний торговый счёт.
+- `trades` относится к счёту и символу и уникальна по счёту и внешнему ticket.
 
-Prices, volumes and monetary values use fixed-precision `NUMERIC(24, 8)` rather
-than floating point. UUIDs are generated in the application.
+Цены, объёмы и денежные значения используют `NUMERIC(24, 8)` с фиксированной
+точностью вместо floating point. UUID создаются в приложении.
 
-## Runtime and demo data
+## Среда выполнения и демонстрационные данные
 
-Docker Compose starts PostgreSQL, applies Alembic migrations, idempotently
-loads a small EURUSD/XAUUSD dataset, then starts the API and frontend. Demo
-seeding is controlled by `SEED_DEMO_DATA` and can be disabled without changing
-code.
+Docker Compose запускает PostgreSQL, применяет миграции Alembic, идемпотентно
+загружает небольшой набор данных EURUSD/XAUUSD, затем запускает API и frontend.
+Демонстрационное заполнение управляется параметром `SEED_DEMO_DATA` и может быть
+отключено без изменения кода.
 
-## Error and logging policy
+## Политика ошибок и журналирования
 
-Domain errors are mapped to stable JSON error codes. Validation errors use the
-same envelope, while unexpected exceptions return a generic message and are
-logged with a request ID. Every request emits a structured JSON log record with
-method, path, status and duration.
+Доменные ошибки преобразуются в стабильные коды ошибок JSON. Ошибки валидации
+используют ту же оболочку, а непредвиденные исключения возвращают общее сообщение
+и записываются с ID запроса. Каждый запрос создаёт структурированную запись JSON
+с методом, путём, статусом и длительностью.
 
-## MetaTrader bridge
+## Мост MetaTrader
 
-MT5 synchronization is isolated behind an application-level gateway. Protected
-write routes validate the bridge API key before calling `Mt5SyncService`; the
-SQLAlchemy adapter performs one transaction per payload. There are no backend
-ports or MQL functions for trading commands.
+Синхронизация MT5 изолирована за gateway уровня приложения. Защищённые маршруты
+записи проверяют ключ API моста перед вызовом `Mt5SyncService`; адаптер SQLAlchemy
+выполняет одну транзакцию для каждого payload. В backend нет портов или функций
+MQL для торговых команд.
 
-`mt5_terminals` stores heartbeat and synchronization timestamps. `positions`
-stores the latest open-position snapshot. Existing candle and trade uniqueness
-constraints are reused for retry-safe batch upserts. See
-[`mt5-bridge.md`](mt5-bridge.md) for the complete contract.
+`mt5_terminals` хранит временные метки heartbeat и синхронизации. `positions`
+хранит последний снимок открытых позиций. Существующие ограничения уникальности
+свечей и сделок переиспользуются для безопасных при повторе пакетных upsert.
+Полный контракт приведён в [`mt5-bridge.md`](mt5-bridge.md).

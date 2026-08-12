@@ -1,18 +1,18 @@
-# monte-carlo - local instructions
+# monte-carlo — локальные инструкции
 
-Before working here, read `~/codex-workspace/AGENTS.md`. This file adds only project-specific constraints.
+Перед началом работы прочитай `~/codex-workspace/AGENTS.md`. Этот файл содержит только ограничения проекта.
 
-## Project context
+## Контекст проекта
 
-- Trading analytics platform with Next.js frontend, FastAPI backend, PostgreSQL, and a separate backtesting domain engine.
-- `docs/architecture.md` is the primary architecture map.
-- The MetaTrader 5 bridge is read-only; do not add order execution without an explicit architecture and security decision.
-- Keep the backtesting engine independent of FastAPI and MT5 adapters and preserve deterministic, reproducible results.
-- Treat market, account, and trade data as sensitive; never commit `.env` or credentials.
+- Платформа торговой аналитики с frontend на Next.js, backend на FastAPI, PostgreSQL и отдельным доменным движком бэктестинга.
+- `docs/architecture.md` является основной картой архитектуры.
+- Мост MetaTrader 5 работает только на чтение; не добавляй исполнение ордеров без явного архитектурного решения и решения по безопасности.
+- Сохраняй независимость движка бэктестинга от FastAPI и адаптеров MT5 и обеспечивай детерминированные воспроизводимые результаты.
+- Считай данные рынка, счетов и сделок чувствительными; никогда не добавляй `.env` или учётные данные в коммиты.
 
-## Checks
+## Проверки
 
-- Frontend: run `npm run lint` and `npm test` from `apps/frontend`; use `npm run build` when build behavior changes.
-- Backend: run `python -m pytest` from `apps/backend`; use configured Ruff and mypy checks for affected Python code.
+- Frontend: выполни `npm run lint` и `npm test` из `apps/frontend`; при изменении поведения сборки используй `npm run build`.
+- Backend: выполни `python -m pytest` из `apps/backend`; для затронутого кода Python используй настроенные проверки Ruff и mypy.
 
-Open only the relevant project document, AI Dev Team rule, or SPEC; do not preload all rules, specifications, or `LEARNING_LOG.md`.
+Открывай только относящийся к задаче документ проекта, правило AI Dev Team или SPEC; не загружай заранее все правила, спецификации или `LEARNING_LOG.md`.
