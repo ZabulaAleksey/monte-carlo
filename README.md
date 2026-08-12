@@ -17,12 +17,15 @@ apps/
   backend/     FastAPI, Pydantic, SQLAlchemy, Alembic, pytest
 infra/         описание локальной инфраструктуры
 docs/          архитектурные решения
+prompts/       промпты для будущих этапов 3–13
 docker-compose.yml
 ```
 
 Подробности слоёв и модели данных: [docs/architecture.md](docs/architecture.md).
 Канонические требования этапов для продолжения разработки:
-[docs/project-context.md](docs/project-context.md).
+[docs/project-context.md](docs/project-context.md). Промпты для будущих этапов
+собраны в [prompts/README.md](prompts/README.md) и выполняются только по одному,
+после явного запроса пользователя.
 
 ## Быстрый запуск
 

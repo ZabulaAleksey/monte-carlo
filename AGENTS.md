@@ -1,4 +1,4 @@
-# MonteCarloStrategy - local instructions
+# monte-carlo - local instructions
 
 Before working here, read `~/codex-workspace/AGENTS.md`. This file adds only project-specific constraints.
 
