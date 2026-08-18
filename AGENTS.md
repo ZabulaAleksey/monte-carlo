@@ -16,3 +16,21 @@
 - Backend: выполни `python -m pytest` из `apps/backend`; для затронутого кода Python используй настроенные проверки Ruff и mypy.
 
 Открывай только относящийся к задаче документ проекта, правило AI Dev Team или SPEC; не загружай заранее все правила, спецификации или `LEARNING_LOG.md`.
+
+
+## Локальные правила тестирования
+
+### Тестовый контракт
+- Unit/integration/component тесты после приема считаются контрактными и не редактируются в цикле верификации.
+- Новые сценарии тестирования добавляются отдельной задачей.
+
+### Unit / integration / component
+- Frontend: `cd apps/frontend; npm run test`, `cd apps/frontend; npm run lint`
+- Backend: `cd apps/backend; python -m pytest`, `cd apps/backend; python -m ruff check .`, `cd apps/backend; python -m mypy .`
+
+### E2E (критические)
+1. Авторизация/инициализация пользовательского сеанса.
+2. Получение исторических/текущих котировок и рендеринг графика.
+3. Передача сигнала в MT5-адаптер и обработка ответа.
+
+- Если MT5 backend/broker pipeline не доступен: `BLOCKED_BY_BACKEND_MT5`.
