@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { AccountRecord, CandleRecord, QuoteRecord } from "./api/types";
+import type { AccountRecord, CandleRecord, QuoteRecord, SymbolRecord } from "./api/types";
 import {
+  buildMarketSeries,
   getDashboardSource,
   mergeLiveQuotes,
   selectEnvironmentAccount,
@@ -142,5 +143,46 @@ describe("dashboard data selection", () => {
     ]);
 
     expect(result).toEqual([candle]);
+  });
+
+  it("adds every quoted active currency pair without treating metals as forex", () => {
+    const symbol = (id: string, name: string): SymbolRecord => ({
+      id,
+      name,
+      description: name,
+      digits: 5,
+      is_active: true,
+      volume_min: "0.01",
+      volume_step: "0.01",
+      volume_max: "99",
+      contract_size: "100000",
+    });
+    const quote = (symbolId: string): QuoteRecord => ({
+      symbol_id: symbolId,
+      terminal_id: "terminal",
+      bid: "1.10000",
+      ask: "1.10020",
+      observed_at: "2026-08-20T10:00:00Z",
+      received_at: "2026-08-20T10:00:00Z",
+      source: "mt5",
+    });
+
+    const result = buildMarketSeries(
+      [],
+      [
+        symbol("eurusd", "EURUSD"),
+        symbol("bgnusd", "BGNUSD"),
+        symbol("gbpjpy", "GBPJPY.pro"),
+        symbol("xauusd", "XAUUSD"),
+      ],
+      [],
+      [quote("eurusd"), quote("bgnusd"), quote("gbpjpy"), quote("xauusd")],
+    );
+
+    expect(result.map((series) => series.key)).toEqual([
+      "bgnusd:H1",
+      "eurusd:H1",
+      "gbpjpy:H1",
+    ]);
   });
 });

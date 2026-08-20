@@ -41,6 +41,18 @@ count and actual dates; it never appears only below the fold.
 - Selecting saved research replaces the ledger with the trades returned by
   that run's dedicated endpoint; rows from another run are never retained.
 
+## Пульс рынка на Dashboard
+
+- Selector показывает существующие свечные серии и все активные валютные пары
+  текущего источника, для которых получена live-котировка.
+- Валютные пары распознаются по двум поддерживаемым трёхбуквенным валютным
+  кодам; типичные брокерские префиксы и суффиксы имени не скрывают пару.
+- Металлы, индексы и криптовалюты не добавляются как FX только из-за наличия
+  котировки, но остаются доступны, если для них уже есть свечная серия.
+- История quote-only пары загружается после выбора одним ограниченным запросом;
+  Dashboard не загружает историю всех валютных пар заранее.
+- Выбор серии сохраняется в `montecarlo.dashboard.market-series.v1`.
+
 ## Localized run configuration
 
 - The application renders a neutral bootstrap until the versioned locale key

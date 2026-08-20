@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiClient } from "@/lib/api/client";
 import { mergeDashboardSnapshot } from "@/lib/dashboard";
@@ -12,6 +12,7 @@ const QUOTE_REFRESH_INTERVAL_MS = 500;
 export interface DashboardQuery {
   data: DashboardSnapshot | null;
   error: string | null;
+  loadCandles: (symbolId: string, timeframe: string) => Promise<void>;
 }
 
 async function loadDashboard(): Promise<DashboardSnapshot> {
@@ -28,6 +29,48 @@ async function loadDashboard(): Promise<DashboardSnapshot> {
 export function useDashboardData(): DashboardQuery {
   const [data, setData] = useState<DashboardSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const requestedSeries = useRef(new Set<string>());
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const loadCandles = useCallback(async (
+    symbolId: string,
+    timeframe: string,
+  ): Promise<void> => {
+    const key = `${symbolId}:${timeframe}`;
+    if (requestedSeries.current.has(key)) return;
+    requestedSeries.current.add(key);
+    try {
+      const candles = await apiClient.getCandles({
+        limit: 500,
+        symbolId,
+        timeframe,
+      });
+      if (!mounted.current) return;
+      setData((previous) => {
+        if (!previous) return previous;
+        const byId = new Map(
+          [...previous.candles, ...candles].map((candle) => [candle.id, candle]),
+        );
+        return mergeDashboardSnapshot(previous, {
+          ...previous,
+          candles: [...byId.values()],
+        });
+      });
+      setError(null);
+    } catch (reason: unknown) {
+      requestedSeries.current.delete(key);
+      if (mounted.current) {
+        setError(reason instanceof Error ? reason.message : "Unknown error");
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -36,7 +79,15 @@ export function useDashboardData(): DashboardQuery {
       try {
         const snapshot = await loadDashboard();
         if (active) {
-          setData((previous) => mergeDashboardSnapshot(previous, snapshot));
+          setData((previous) => {
+            const retainedSelected = previous?.candles.filter((candle) =>
+              requestedSeries.current.has(`${candle.symbol_id}:${candle.timeframe}`),
+            ) ?? [];
+            return mergeDashboardSnapshot(previous, {
+              ...snapshot,
+              candles: [...retainedSelected, ...snapshot.candles],
+            });
+          });
           setError(null);
         }
       } catch (reason: unknown) {
@@ -90,5 +141,5 @@ export function useDashboardData(): DashboardQuery {
     };
   }, []);
 
-  return { data, error };
+  return { data, error, loadCandles };
 }

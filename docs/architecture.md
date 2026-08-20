@@ -156,5 +156,10 @@ reuses its slower account/symbol/candle snapshot. Effect cleanup stops fast
 polling immediately when either route unmounts. Trades similarly polls only the
 small open-position snapshot at 500 ms for current P&L.
 
+Market pulse объединяет уже загруженные свечные серии со всеми активными
+валютными парами, присутствующими в latest quote snapshot. Для quote-only пары
+H1-свечи загружаются лениво после выбора одним дедуплицированным запросом с
+лимитом 500; отдельный realtime-поток для каждого инструмента не создаётся.
+
 The same backtest router is exposed under `/api/v1/tester/backtests` for
 non-browser clients. See [`backtesting-api.md`](backtesting-api.md).

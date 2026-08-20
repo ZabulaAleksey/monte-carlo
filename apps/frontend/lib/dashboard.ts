@@ -23,6 +23,35 @@ export interface MarketSeries {
   timeframe: string;
 }
 
+const CURRENCY_CODES = new Set(
+  (
+    "AED AFN ALL AMD AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND " +
+    "BOB BOV BRL BSD BTN BWP BYN BZD CAD CDF CHE CHF CHW CLF CLP CNH CNY " +
+    "COP COU CRC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP " +
+    "GEL GHS GIP GMD GNF GTQ GYD HKD HNL HTG HUF IDR ILS INR IQD IRR ISK " +
+    "JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL " +
+    "LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR MWK MXN MXV MYR MZN NAD " +
+    "NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF " +
+    "SAR SBD SCR SDG SEK SGD SHP SLE SLL SOS SRD SSP STN SVC SYP SZL THB TJS " +
+    "TMT TND TOP TRY TTD TWD TZS UAH UGX USD USN UYI UYU UYW UZS VED VES " +
+    "VND VUV WST XAF XCD XOF XPF YER ZAR ZMW ZWL"
+  ).split(" "),
+);
+
+export function isCurrencyPairSymbol(name: string): boolean {
+  const normalized = name.toUpperCase().replace(/[^A-Z]/g, "");
+  for (let index = 0; index <= normalized.length - 6; index += 1) {
+    const candidate = normalized.slice(index, index + 6);
+    if (
+      CURRENCY_CODES.has(candidate.slice(0, 3)) &&
+      CURRENCY_CODES.has(candidate.slice(3))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function isDemoAccount(account: AccountRecord): boolean {
   return account.external_id.toUpperCase().startsWith("DEMO-");
 }
@@ -174,6 +203,7 @@ export function buildMarketSeries(
   candles: CandleRecord[],
   symbols: SymbolRecord[],
   preferredSymbolIds: string[] = [],
+  quotes: QuoteRecord[] = [],
 ): MarketSeries[] {
   const symbolById = new Map(symbols.map((symbol) => [symbol.id, symbol]));
   const grouped = new Map<string, CandleRecord[]>();
@@ -189,7 +219,7 @@ export function buildMarketSeries(
     preferredSymbolIds.map((symbolId, index) => [symbolId, index]),
   );
 
-  return [...grouped.entries()]
+  const series = [...grouped.entries()]
     .flatMap(([key, records]) => {
       const symbol = symbolById.get(records[0]?.symbol_id ?? "");
       if (!symbol) return [];
@@ -202,12 +232,33 @@ export function buildMarketSeries(
         symbol,
         timeframe: sortedCandles[0]?.timeframe ?? "",
       }];
-    })
-    .sort((left, right) => {
+    });
+  const seriesSymbolIds = new Set(series.map((item) => item.symbol.id));
+  const quotedSymbolIds = new Set(quotes.map((quote) => quote.symbol_id));
+
+  for (const symbol of symbols) {
+    if (
+      symbol.is_active &&
+      quotedSymbolIds.has(symbol.id) &&
+      !seriesSymbolIds.has(symbol.id) &&
+      isCurrencyPairSymbol(symbol.name)
+    ) {
+      series.push({
+        candles: [],
+        key: `${symbol.id}:H1`,
+        symbol,
+        timeframe: "H1",
+      });
+    }
+  }
+
+  return series.sort((left, right) => {
       const leftPriority = preferredOrder.get(left.symbol.id) ?? Number.MAX_SAFE_INTEGER;
       const rightPriority = preferredOrder.get(right.symbol.id) ?? Number.MAX_SAFE_INTEGER;
       if (leftPriority !== rightPriority) return leftPriority - rightPriority;
-      return Date.parse(right.candles[0]?.open_time ?? "") -
-        Date.parse(left.candles[0]?.open_time ?? "");
+      const leftTime = Date.parse(left.candles[0]?.open_time ?? "") || 0;
+      const rightTime = Date.parse(right.candles[0]?.open_time ?? "") || 0;
+      if (leftTime !== rightTime) return rightTime - leftTime;
+      return left.symbol.name.localeCompare(right.symbol.name);
     });
 }

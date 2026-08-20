@@ -53,6 +53,9 @@ Stage 3 — Strategy engine and backtesting.
   P&L on Trades. The EA filters entry deals out of closed history.
 - Dashboard Market pulse uses route-local 500 ms quote-only refreshes; all
   heavier snapshot data keeps its 15-second cadence.
+- Market pulse включает все активные валютные пары с котировкой текущего
+  источника и лениво загружает до 500 свечей только для выбранной quote-only
+  серии; параллельные запросы одной серии дедуплицируются.
 - Backtest portfolio lines now plot realized balance and current liquidation
   equity directly, meeting whenever an open position is closed.
 
@@ -63,6 +66,8 @@ Stage 3 — Strategy engine and backtesting.
   loaded.
 - Live quotes are latest sampled snapshots. Complete raw tick history is not
   persisted; that would require a partitioned retention design.
+- Классификация FX на Dashboard основана на имени символа и списке валютных
+  кодов, поскольку текущий API символов не передаёт отдельный asset class.
 - Lot P&L currently uses price difference times MT5 contract size. Instruments
   requiring tick-value or account-currency conversion need a richer profit
   specification in a later iteration.

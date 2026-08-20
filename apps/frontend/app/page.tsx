@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDownRight, ArrowUpRight, Landmark, LineChart, WalletCards } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
@@ -41,21 +41,37 @@ function money(value: number, locale: string, currency = "USD"): string {
 
 export default function DashboardPage(): React.JSX.Element {
   const { intlLocale, t } = useI18n();
-  const { data, error } = useDashboardData();
+  const { data, error, loadCandles } = useDashboardData();
   const { status: mt5Status } = useMt5Status();
   const [selectedSeriesKey, setSelectedSeriesKey] = useState<string | null>(
     storedMarketSeries,
   );
   const account = selectPortfolioAccount(data?.accounts ?? []);
   const source = getDashboardSource(account);
-  const accountTrades = selectAccountTrades(data?.trades ?? [], account);
-  const sourceCandles = selectSourceCandles(data?.candles ?? [], source);
-  const sourceQuotes = selectSourceQuotes(data?.quotes ?? [], source);
-  const preferredSymbols = accountTrades.map((trade) => trade.symbol_id);
-  const marketSeries = buildMarketSeries(
-    sourceCandles,
-    data?.symbols ?? [],
-    preferredSymbols,
+  const accountTrades = useMemo(
+    () => selectAccountTrades(data?.trades ?? [], account),
+    [data?.trades, account],
+  );
+  const sourceCandles = useMemo(
+    () => selectSourceCandles(data?.candles ?? [], source),
+    [data?.candles, source],
+  );
+  const sourceQuotes = useMemo(
+    () => selectSourceQuotes(data?.quotes ?? [], source),
+    [data?.quotes, source],
+  );
+  const preferredSymbols = useMemo(
+    () => accountTrades.map((trade) => trade.symbol_id),
+    [accountTrades],
+  );
+  const marketSeries = useMemo(
+    () => buildMarketSeries(
+      sourceCandles,
+      data?.symbols ?? [],
+      preferredSymbols,
+      sourceQuotes,
+    ),
+    [sourceCandles, data?.symbols, preferredSymbols, sourceQuotes],
   );
   const activeSeries =
     marketSeries.find((series) => series.key === selectedSeriesKey) ??
@@ -63,12 +79,26 @@ export default function DashboardPage(): React.JSX.Element {
     null;
   const activeQuote =
     sourceQuotes.find((quote) => quote.symbol_id === activeSeries?.symbol.id) ?? null;
+  const activeSeriesSymbolId = activeSeries?.symbol.id ?? null;
+  const activeSeriesTimeframe = activeSeries?.timeframe ?? null;
+  const activeSeriesNeedsCandles = activeSeries?.candles.length === 0;
   const profit = accountTrades.reduce((total, trade) => total + Number(trade.profit), 0);
   const winners = accountTrades.filter((trade) => Number(trade.profit) > 0).length;
   const winRate = accountTrades.length ? (winners / accountTrades.length) * 100 : 0;
   const balance = Number(account?.balance ?? 0);
   const sourceLabel = account?.external_id ?? t("dashboard.noAccount");
   const translatedSource = source === "mt5" ? t("common.mt5") : t("common.demo");
+
+  useEffect(() => {
+    if (activeSeriesSymbolId && activeSeriesTimeframe && activeSeriesNeedsCandles) {
+      void loadCandles(activeSeriesSymbolId, activeSeriesTimeframe);
+    }
+  }, [
+    activeSeriesNeedsCandles,
+    activeSeriesSymbolId,
+    activeSeriesTimeframe,
+    loadCandles,
+  ]);
 
   const selectSeries = (key: string): void => {
     setSelectedSeriesKey(key);

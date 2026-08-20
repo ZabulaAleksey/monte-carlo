@@ -68,4 +68,53 @@ describe("useDashboardData", () => {
       expect(clearIntervalSpy).toHaveBeenCalledWith(intervalId);
     }
   });
+
+  it("loads one selected currency series once and merges its candles", async () => {
+    vi.mocked(apiClient.getAccounts).mockResolvedValue([]);
+    vi.mocked(apiClient.getCandles)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: "gbpjpy-h1",
+        symbol_id: "gbpjpy",
+        timeframe: "H1",
+        open_time: "2026-08-20T10:00:00Z",
+        open: "198.100",
+        high: "198.300",
+        low: "198.000",
+        close: "198.250",
+        volume: "10",
+        source: "mt5",
+      }])
+      .mockResolvedValue([]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([]);
+    vi.mocked(apiClient.getSymbols).mockResolvedValue([]);
+    vi.mocked(apiClient.getTrades).mockResolvedValue([]);
+    const setIntervalSpy = vi.spyOn(window, "setInterval");
+
+    const { result } = renderHook(() => useDashboardData());
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    await act(async () => {
+      await Promise.all([
+        result.current.loadCandles("gbpjpy", "H1"),
+        result.current.loadCandles("gbpjpy", "H1"),
+      ]);
+    });
+
+    expect(apiClient.getCandles).toHaveBeenCalledTimes(2);
+    expect(apiClient.getCandles).toHaveBeenLastCalledWith({
+      limit: 500,
+      symbolId: "gbpjpy",
+      timeframe: "H1",
+    });
+    expect(result.current.data?.candles).toHaveLength(1);
+
+    const snapshotTimer = setIntervalSpy.mock.calls.find(([, delay]) => delay === 15_000);
+    await act(async () => {
+      (snapshotTimer?.[0] as () => void)();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(apiClient.getCandles).toHaveBeenCalledTimes(3));
+    expect(result.current.data?.candles).toHaveLength(1);
+  });
 });
