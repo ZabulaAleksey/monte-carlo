@@ -172,3 +172,27 @@ trade information and make pause, stop and speed controls inconsistent.
 - The cutoff is exclusive, so an event on the next candle boundary is not
   visible early.
 - Replay-specific chart and ledger behavior is tested together.
+
+## 2026-08-20 — Состояние MT5 определяется по фактической активности
+
+Status: accepted for Stage 3.
+
+### Decision
+
+Соединение считается активным, если в пределах timeout получен heartbeat или
+успешный аутентифицированный пакет данных. Dashboard выбирает счёт по
+`account_external_id` активного терминала. Account и closed trades имеют
+отдельный короткий цикл обновления, независимый от минутной полной
+синхронизации EA.
+
+### Reason
+
+Котировки уже доказывают, что терминал и WebRequest работают. Требование только
+свежего heartbeat создавало противоречивый статус «не подключён» при живом
+рынке, а минутный snapshot задерживал баланс и торговые метрики.
+
+### Consequences
+
+- Любой успешный защищённый MT5 upload поддерживает online-статус.
+- Пустой batch сделок является корректным состоянием «закрытых сделок нет».
+- Dashboard обновляет account/trades каждые две секунды только пока открыт.

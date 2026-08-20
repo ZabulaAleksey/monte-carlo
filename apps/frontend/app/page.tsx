@@ -12,7 +12,10 @@ import { useDashboardData } from "@/hooks/use-dashboard-data";
 import { useMt5Status } from "@/hooks/use-mt5-status";
 import {
   buildMarketSeries,
+  calculatePortfolioMetrics,
   getDashboardSource,
+  isCurrencyPairSymbol,
+  MARKET_TIMEFRAMES,
   selectAccountTrades,
   selectPortfolioAccount,
   selectSourceCandles,
@@ -46,7 +49,10 @@ export default function DashboardPage(): React.JSX.Element {
   const [selectedSeriesKey, setSelectedSeriesKey] = useState<string | null>(
     storedMarketSeries,
   );
-  const account = selectPortfolioAccount(data?.accounts ?? []);
+  const account = selectPortfolioAccount(
+    data?.accounts ?? [],
+    mt5Status?.terminal?.account_external_id,
+  );
   const source = getDashboardSource(account);
   const accountTrades = useMemo(
     () => selectAccountTrades(data?.trades ?? [], account),
@@ -73,18 +79,39 @@ export default function DashboardPage(): React.JSX.Element {
     ),
     [sourceCandles, data?.symbols, preferredSymbols, sourceQuotes],
   );
+  const forexMarketSeries = useMemo(
+    () => marketSeries.filter((series) => isCurrencyPairSymbol(series.symbol.name)),
+    [marketSeries],
+  );
+  const selectableMarketSeries = forexMarketSeries.length > 0
+    ? forexMarketSeries
+    : marketSeries;
+  const firstSymbolId = selectableMarketSeries[0]?.symbol.id;
   const activeSeries =
-    marketSeries.find((series) => series.key === selectedSeriesKey) ??
-    marketSeries[0] ??
+    selectableMarketSeries.find((series) => series.key === selectedSeriesKey) ??
+    selectableMarketSeries.find(
+      (series) => series.symbol.id === firstSymbolId && series.timeframe === "H1",
+    ) ??
+    selectableMarketSeries[0] ??
     null;
+  const marketSymbols = useMemo(
+    () => [...new Map(
+      selectableMarketSeries.map((series) => [series.symbol.id, series.symbol]),
+    ).values()],
+    [selectableMarketSeries],
+  );
+  const marketTimeframes = forexMarketSeries.length > 0
+    ? MARKET_TIMEFRAMES
+    : [...new Set(selectableMarketSeries.map((series) => series.timeframe))];
   const activeQuote =
     sourceQuotes.find((quote) => quote.symbol_id === activeSeries?.symbol.id) ?? null;
   const activeSeriesSymbolId = activeSeries?.symbol.id ?? null;
   const activeSeriesTimeframe = activeSeries?.timeframe ?? null;
   const activeSeriesNeedsCandles = activeSeries?.candles.length === 0;
-  const profit = accountTrades.reduce((total, trade) => total + Number(trade.profit), 0);
-  const winners = accountTrades.filter((trade) => Number(trade.profit) > 0).length;
-  const winRate = accountTrades.length ? (winners / accountTrades.length) * 100 : 0;
+  const metrics = useMemo(
+    () => calculatePortfolioMetrics(accountTrades),
+    [accountTrades],
+  );
   const balance = Number(account?.balance ?? 0);
   const sourceLabel = account?.external_id ?? t("dashboard.noAccount");
   const translatedSource = source === "mt5" ? t("common.mt5") : t("common.demo");
@@ -134,14 +161,14 @@ export default function DashboardPage(): React.JSX.Element {
             <article className="metric-card">
               <div className="metric-icon"><LineChart size={19} /></div>
               <span>{t("dashboard.realized")}</span>
-              <strong className={profit >= 0 ? "positive" : "negative"}>{money(profit, intlLocale)}</strong>
-              <small><ArrowUpRight size={14} /> {t("dashboard.acrossTrades", { count: accountTrades.length })}</small>
+              <strong className={metrics.realizedNetProfit >= 0 ? "positive" : "negative"}>{money(metrics.realizedNetProfit, intlLocale)}</strong>
+              <small><ArrowUpRight size={14} /> {t("dashboard.acrossTrades", { count: metrics.closedTrades })}</small>
             </article>
             <article className="metric-card">
               <div className="metric-icon"><Landmark size={19} /></div>
               <span>{t("dashboard.winRate")}</span>
-              <strong>{winRate.toFixed(1)}%</strong>
-              <small>{winRate >= 50 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />} {t("dashboard.closedPositions")}</small>
+              <strong>{metrics.winRate.toFixed(1)}%</strong>
+              <small>{metrics.winRate >= 50 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />} {t("dashboard.closedPositions")}</small>
             </article>
             <article className="metric-card">
               <span>{t("dashboard.marketCoverage")}</span>
@@ -161,16 +188,31 @@ export default function DashboardPage(): React.JSX.Element {
                   <h2>{t("dashboard.marketPulse")}</h2>
                 </div>
                 <div className="market-controls">
-                  {marketSeries.length > 1 ? (
+                  {marketSymbols.length > 0 ? (
                     <select
                       aria-label={t("dashboard.marketInstrument")}
-                      value={activeSeries?.key ?? ""}
-                      onChange={(event) => selectSeries(event.target.value)}
+                      value={activeSeries?.symbol.id ?? ""}
+                      onChange={(event) => selectSeries(
+                        `${event.target.value}:${activeSeries?.timeframe ?? "H1"}`,
+                      )}
                     >
-                      {marketSeries.map((series) => (
-                        <option key={series.key} value={series.key}>
-                          {series.symbol.name} · {series.timeframe}
+                      {marketSymbols.map((symbol) => (
+                        <option key={symbol.id} value={symbol.id}>
+                          {symbol.name}
                         </option>
+                      ))}
+                    </select>
+                  ) : null}
+                  {marketTimeframes.length > 0 ? (
+                    <select
+                      aria-label={t("dashboard.marketTimeframe")}
+                      value={activeSeries?.timeframe ?? ""}
+                      onChange={(event) => selectSeries(
+                        `${activeSeries?.symbol.id ?? ""}:${event.target.value}`,
+                      )}
+                    >
+                      {marketTimeframes.map((timeframe) => (
+                        <option key={timeframe} value={timeframe}>{timeframe}</option>
                       ))}
                     </select>
                   ) : null}

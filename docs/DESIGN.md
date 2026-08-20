@@ -86,3 +86,14 @@ markers and exits.
 - A service banner links to the guide when backend or MT5 is offline.
 - `public/offline/index.html` is a self-contained localized recovery page that
   can be opened directly when no Docker container is running.
+
+## Dashboard: выбор рынка и метрики портфеля
+
+- Валютная пара и таймфрейм выбираются двумя независимыми полями. Для FX
+  доступны `M1`, `M5`, `M15`, `M30`, `H1`, `H4`, `D1`; итоговый
+  ключ серии сохраняется в прежнем local-storage контракте.
+- Баланс относится к счёту активного терминала MT5, определяемому по
+  `account_external_id`.
+- «Реализованный P&L» учитывает только закрытые сделки и показывает
+  `profit + commission + swap`. Доля прибыльных использует тот же чистый
+  результат сделки.

@@ -58,6 +58,16 @@ Stage 3 — Strategy engine and backtesting.
   серии; параллельные запросы одной серии дедуплицируются.
 - Backtest portfolio lines now plot realized balance and current liquidation
   equity directly, meeting whenever an open position is closed.
+- Dashboard разделяет выбор валютной пары и таймфрейма; для каждой активной
+  FX-пары доступны M1/M5/M15/M30/H1/H4/D1 с ленивой загрузкой выбранной серии.
+- Dashboard сопоставляет баланс с `account_external_id` активного терминала,
+  а account/trade метрики обновляет каждые две секунды.
+- Реализованный P&L и доля прибыльных рассчитываются по закрытым сделкам с
+  учётом commission и swap.
+- MT5 считается подключённым по свежему heartbeat или свежей успешной
+  аутентифицированной синхронизации; пустой список закрытых сделок допустим.
+- EA 2.30 отправляет account snapshot раз в секунду и обновляет закрытую
+  историю после `OnTradeTransaction`.
 
 ## Known constraints
 

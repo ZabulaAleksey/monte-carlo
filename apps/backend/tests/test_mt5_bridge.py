@@ -116,6 +116,30 @@ async def test_heartbeat_is_idempotent_and_status_is_public(client: AsyncClient)
 
 
 @pytest.mark.asyncio
+async def test_empty_trade_batch_is_a_valid_synchronized_state(client: AsyncClient) -> None:
+    await sync_account_and_symbol(client)
+
+    response = await client.post(
+        "/api/v1/mt5/trades/batch",
+        headers=HEADERS,
+        json={
+            "terminal_id": TERMINAL_ID,
+            "sent_at": now_iso(),
+            "account_external_id": ACCOUNT_ID,
+            "trades": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "received": 0,
+        "created": 0,
+        "updated": 0,
+        "removed": 0,
+    }
+
+
+@pytest.mark.asyncio
 async def test_candle_and_trade_batches_are_idempotent(client: AsyncClient) -> None:
     await sync_account_and_symbol(client)
     opened_at = datetime.now(UTC) - timedelta(hours=2)

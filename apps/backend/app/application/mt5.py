@@ -221,7 +221,7 @@ class Mt5SyncService:
 
     async def status(self, terminal_id: str | None) -> ConnectionStatus:
         terminal = await self._gateway.get_terminal_status(terminal_id)
-        if terminal is None or terminal.last_heartbeat_at is None:
+        if terminal is None:
             return ConnectionStatus(
                 configured=self._api_key_configured,
                 connected=False,
@@ -229,10 +229,17 @@ class Mt5SyncService:
                 stale_after_seconds=self._stale_after_seconds,
                 terminal=terminal,
             )
-        heartbeat = terminal.last_heartbeat_at
-        if heartbeat.tzinfo is None:
-            heartbeat = heartbeat.replace(tzinfo=UTC)
-        stale = datetime.now(UTC) - heartbeat > timedelta(seconds=self._stale_after_seconds)
+        activity = max(
+            (
+                value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+                for value in (terminal.last_heartbeat_at, terminal.last_sync_at)
+                if value is not None
+            ),
+            default=None,
+        )
+        stale = activity is None or datetime.now(UTC) - activity > timedelta(
+            seconds=self._stale_after_seconds
+        )
         return ConnectionStatus(
             configured=self._api_key_configured,
             connected=not stale,

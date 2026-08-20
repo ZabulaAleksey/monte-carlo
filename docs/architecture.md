@@ -151,10 +151,17 @@ constraints are reused for retry-safe batch upserts. See
 
 Live quotes use a bounded latest-state model rather than an unbounded raw tick
 table. The EA samples changed `time_msc` values in batches. `/market-data` and
-Dashboard mount route-local 500 ms polling; Dashboard refreshes only quotes and
-reuses its slower account/symbol/candle snapshot. Effect cleanup stops fast
-polling immediately when either route unmounts. Trades similarly polls only the
-small open-position snapshot at 500 ms for current P&L.
+Dashboard mount route-local 500 ms polling. Dashboard refreshes account and
+closed-trade metrics every two seconds while retaining its slower
+symbol/candle snapshot. Effect cleanup stops fast polling immediately when
+either route unmounts. Trades similarly polls only the small open-position
+snapshot at 500 ms for current P&L.
+
+Terminal liveness uses the freshest of `last_heartbeat_at` and
+`last_sync_at`: a recent authenticated quote/account/position/trade upload is
+proof that the bridge is online even if a dedicated heartbeat was delayed.
+Dashboard matches the portfolio account by the active terminal's
+`account_external_id`.
 
 Market pulse объединяет уже загруженные свечные серии со всеми активными
 валютными парами, присутствующими в latest quote snapshot. Для quote-only пары

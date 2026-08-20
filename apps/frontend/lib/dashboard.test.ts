@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import type { AccountRecord, CandleRecord, QuoteRecord, SymbolRecord } from "./api/types";
+import type {
+  AccountRecord,
+  CandleRecord,
+  QuoteRecord,
+  SymbolRecord,
+  TradeRecord,
+} from "./api/types";
 import {
   buildMarketSeries,
+  calculatePortfolioMetrics,
   getDashboardSource,
   mergeLiveQuotes,
   selectEnvironmentAccount,
@@ -34,6 +41,14 @@ describe("dashboard data selection", () => {
 
     expect(selected).toEqual(mt5Account);
     expect(getDashboardSource(selected)).toBe("mt5");
+  });
+
+  it("selects the account reported by the active terminal", () => {
+    const otherAccount = { ...mt5Account, id: "other", external_id: "200002" };
+
+    expect(
+      selectPortfolioAccount([otherAccount, mt5Account], mt5Account.external_id),
+    ).toEqual(mt5Account);
   });
 
   it("falls back to demo data when no MT5 account exists", () => {
@@ -179,10 +194,45 @@ describe("dashboard data selection", () => {
       [quote("eurusd"), quote("bgnusd"), quote("gbpjpy"), quote("xauusd")],
     );
 
-    expect(result.map((series) => series.key)).toEqual([
-      "bgnusd:H1",
-      "eurusd:H1",
-      "gbpjpy:H1",
-    ]);
+    expect(result).toHaveLength(21);
+    expect(result.filter((series) => series.symbol.id === "eurusd").map(
+      (series) => series.timeframe,
+    )).toEqual(["M1", "M5", "M15", "M30", "H1", "H4", "D1"]);
+    expect(result.some((series) => series.symbol.id === "xauusd")).toBe(false);
+  });
+
+  it("calculates realized net P&L and win rate from closed trades only", () => {
+    const trade = (
+      id: string,
+      profit: string,
+      commission: string,
+      swap: string,
+      status: TradeRecord["status"] = "closed",
+    ): TradeRecord => ({
+      id,
+      account_id: "mt5",
+      symbol_id: "eurusd",
+      external_id: id,
+      side: "buy",
+      volume: "0.10",
+      open_price: "1.10000",
+      close_price: status === "closed" ? "1.10100" : null,
+      opened_at: "2026-08-20T10:00:00Z",
+      closed_at: status === "closed" ? "2026-08-20T11:00:00Z" : null,
+      profit,
+      commission,
+      swap,
+      status,
+    });
+
+    expect(calculatePortfolioMetrics([
+      trade("winner", "100", "-10", "-5"),
+      trade("loser", "-20", "-2", "0"),
+      trade("open", "999", "0", "0", "open"),
+    ])).toEqual({
+      closedTrades: 2,
+      realizedNetProfit: 63,
+      winRate: 50,
+    });
   });
 });

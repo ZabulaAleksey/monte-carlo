@@ -117,4 +117,88 @@ describe("useDashboardData", () => {
     await waitFor(() => expect(apiClient.getCandles).toHaveBeenCalledTimes(3));
     expect(result.current.data?.candles).toHaveLength(1);
   });
+
+  it("refreshes account and closed trades every two seconds", async () => {
+    const account = (balance: string) => ({
+      id: "account",
+      external_id: "100001",
+      name: "MT5",
+      currency: "USD",
+      balance,
+      created_at: "2026-08-20T10:00:00Z",
+    });
+    vi.mocked(apiClient.getAccounts)
+      .mockResolvedValueOnce([account("10000")])
+      .mockResolvedValue([account("10100")]);
+    vi.mocked(apiClient.getCandles).mockResolvedValue([]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([]);
+    vi.mocked(apiClient.getSymbols).mockResolvedValue([]);
+    vi.mocked(apiClient.getTrades).mockResolvedValue([]);
+    const setIntervalSpy = vi.spyOn(window, "setInterval");
+
+    const { result } = renderHook(() => useDashboardData());
+    await waitFor(() => expect(result.current.data?.accounts[0]?.balance).toBe("10000"));
+    const metricsTimer = setIntervalSpy.mock.calls.find(([, delay]) => delay === 2_000);
+
+    await act(async () => {
+      (metricsTimer?.[0] as () => void)();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.data?.accounts[0]?.balance).toBe("10100"));
+    expect(apiClient.getTrades).toHaveBeenCalledTimes(2);
+    expect(apiClient.getTrades).toHaveBeenCalledWith(2_000);
+  });
+
+  it("does not let an older full snapshot overwrite newer portfolio metrics", async () => {
+    const account = (balance: string) => ({
+      id: "account",
+      external_id: "100001",
+      name: "MT5",
+      currency: "USD",
+      balance,
+      created_at: "2026-08-20T10:00:00Z",
+    });
+    let resolveOldAccounts!: (value: ReturnType<typeof account>[]) => void;
+    let resolveOldTrades!: (value: []) => void;
+    const oldAccounts = new Promise<ReturnType<typeof account>[]>((resolve) => {
+      resolveOldAccounts = resolve;
+    });
+    const oldTrades = new Promise<[]>((resolve) => {
+      resolveOldTrades = resolve;
+    });
+    vi.mocked(apiClient.getAccounts)
+      .mockResolvedValueOnce([account("10000")])
+      .mockReturnValueOnce(oldAccounts)
+      .mockResolvedValue([account("10200")]);
+    vi.mocked(apiClient.getTrades)
+      .mockResolvedValueOnce([])
+      .mockReturnValueOnce(oldTrades)
+      .mockResolvedValue([]);
+    vi.mocked(apiClient.getCandles).mockResolvedValue([]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([]);
+    vi.mocked(apiClient.getSymbols).mockResolvedValue([]);
+    const setIntervalSpy = vi.spyOn(window, "setInterval");
+
+    const { result } = renderHook(() => useDashboardData());
+    await waitFor(() => expect(result.current.data?.accounts[0]?.balance).toBe("10000"));
+    const snapshotTimer = setIntervalSpy.mock.calls.find(([, delay]) => delay === 15_000);
+    const metricsTimer = setIntervalSpy.mock.calls.find(([, delay]) => delay === 2_000);
+
+    await act(async () => {
+      (snapshotTimer?.[0] as () => void)();
+      await Promise.resolve();
+      (metricsTimer?.[0] as () => void)();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.data?.accounts[0]?.balance).toBe("10200"));
+
+    await act(async () => {
+      resolveOldAccounts([account("9900")]);
+      resolveOldTrades([]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.data?.accounts[0]?.balance).toBe("10200"));
+  });
 });

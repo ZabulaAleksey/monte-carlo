@@ -3,7 +3,7 @@
 //| Read-only data bridge from MetaTrader 5 to the analytics API.    |
 //+------------------------------------------------------------------+
 #property strict
-#property version   "2.20"
+#property version   "2.30"
 #property description "Read-only bridge. It never sends trading orders."
 
 input string BridgeBaseUrl       = "http://127.0.0.1:8000";
@@ -12,6 +12,8 @@ input string MT5_API_KEY         = "replace-with-at-least-32-random-characters";
 input int    HeartbeatSeconds    = 30;
 input int    QuoteMilliseconds   = 500;
 input int    PositionMilliseconds = 500;
+input int    AccountMilliseconds = 1000;
+input int    TradeRetrySeconds   = 5;
 input bool   IncludeAllBrokerQuotes = true;
 input int    HistoryRequestSeconds = 1;
 input int    SynchronizeSeconds  = 60;
@@ -27,6 +29,9 @@ datetime g_last_sync_at = 0;
 datetime g_last_heartbeat_at = 0;
 ulong    g_last_quote_at_ms = 0;
 ulong    g_last_position_at_ms = 0;
+ulong    g_last_account_at_ms = 0;
+datetime g_last_trade_sync_at = 0;
+bool     g_trade_sync_pending = true;
 datetime g_last_history_request_at = 0;
 datetime g_last_trade_at = 0;
 string   g_symbol_names[];
@@ -240,7 +245,10 @@ bool SendAccount()
                ",\"leverage\":"+IntegerToString(AccountInfoInteger(ACCOUNT_LEVERAGE))+
                ",\"company\":"+JsonString(AccountInfoString(ACCOUNT_COMPANY))+
                ",\"server\":"+JsonString(AccountInfoString(ACCOUNT_SERVER))+"}";
-   return HttpPost("/api/v1/mt5/account",body);
+   bool sent=HttpPost("/api/v1/mt5/account",body);
+   if(sent)
+      g_last_account_at_ms=GetTickCount64();
+   return sent;
   }
 
 void InitializeCandleSymbols()
@@ -747,7 +755,10 @@ int OnInit()
    if(SendHeartbeat())
       g_last_heartbeat_at=TimeLocal();
    if(SynchronizeAll())
+     {
       g_last_sync_at=TimeLocal();
+      g_trade_sync_pending=false;
+     }
    ProcessHistoricalRequest();
    return INIT_SUCCEEDED;
   }
@@ -755,6 +766,13 @@ int OnInit()
 void OnDeinit(const int reason)
   {
    EventKillTimer();
+  }
+
+void OnTradeTransaction(const MqlTradeTransaction &trans,
+                        const MqlTradeRequest &request,
+                        const MqlTradeResult &result)
+  {
+   g_trade_sync_pending=true;
   }
 
 void OnTimer()
@@ -772,6 +790,17 @@ void OnTimer()
    if(g_last_position_at_ms==0 ||
       now_ms-g_last_position_at_ms>=(ulong)MathMax(100,PositionMilliseconds))
       SendPositions();
+   if(g_last_account_at_ms==0 ||
+      now_ms-g_last_account_at_ms>=(ulong)MathMax(250,AccountMilliseconds))
+      SendAccount();
+   if(g_trade_sync_pending &&
+      (g_last_trade_sync_at==0 ||
+       now-g_last_trade_sync_at>=MathMax(1,TradeRetrySeconds)))
+     {
+      g_last_trade_sync_at=now;
+      if(SendTrades())
+         g_trade_sync_pending=false;
+     }
    if(g_last_history_request_at==0 ||
       now-g_last_history_request_at>=MathMax(1,HistoryRequestSeconds))
       ProcessHistoricalRequest();

@@ -66,6 +66,10 @@ consistent.
 - Positions use `(account_id, external_id)` and are treated as a complete
   current snapshot. Positions omitted from a later snapshot are removed. The
   EA refreshes profit and swap every `PositionMilliseconds` (500 ms by default).
+- Account state is refreshed independently every `AccountMilliseconds`
+  (one second by default). Closed history is refreshed after
+  `OnTradeTransaction` and retried on transient delivery failures. An empty
+  `trades` batch is a valid synchronized state.
 - Terminals and accounts use their external identifiers.
 
 The database keeps unique constraints as the final safety boundary. The
@@ -75,9 +79,10 @@ retry updates records instead of creating duplicates.
 ## Connection state
 
 Heartbeat receipt uses backend time, while terminal time is stored separately
-for diagnostics. A terminal is considered stale when no heartbeat has been
-received within `MT5_HEARTBEAT_TIMEOUT_SECONDS` (90 seconds by default). Data
-uploads update `last_sync_at`; heartbeat updates `last_heartbeat_at`.
+for diagnostics. A terminal is considered stale when neither a heartbeat nor a
+successful authenticated data upload has been received within
+`MT5_HEARTBEAT_TIMEOUT_SECONDS` (90 seconds by default). Data uploads update
+`last_sync_at`; heartbeat updates `last_heartbeat_at`.
 
 ## Expert Advisor setup
 

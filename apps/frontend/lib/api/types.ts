@@ -90,6 +90,7 @@ export interface Mt5TerminalStatus {
   terminal_id: string;
   terminal_name: string;
   terminal_build: number;
+  account_external_id?: string | null;
   last_heartbeat_at: string | null;
   terminal_time: string | null;
   last_sync_at: string | null;

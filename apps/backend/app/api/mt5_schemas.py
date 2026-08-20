@@ -224,7 +224,7 @@ class Mt5TradeItem(BaseModel):
 
 class Mt5TradesRequest(Mt5RequestBase):
     account_external_id: str = Field(min_length=1, max_length=64)
-    trades: list[Mt5TradeItem] = Field(min_length=1, max_length=1000)
+    trades: list[Mt5TradeItem] = Field(max_length=1000)
 
 
 class SyncResultResponse(BaseModel):
@@ -238,6 +238,7 @@ class TerminalStatusResponse(BaseModel):
     terminal_id: str
     terminal_name: str
     terminal_build: int
+    account_external_id: str | None
     last_heartbeat_at: datetime | None
     terminal_time: datetime | None
     last_sync_at: datetime | None

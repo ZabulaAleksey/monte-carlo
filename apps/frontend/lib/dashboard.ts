@@ -23,6 +23,8 @@ export interface MarketSeries {
   timeframe: string;
 }
 
+export const MARKET_TIMEFRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1"] as const;
+
 const CURRENCY_CODES = new Set(
   (
     "AED AFN ALL AMD AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND " +
@@ -56,10 +58,17 @@ export function isDemoAccount(account: AccountRecord): boolean {
   return account.external_id.toUpperCase().startsWith("DEMO-");
 }
 
-export function selectPortfolioAccount(accounts: AccountRecord[]): AccountRecord | null {
+export function selectPortfolioAccount(
+  accounts: AccountRecord[],
+  preferredExternalId?: string | null,
+): AccountRecord | null {
   const newestFirst = [...accounts].sort(
     (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
   );
+  const preferred = preferredExternalId
+    ? newestFirst.find((account) => account.external_id === preferredExternalId)
+    : null;
+  if (preferred) return preferred;
   return newestFirst.find((account) => !isDemoAccount(account)) ?? newestFirst[0] ?? null;
 }
 
@@ -86,6 +95,28 @@ export function selectAccountTrades(
 ): TradeRecord[] {
   if (!account) return [];
   return trades.filter((trade) => trade.account_id === account.id);
+}
+
+export interface PortfolioMetrics {
+  closedTrades: number;
+  realizedNetProfit: number;
+  winRate: number;
+}
+
+export function calculatePortfolioMetrics(trades: TradeRecord[]): PortfolioMetrics {
+  const closed = trades.filter((trade) => trade.status === "closed");
+  let realizedNetProfit = 0;
+  let winners = 0;
+  for (const trade of closed) {
+    const net = Number(trade.profit) + Number(trade.commission) + Number(trade.swap);
+    realizedNetProfit += net;
+    if (net > 0) winners += 1;
+  }
+  return {
+    closedTrades: closed.length,
+    realizedNetProfit,
+    winRate: closed.length ? (winners / closed.length) * 100 : 0,
+  };
 }
 
 export function selectSourceCandles(
@@ -233,22 +264,22 @@ export function buildMarketSeries(
         timeframe: sortedCandles[0]?.timeframe ?? "",
       }];
     });
-  const seriesSymbolIds = new Set(series.map((item) => item.symbol.id));
+  const seriesKeys = new Set(series.map((item) => item.key));
   const quotedSymbolIds = new Set(quotes.map((quote) => quote.symbol_id));
 
   for (const symbol of symbols) {
     if (
       symbol.is_active &&
       quotedSymbolIds.has(symbol.id) &&
-      !seriesSymbolIds.has(symbol.id) &&
       isCurrencyPairSymbol(symbol.name)
     ) {
-      series.push({
-        candles: [],
-        key: `${symbol.id}:H1`,
-        symbol,
-        timeframe: "H1",
-      });
+      for (const timeframe of MARKET_TIMEFRAMES) {
+        const key = `${symbol.id}:${timeframe}`;
+        if (!seriesKeys.has(key)) {
+          series.push({ candles: [], key, symbol, timeframe });
+          seriesKeys.add(key);
+        }
+      }
     }
   }
 

@@ -26,6 +26,8 @@ def test_mql5_bridge_exposes_documented_connection_inputs() -> None:
     assert "input string MT5_API_KEY" in source
     assert "input int    QuoteMilliseconds" in source
     assert "input int    PositionMilliseconds" in source
+    assert "input int    AccountMilliseconds" in source
+    assert "input int    TradeRetrySeconds" in source
     assert "input bool   IncludeAllBrokerQuotes" in source
     assert "input int    HistoryRequestSeconds" in source
     assert "input int    CandleLookbackDays" in source
@@ -33,6 +35,9 @@ def test_mql5_bridge_exposes_documented_connection_inputs() -> None:
     assert "SymbolInfoTick(symbol,tick)" in source
     assert "EventSetMillisecondTimer(250)" in source
     assert "now_ms-g_last_position_at_ms" in source
+    assert "now_ms-g_last_account_at_ms" in source
+    assert "void OnTradeTransaction(" in source
+    assert "g_trade_sync_pending=true" in source
     assert "BridgeApiKey" not in source
 
 

@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import DashboardPage from "./page";
 
@@ -22,6 +22,8 @@ import { apiClient } from "@/lib/api/client";
 import { I18nProvider } from "@/lib/i18n";
 
 describe("DashboardPage", () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     vi.mocked(apiClient.getAccounts).mockResolvedValue([]);
     vi.mocked(apiClient.getCandles).mockResolvedValue([]);
@@ -147,7 +149,7 @@ describe("DashboardPage", () => {
     ]);
     vi.mocked(apiClient.getSymbols).mockResolvedValue([
       { id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100000" },
-      { id: "xauusd", name: "XAUUSD", description: "Gold", digits: 2, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100" },
+      { id: "gbpjpy", name: "GBPJPY", description: "Pound / Yen", digits: 3, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100000" },
     ]);
     vi.mocked(apiClient.getCandles).mockResolvedValue([
       {
@@ -163,15 +165,35 @@ describe("DashboardPage", () => {
         source: "mt5",
       },
       {
-        id: "xau-candle",
-        symbol_id: "xauusd",
+        id: "gbp-candle",
+        symbol_id: "gbpjpy",
         timeframe: "H1",
         open_time: "2026-08-01T12:00:00Z",
-        open: "4050.00",
-        high: "4060.00",
-        low: "4040.00",
-        close: "4055.00",
+        open: "198.100",
+        high: "198.300",
+        low: "198.000",
+        close: "198.250",
         volume: "100",
+        source: "mt5",
+      },
+    ]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([
+      {
+        symbol_id: "eurusd",
+        terminal_id: "terminal-test",
+        bid: "1.08490",
+        ask: "1.08510",
+        observed_at: "2026-08-01T12:30:00Z",
+        received_at: "2026-08-01T12:30:01Z",
+        source: "mt5",
+      },
+      {
+        symbol_id: "gbpjpy",
+        terminal_id: "terminal-test",
+        bid: "198.240",
+        ask: "198.260",
+        observed_at: "2026-08-01T12:30:00Z",
+        received_at: "2026-08-01T12:30:01Z",
         source: "mt5",
       },
     ]);
@@ -181,19 +203,30 @@ describe("DashboardPage", () => {
     );
 
     const first = render(<DashboardPage />);
-    const select = await screen.findByRole("combobox", {
+    const instrumentSelect = await screen.findByRole("combobox", {
       name: "Market pulse instrument",
     });
-    expect(select).toHaveValue("eurusd:H1");
-    fireEvent.change(select, { target: { value: "xauusd:H1" } });
+    const timeframeSelect = screen.getByRole("combobox", {
+      name: "Market pulse timeframe",
+    });
+    expect(instrumentSelect).toHaveValue("eurusd");
+    expect(timeframeSelect).toHaveValue("H1");
+    fireEvent.change(instrumentSelect, { target: { value: "gbpjpy" } });
     expect(window.localStorage.getItem("montecarlo.dashboard.market-series.v1")).toBe(
-      "xauusd:H1",
+      "gbpjpy:H1",
+    );
+    fireEvent.change(timeframeSelect, { target: { value: "M5" } });
+    expect(window.localStorage.getItem("montecarlo.dashboard.market-series.v1")).toBe(
+      "gbpjpy:M5",
     );
     first.unmount();
 
     render(<DashboardPage />);
     expect(
       await screen.findByRole("combobox", { name: "Market pulse instrument" }),
-    ).toHaveValue("xauusd:H1");
+    ).toHaveValue("gbpjpy");
+    expect(
+      screen.getByRole("combobox", { name: "Market pulse timeframe" }),
+    ).toHaveValue("M5");
   });
 });

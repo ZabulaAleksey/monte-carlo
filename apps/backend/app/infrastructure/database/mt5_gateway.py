@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import delete, func, select, tuple_
+from sqlalchemy import case, delete, func, select, tuple_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -424,8 +424,23 @@ class SqlAlchemyMt5SyncGateway:
         if terminal_id is not None:
             query = query.where(Mt5TerminalModel.terminal_id == terminal_id)
         else:
+            latest_activity = case(
+                (
+                    Mt5TerminalModel.last_heartbeat_at.is_(None),
+                    Mt5TerminalModel.last_sync_at,
+                ),
+                (
+                    Mt5TerminalModel.last_sync_at.is_(None),
+                    Mt5TerminalModel.last_heartbeat_at,
+                ),
+                (
+                    Mt5TerminalModel.last_sync_at > Mt5TerminalModel.last_heartbeat_at,
+                    Mt5TerminalModel.last_sync_at,
+                ),
+                else_=Mt5TerminalModel.last_heartbeat_at,
+            )
             query = query.order_by(
-                Mt5TerminalModel.last_heartbeat_at.desc(),
+                latest_activity.desc(),
                 Mt5TerminalModel.created_at.desc(),
             )
         terminal = await self._session.scalar(query.limit(1))

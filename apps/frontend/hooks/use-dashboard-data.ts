@@ -8,6 +8,8 @@ import type { DashboardSnapshot } from "@/lib/dashboard";
 
 const REFRESH_INTERVAL_MS = 15_000;
 const QUOTE_REFRESH_INTERVAL_MS = 500;
+const METRICS_REFRESH_INTERVAL_MS = 2_000;
+const DASHBOARD_TRADES_LIMIT = 2_000;
 
 export interface DashboardQuery {
   data: DashboardSnapshot | null;
@@ -20,7 +22,7 @@ async function loadDashboard(): Promise<DashboardSnapshot> {
     apiClient.getAccounts(),
     apiClient.getCandles(500),
     apiClient.getSymbols(),
-    apiClient.getTrades(),
+    apiClient.getTrades(DASHBOARD_TRADES_LIMIT),
     apiClient.getQuotes(),
   ]);
   return { accounts, candles, symbols, trades, quotes };
@@ -30,6 +32,7 @@ export function useDashboardData(): DashboardQuery {
   const [data, setData] = useState<DashboardSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestedSeries = useRef(new Set<string>());
+  const metricsRevision = useRef(0);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -74,8 +77,45 @@ export function useDashboardData(): DashboardQuery {
 
   useEffect(() => {
     let active = true;
+    let inFlight = false;
+
+    const refreshMetrics = async (): Promise<void> => {
+      if (inFlight || document.visibilityState === "hidden") return;
+      inFlight = true;
+      try {
+        const [accounts, trades] = await Promise.all([
+          apiClient.getAccounts(),
+          apiClient.getTrades(DASHBOARD_TRADES_LIMIT),
+        ]);
+        if (active) {
+          metricsRevision.current += 1;
+          setData((previous) => previous ? { ...previous, accounts, trades } : previous);
+          setError(null);
+        }
+      } catch (reason: unknown) {
+        if (active) {
+          setError(reason instanceof Error ? reason.message : "Unknown error");
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const intervalId = window.setInterval(
+      () => void refreshMetrics(),
+      METRICS_REFRESH_INTERVAL_MS,
+    );
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
 
     const refresh = async (): Promise<void> => {
+      const revisionAtStart = metricsRevision.current;
       try {
         const snapshot = await loadDashboard();
         if (active) {
@@ -83,10 +123,17 @@ export function useDashboardData(): DashboardQuery {
             const retainedSelected = previous?.candles.filter((candle) =>
               requestedSeries.current.has(`${candle.symbol_id}:${candle.timeframe}`),
             ) ?? [];
-            return mergeDashboardSnapshot(previous, {
+            const merged = mergeDashboardSnapshot(previous, {
               ...snapshot,
               candles: [...retainedSelected, ...snapshot.candles],
             });
+            return previous && metricsRevision.current !== revisionAtStart
+              ? {
+                  ...merged,
+                  accounts: previous.accounts,
+                  trades: previous.trades,
+                }
+              : merged;
           });
           setError(null);
         }

@@ -25,6 +25,8 @@ request to read and upload an exact candle range; trading actions are impossible
    MT5_API_KEY from mt5/config.local. `IncludeAllBrokerQuotes=true` exposes all
    broker instruments, `QuoteMilliseconds=500` controls quote sampling, and
    `PositionMilliseconds=500` controls open-position P&L snapshots.
+   `AccountMilliseconds=1000` controls account balance/equity snapshots,
+   `TradeRetrySeconds=5` controls closed-deal retry after a trade event, and
    `HistoryRequestSeconds=1` controls historical request polling.
 
 The EA exposes all three values as input parameters in
@@ -45,6 +47,10 @@ prints request headers, bodies, or the key. Temporary network errors, HTTP 408,
   default) and uploaded in batches of at most 500 symbols.
 - Open positions, including their current price, profit and swap, are uploaded
   every `PositionMilliseconds` (500 ms by default).
+- Account balance/equity is uploaded independently every
+  `AccountMilliseconds` (one second by default). A trade transaction schedules
+  an immediate closed-history refresh, retried every `TradeRetrySeconds` after
+  a transient failure.
 - The initial Market Watch selection is captured for background candle sync.
   Expanding live quotes to all broker symbols therefore does not trigger a
   ten-year candle backfill for every broker instrument.
