@@ -6,6 +6,15 @@ Stage 3 — Strategy engine and backtesting.
 
 ## Implemented
 
+- Frontend route files сведены к композиции feature screens; общий polling
+  primitive используется Dashboard, Trades, Market Data, quotes и MT5 status.
+  Account/environment, MT5 presentation state, форматирование и табличные
+  ViewModel вынесены из страниц в чистые модули.
+- Колонки настройки и результата Strategies независимо прокручиваются на
+  desktop, сохраняя обычную прокрутку страницы на узком экране.
+- Backtest drawdown теперь равна максимальному adverse-разрыву между
+  реализованным балансом и стоимостью «при закрытии сейчас»; старые runs
+  нормализуются из сохранённых balance/equity points при чтении.
 - Missing historical intervals are split at UTC year boundaries and requested
   sequentially before a partial backtest is allowed; the active year is visible
   in the loading status.

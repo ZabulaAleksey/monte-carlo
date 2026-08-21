@@ -1,4 +1,5 @@
 import { Trash2 } from "lucide-react";
+import { useMemo } from "react";
 
 import type { BacktestRunSummary, SymbolRecord } from "@/lib/api/types";
 import { formatMoney, formatPercent } from "@/lib/backtests";
@@ -32,6 +33,10 @@ export function BacktestRunsTable({
   const { intlLocale, t } = useI18n();
   const allSelected = runs.length > 0 && selectedRunIds.size === runs.length;
   const partiallySelected = selectedRunIds.size > 0 && !allSelected;
+  const symbolNames = useMemo(
+    () => new Map(symbols.map((symbol) => [symbol.id, symbol.name])),
+    [symbols],
+  );
 
   return (
     <section className="panel table-panel backtest-runs">
@@ -121,7 +126,7 @@ export function BacktestRunsTable({
                     </button>
                   </td>
                   <td>
-                    {symbols.find((item) => item.id === run.symbol_id)?.name ?? "—"} / {run.timeframe}
+                    {symbolNames.get(run.symbol_id) ?? "—"} / {run.timeframe}
                   </td>
                   <td className={Number(run.return_pct) >= 0 ? "positive" : "negative"}>
                     {formatPercent(run.return_pct)}

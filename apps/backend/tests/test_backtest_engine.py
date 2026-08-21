@@ -417,6 +417,37 @@ async def test_drawdown_tracks_current_unrealized_position_loss() -> None:
 
 
 @pytest.mark.asyncio
+async def test_max_drawdown_is_the_largest_balance_to_equity_gap() -> None:
+    candles = [
+        candle(1, open_price="100"),
+        candle(2, open_price="100", close="200"),
+        candle(3, open_price="200"),
+        candle(4, open_price="200", close="190"),
+        candle(5, open_price="150"),
+    ]
+
+    result = await run_engine(
+        candles,
+        ScriptedStrategy({
+            1: Signal.BUY,
+            2: Signal.CLOSE,
+            3: Signal.BUY,
+            4: Signal.CLOSE,
+        }),
+        settings(),
+    )
+
+    assert result.equity_curve[1].balance == Decimal("1000")
+    assert result.equity_curve[1].equity == Decimal("1100")
+    assert result.equity_curve[3].balance == Decimal("1100")
+    assert result.equity_curve[3].equity == Decimal("1090")
+    assert result.equity_curve[4].balance == Decimal("1050")
+    assert result.equity_curve[4].equity == Decimal("1050")
+    assert result.equity_curve[4].drawdown_absolute == Decimal("0")
+    assert result.metrics.max_drawdown_absolute == Decimal("10")
+
+
+@pytest.mark.asyncio
 async def test_bankruptcy_closes_position_and_stops_future_strategy_calls() -> None:
     candles = [
         candle(1, open_price="100"),

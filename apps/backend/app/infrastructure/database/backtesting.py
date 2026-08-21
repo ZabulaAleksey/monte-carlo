@@ -8,6 +8,10 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.domain.backtesting.drawdown import (
+    unrealized_drawdown_absolute,
+    unrealized_drawdown_pct,
+)
 from app.domain.backtesting.models import (
     MAX_BACKTEST_CANDLES,
     BacktestMetrics,
@@ -393,27 +397,33 @@ class SqlAlchemyBacktestRunRepository:
                 str(model.settings.get("slippage_points", "0"))
             ),
         )
+        equity_curve = tuple(
+            EquityPoint(
+                sequence=item.sequence,
+                timestamp=_utc(item.timestamp),
+                balance=item.balance,
+                equity=item.equity,
+                drawdown_absolute=unrealized_drawdown_absolute(
+                    item.balance, item.equity
+                ),
+                drawdown_pct=unrealized_drawdown_pct(item.balance, item.equity),
+            )
+            for item in model.equity_points
+        )
         metrics = BacktestMetrics(
             initial_capital=Decimal(str(model.metrics["initial_capital"])),
             final_balance=Decimal(str(model.metrics["final_balance"])),
             final_equity=Decimal(str(model.metrics["final_equity"])),
             total_net_profit=Decimal(str(model.metrics["total_net_profit"])),
             return_pct=Decimal(str(model.metrics["return_pct"])),
-            max_drawdown_absolute=Decimal(
-                str(
-                    model.metrics.get(
-                        "max_drawdown_absolute",
-                        max(
-                            (
-                                point.drawdown_absolute
-                                for point in model.equity_points
-                            ),
-                            default=Decimal("0"),
-                        ),
-                    )
-                )
+            max_drawdown_absolute=max(
+                (point.drawdown_absolute for point in equity_curve),
+                default=Decimal("0"),
             ),
-            max_drawdown_pct=Decimal(str(model.metrics["max_drawdown_pct"])),
+            max_drawdown_pct=max(
+                (point.drawdown_pct for point in equity_curve),
+                default=Decimal("0"),
+            ),
             total_trades=int(str(model.metrics["total_trades"])),
             winning_trades=int(str(model.metrics["winning_trades"])),
             losing_trades=int(str(model.metrics["losing_trades"])),
@@ -423,17 +433,6 @@ class SqlAlchemyBacktestRunRepository:
             total_swap=Decimal(str(model.metrics["total_swap"])),
         )
         trades = tuple(self._trade(item) for item in model.trades)
-        equity_curve = tuple(
-            EquityPoint(
-                sequence=item.sequence,
-                timestamp=_utc(item.timestamp),
-                balance=item.balance,
-                equity=item.equity,
-                drawdown_absolute=item.drawdown_absolute,
-                drawdown_pct=item.drawdown_pct,
-            )
-            for item in model.equity_points
-        )
         return BacktestResult(
             symbol_id=model.symbol_id,
             timeframe=model.timeframe,

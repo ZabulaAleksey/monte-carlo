@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api/client";
 import { mergeDashboardSnapshot } from "@/lib/dashboard";
 import type { DashboardSnapshot } from "@/lib/dashboard";
+import { usePollingQuery } from "./use-polling-query";
 
 const REFRESH_INTERVAL_MS = 15_000;
 const QUOTE_REFRESH_INTERVAL_MS = 500;
@@ -55,13 +56,34 @@ async function loadDashboard(): Promise<DashboardSnapshot> {
   return { accounts, candles, symbols, trades, quotes };
 }
 
+async function loadDashboardMetrics(): Promise<Pick<DashboardSnapshot, "accounts" | "trades">> {
+  const [accounts, trades] = await Promise.all([
+    apiClient.getAccounts(),
+    apiClient.getTrades(DASHBOARD_TRADES_LIMIT),
+  ]);
+  return { accounts, trades };
+}
+
 export function useDashboardData(): DashboardQuery {
   const [data, setData] = useState<DashboardSnapshot | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
   const [loadingSeriesKey, setLoadingSeriesKey] = useState<string | null>(null);
   const requestedSeries = useRef(new Set<string>());
-  const metricsRevision = useRef(0);
   const mounted = useRef(true);
+  const snapshotQuery = usePollingQuery<DashboardSnapshot>({
+    intervalMs: REFRESH_INTERVAL_MS,
+    loader: loadDashboard,
+  });
+  const metricsQuery = usePollingQuery<Pick<DashboardSnapshot, "accounts" | "trades">>({
+    immediate: false,
+    intervalMs: METRICS_REFRESH_INTERVAL_MS,
+    loader: loadDashboardMetrics,
+  });
+  const quotesQuery = usePollingQuery<DashboardSnapshot["quotes"]>({
+    immediate: false,
+    intervalMs: QUOTE_REFRESH_INTERVAL_MS,
+    loader: () => apiClient.getQuotes(),
+  });
 
   useEffect(() => {
     mounted.current = true;
@@ -123,11 +145,11 @@ export function useDashboardData(): DashboardQuery {
           candles: [...byId.values()],
         });
       });
-      setError(null);
+      setSeriesError(null);
     } catch (reason: unknown) {
       requestedSeries.current.delete(key);
       if (mounted.current) {
-        setError(reason instanceof Error ? reason.message : "Unknown error");
+        setSeriesError(reason instanceof Error ? reason.message : "Unknown error");
       }
     } finally {
       if (mounted.current) {
@@ -137,125 +159,40 @@ export function useDashboardData(): DashboardQuery {
   }, []);
 
   useEffect(() => {
-    let active = true;
-    let inFlight = false;
-
-    const refreshMetrics = async (): Promise<void> => {
-      if (inFlight || document.visibilityState === "hidden") return;
-      inFlight = true;
-      try {
-        const [accounts, trades] = await Promise.all([
-          apiClient.getAccounts(),
-          apiClient.getTrades(DASHBOARD_TRADES_LIMIT),
-        ]);
-        if (active) {
-          metricsRevision.current += 1;
-          setData((previous) => previous
-            ? { ...previous, accounts, trades }
-            : {
-                accounts,
-                trades,
-                candles: [],
-                quotes: [],
-                symbols: [],
-              });
-          setError(null);
-        }
-      } catch (reason: unknown) {
-        if (active) {
-          setError(reason instanceof Error ? reason.message : "Unknown error");
-        }
-      } finally {
-        inFlight = false;
-      }
-    };
-
-    const intervalId = window.setInterval(
-      () => void refreshMetrics(),
-      METRICS_REFRESH_INTERVAL_MS,
-    );
-    return () => {
-      active = false;
-      window.clearInterval(intervalId);
-    };
-  }, []);
+    const metrics = metricsQuery.data;
+    if (!metrics) return;
+    setData((previous) => previous
+      ? { ...previous, ...metrics }
+      : { ...metrics, candles: [], quotes: [], symbols: [] });
+  }, [metricsQuery.data]);
 
   useEffect(() => {
-    let active = true;
-
-    const refresh = async (): Promise<void> => {
-      const revisionAtStart = metricsRevision.current;
-      try {
-        const snapshot = await loadDashboard();
-        if (active) {
-          setData((previous) => {
-            const retainedSelected = previous?.candles.filter((candle) =>
-              requestedSeries.current.has(`${candle.symbol_id}:${candle.timeframe}`),
-            ) ?? [];
-            const merged = mergeDashboardSnapshot(previous, {
-              ...snapshot,
-              candles: [...retainedSelected, ...snapshot.candles],
-            });
-            return previous && metricsRevision.current !== revisionAtStart
-              ? {
-                  ...merged,
-                  accounts: previous.accounts,
-                  trades: previous.trades,
-                }
-              : merged;
-          });
-          setError(null);
-        }
-      } catch (reason: unknown) {
-        if (active) {
-          setError(reason instanceof Error ? reason.message : "Unknown error");
-        }
-      }
-    };
-
-    void refresh();
-    const intervalId = window.setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
-    return () => {
-      active = false;
-      window.clearInterval(intervalId);
-    };
-  }, []);
+    const snapshot = snapshotQuery.data;
+    if (!snapshot) return;
+    setData((previous) => {
+      const retainedSelected = previous?.candles.filter((candle) =>
+        requestedSeries.current.has(`${candle.symbol_id}:${candle.timeframe}`),
+      ) ?? [];
+      const merged = mergeDashboardSnapshot(previous, {
+        ...snapshot,
+        candles: [...retainedSelected, ...snapshot.candles],
+      });
+      return previous
+        ? { ...merged, accounts: previous.accounts, trades: previous.trades }
+        : merged;
+    });
+  }, [snapshotQuery.data]);
 
   useEffect(() => {
-    let active = true;
-    let inFlight = false;
+    if (!quotesQuery.data) return;
+    setData((previous) => previous
+      ? mergeDashboardSnapshot(previous, { ...previous, quotes: quotesQuery.data ?? [] })
+      : previous);
+  }, [quotesQuery.data]);
 
-    const refreshQuotes = async (): Promise<void> => {
-      if (inFlight || document.visibilityState === "hidden") return;
-      inFlight = true;
-      try {
-        const quotes = await apiClient.getQuotes();
-        if (active) {
-          setData((previous) =>
-            previous
-              ? mergeDashboardSnapshot(previous, { ...previous, quotes })
-              : previous,
-          );
-          setError(null);
-        }
-      } catch (reason: unknown) {
-        if (active) {
-          setError(reason instanceof Error ? reason.message : "Unknown error");
-        }
-      } finally {
-        inFlight = false;
-      }
-    };
-
-    const intervalId = window.setInterval(
-      () => void refreshQuotes(),
-      QUOTE_REFRESH_INTERVAL_MS,
-    );
-    return () => {
-      active = false;
-      window.clearInterval(intervalId);
-    };
-  }, []);
-
+  const error = seriesError
+    ?? metricsQuery.error
+    ?? snapshotQuery.error
+    ?? quotesQuery.error;
   return { data, error, loadingSeriesKey, loadCandles };
 }

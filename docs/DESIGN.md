@@ -33,7 +33,7 @@ count and actual dates; it never appears only below the fold.
 - The green portfolio curve is realized balance after closed operations. The
   red curve is current liquidation value (`balance + unrealized P&L + swap`).
   They share the replay clock and monetary axis, diverge while a position is
-  open and meet at every close. Peak-to-trough drawdown remains a separate
+  open and meet at every close. The adverse balance-to-equity gap remains a separate
   summary metric in the caption.
 - Equity time ticks always include a year. The candle execution map displays
   quote values on its vertical axis with instrument precision capped at six

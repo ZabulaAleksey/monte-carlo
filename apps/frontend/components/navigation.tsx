@@ -16,6 +16,7 @@ import { usePathname } from "next/navigation";
 import { LanguageFlag } from "@/components/language-flag";
 import { useMt5Status } from "@/hooks/use-mt5-status";
 import { supportedLocales, useI18n } from "@/lib/i18n";
+import { buildMt5ConnectionViewModel } from "@/lib/mt5-connection";
 
 const links = [
   { href: "/", label: "nav.dashboard" as const, icon: LayoutDashboard },
@@ -32,19 +33,18 @@ export function Navigation(): React.JSX.Element {
   const pathname = usePathname();
   const { locale, setLocale, t } = useI18n();
   const { error, status } = useMt5Status();
-  const connected = status?.connected === true;
-  const checking = status === null && error === null;
-  const environmentState = connected ? "online" : checking ? "checking" : "offline";
-  const environmentLabel = connected
+  const connection = buildMt5ConnectionViewModel(status, error);
+  const environmentState = connection.online ? "online" : connection.state === "checking" ? "checking" : "offline";
+  const environmentLabel = connection.online
     ? t("status.online")
-    : checking
+    : connection.state === "checking"
       ? t("status.checking")
       : t("status.demo");
-  const environmentDetail = connected
+  const environmentDetail = connection.online
     ? t("status.feedOnline")
-    : error
+    : connection.state === "backend-unavailable"
       ? t("status.unavailable")
-      : status?.configured
+      : connection.configured
         ? t("status.feedOffline")
         : t("status.sampleFeed");
 

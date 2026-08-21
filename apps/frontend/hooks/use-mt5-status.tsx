@@ -3,13 +3,12 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
-  useState,
 } from "react";
 
 import { apiClient } from "@/lib/api/client";
 import type { Mt5Status } from "@/lib/api/types";
+import { usePollingQuery } from "./use-polling-query";
 
 const STATUS_REFRESH_INTERVAL_MS = 5_000;
 
@@ -25,33 +24,10 @@ export function Mt5StatusProvider({
 }: {
   children: React.ReactNode;
 }): React.JSX.Element {
-  const [status, setStatus] = useState<Mt5Status | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    const refresh = async (): Promise<void> => {
-      try {
-        const nextStatus = await apiClient.getMt5Status();
-        if (active) {
-          setStatus(nextStatus);
-          setError(null);
-        }
-      } catch (reason: unknown) {
-        if (active) {
-          setError(reason instanceof Error ? reason.message : "Unknown error");
-        }
-      }
-    };
-
-    void refresh();
-    const intervalId = window.setInterval(() => void refresh(), STATUS_REFRESH_INTERVAL_MS);
-    return () => {
-      active = false;
-      window.clearInterval(intervalId);
-    };
-  }, []);
+  const { data: status, error } = usePollingQuery<Mt5Status>({
+    intervalMs: STATUS_REFRESH_INTERVAL_MS,
+    loader: () => apiClient.getMt5Status(),
+  });
 
   const value = useMemo(() => ({ error, status }), [error, status]);
   return (

@@ -1,10 +1,13 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from uuid import UUID
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.backtest_dependencies import (
     get_backtest_job_manager,
@@ -14,6 +17,7 @@ from app.application.backtest_jobs import BacktestJobManager
 from app.application.backtesting import BacktestRunRequest
 from app.domain.backtesting.interfaces import BacktestControl
 from app.domain.backtesting.models import StoredBacktestResult
+from app.infrastructure.database.models import BacktestRunModel
 from app.main import app
 from tests.test_trading_data import create_symbol
 
@@ -40,6 +44,7 @@ async def confirm_coverage(
 @pytest.mark.asyncio
 async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
     client: AsyncClient,
+    session: AsyncSession,
 ) -> None:
     symbol = await create_symbol(client)
     start = datetime(2026, 1, 1, tzinfo=UTC)
@@ -135,6 +140,31 @@ async def test_demo_strategy_run_is_persisted_with_trades_and_equity(
     assert other_run_trades.status_code == 200
     assert first_run_trades.json() == result["trades"]
     assert other_run_trades.json() == other.json()["trades"]
+
+    legacy_query = await session.execute(
+        select(BacktestRunModel)
+        .options(selectinload(BacktestRunModel.equity_points))
+        .where(BacktestRunModel.id == UUID(result["id"]))
+    )
+    legacy_run = legacy_query.scalar_one()
+    for point in legacy_run.equity_points:
+        point.balance = Decimal("1050")
+        point.equity = Decimal("1050")
+        point.drawdown_absolute = Decimal("999")
+        point.drawdown_pct = Decimal("99")
+    legacy_run.equity_points[0].balance = Decimal("1100")
+    legacy_run.equity_points[0].equity = Decimal("1090")
+    legacy_run.metrics = {
+        **legacy_run.metrics,
+        "max_drawdown_absolute": "999",
+        "max_drawdown_pct": "99",
+    }
+    await session.commit()
+
+    normalized = await client.get(f"/api/v1/backtests/{result['id']}")
+    assert normalized.status_code == 200
+    assert normalized.json()["equity_curve"][0]["drawdown_absolute"] == "10.00000000"
+    assert normalized.json()["metrics"]["max_drawdown_absolute"] == "10.00000000"
 
     deleted = await client.delete(f"/api/v1/backtests/{result['id']}")
     assert deleted.status_code == 204

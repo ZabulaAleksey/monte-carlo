@@ -5,6 +5,13 @@ import type {
   SymbolRecord,
   TradeRecord,
 } from "./api/types";
+import { resolveAccountEnvironment } from "./data-environment";
+
+export {
+  isDemoAccount,
+  selectEnvironmentAccount,
+  selectPortfolioAccount,
+} from "./data-environment";
 
 export interface DashboardSnapshot {
   accounts: AccountRecord[];
@@ -54,39 +61,8 @@ export function isCurrencyPairSymbol(name: string): boolean {
   return false;
 }
 
-export function isDemoAccount(account: AccountRecord): boolean {
-  return account.external_id.toUpperCase().startsWith("DEMO-");
-}
-
-export function selectPortfolioAccount(
-  accounts: AccountRecord[],
-  preferredExternalId?: string | null,
-): AccountRecord | null {
-  const newestFirst = [...accounts].sort(
-    (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
-  );
-  const preferred = preferredExternalId
-    ? newestFirst.find((account) => account.external_id === preferredExternalId)
-    : null;
-  if (preferred) return preferred;
-  return newestFirst.find((account) => !isDemoAccount(account)) ?? newestFirst[0] ?? null;
-}
-
-export function selectEnvironmentAccount(
-  accounts: AccountRecord[],
-  connected: boolean,
-): AccountRecord | null {
-  const newestFirst = [...accounts].sort(
-    (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
-  );
-  return connected
-    ? newestFirst.find((account) => !isDemoAccount(account)) ?? null
-    : newestFirst.find(isDemoAccount) ?? null;
-}
-
 export function getDashboardSource(account: AccountRecord | null): DashboardSource {
-  if (!account) return "empty";
-  return isDemoAccount(account) ? "demo" : "mt5";
+  return resolveAccountEnvironment(account);
 }
 
 export function selectAccountTrades(

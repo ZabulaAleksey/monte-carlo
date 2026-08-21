@@ -165,8 +165,8 @@ describe("backtest chart helpers", () => {
   it("builds a stable SVG path for flat equity", () => {
     const path = buildEquityPath(
       [
-        { sequence: 1, timestamp: "2026-01-01T00:00:00Z", balance: "1000", equity: "1000", drawdown_pct: "0" },
-        { sequence: 2, timestamp: "2026-01-01T01:00:00Z", balance: "1000", equity: "1000", drawdown_pct: "0" },
+        { sequence: 1, timestamp: "2026-01-01T00:00:00Z", balance: "1000", equity: "1000", drawdown_pct: "0", drawdown_absolute: "0" },
+        { sequence: 2, timestamp: "2026-01-01T01:00:00Z", balance: "1000", equity: "1000", drawdown_pct: "0", drawdown_absolute: "0" },
       ],
       100,
       50,

@@ -2,6 +2,7 @@ import { Clock3, Radio, TriangleAlert } from "lucide-react";
 
 import type { Mt5Status } from "@/lib/api/types";
 import { useI18n } from "@/lib/i18n";
+import { buildMt5ConnectionViewModel } from "@/lib/mt5-connection";
 
 function formatTime(
   value: string | null | undefined,
@@ -16,16 +17,13 @@ function formatTime(
 }
 export function Mt5ConnectionCard({ status }: { status: Mt5Status }): React.JSX.Element {
   const { intlLocale, t } = useI18n();
-  const state = !status.configured
-    ? "unconfigured"
-    : status.connected
-      ? "connected"
-      : "stale";
-  const label = !status.configured
+  const connection = buildMt5ConnectionViewModel(status);
+  const state = connection.online ? "connected" : connection.state === "unconfigured" ? "unconfigured" : "stale";
+  const label = connection.state === "unconfigured"
     ? t("mt5.apiKeyRequired")
-    : status.connected
+    : connection.online
       ? t("mt5.terminalConnected")
-      : status.terminal
+      : connection.state === "terminal-offline"
         ? t("mt5.terminalOffline")
         : t("mt5.waitingTerminal");
   const neverLabel = t("mt5.never");

@@ -86,9 +86,27 @@ the source confirms the requested interval independently of candle cadence.
 Strategy history is exposed as a read-only prefix view over one immutable
 candle tuple. This preserves the no-future-data contract without copying the
 entire prefix on every candle. Equity points store realized balance, current
-liquidation equity and peak-to-trough drawdown metrics. The frontend plots the
+liquidation equity and the adverse open-position gap `max(balance - equity, 0)`.
+Maximum drawdown is the largest such gap, not a peak-to-trough balance decline.
+Persisted legacy runs are normalized from their stored balance/equity points
+when read. The frontend plots the
 balance and liquidation values on one monetary axis; they diverge only while a
 position is open and meet whenever unrealized P&L becomes realized.
+
+## Frontend boundaries
+
+Next.js route files only compose feature screens. Transport DTOs enter through
+`lib/api`; route-local polling is coordinated by one overlap-safe,
+visibility-aware hook while preserving the existing 500 ms, 2 s, 5 s,
+10 s and 15 s cadences. Pure feature models build Dashboard, Trades and Market
+Data view models before JSX. Account environment rules, MT5 connection state
+mapping and locale-explicit formatters are framework-neutral shared modules.
+
+The dependency direction is `app -> feature screen -> feature model/hooks ->
+lib/api`. Models do not import React, browser globals or UI components. Symbol
+records are indexed once before table rows are built. The Strategies workbench
+uses two independent desktop scroll containers and falls back to normal page
+scroll below the two-column breakpoint.
 
 `GET /api/v1/database/overview` uses a dedicated application port and a
 SQLAlchemy adapter. It exposes counts, schema revision, database size and

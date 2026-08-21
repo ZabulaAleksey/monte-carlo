@@ -6,6 +6,10 @@ from decimal import Decimal
 from types import MappingProxyType
 from uuid import UUID
 
+from app.domain.backtesting.drawdown import (
+    unrealized_drawdown_absolute,
+    unrealized_drawdown_pct,
+)
 from app.domain.backtesting.execution import (
     OrderSimulator,
     PositionManager,
@@ -117,7 +121,6 @@ class BacktestEngine:
         trades: list[VirtualTrade] = []
         equity_curve: list[EquityPoint] = []
         balance = settings.initial_capital
-        peak_equity = settings.initial_capital
         pending_signal = Signal.HOLD
         processed_candles = 0
         account_depleted = False
@@ -160,15 +163,14 @@ class BacktestEngine:
                         trades,
                     )
                 equity = balance
-                peak_equity = max(peak_equity, equity)
                 equity_curve.append(
                     EquityPoint(
                         sequence=len(equity_curve) + 1,
                         timestamp=candle_close_time,
                         balance=balance,
                         equity=equity,
-                        drawdown_absolute=self._drawdown_absolute(peak_equity, equity),
-                        drawdown_pct=self._drawdown(peak_equity, equity),
+                        drawdown_absolute=unrealized_drawdown_absolute(balance, equity),
+                        drawdown_pct=unrealized_drawdown_pct(balance, equity),
                     )
                 )
                 if control is not None:
@@ -190,15 +192,14 @@ class BacktestEngine:
             if not isinstance(pending_signal, Signal):
                 raise DomainError("Strategy returned an invalid signal")
 
-            peak_equity = max(peak_equity, equity)
             equity_curve.append(
                 EquityPoint(
                     sequence=len(equity_curve) + 1,
                     timestamp=candle_close_time,
                     balance=balance,
                     equity=equity,
-                    drawdown_absolute=self._drawdown_absolute(peak_equity, equity),
-                    drawdown_pct=self._drawdown(peak_equity, equity),
+                    drawdown_absolute=unrealized_drawdown_absolute(balance, equity),
+                    drawdown_pct=unrealized_drawdown_pct(balance, equity),
                 )
             )
             if control is not None:
@@ -213,13 +214,12 @@ class BacktestEngine:
                 balance,
                 trades,
             )
-            peak_equity = max(peak_equity, balance)
             equity_curve[-1] = replace(
                 equity_curve[-1],
                 balance=balance,
                 equity=balance,
-                drawdown_absolute=self._drawdown_absolute(peak_equity, balance),
-                drawdown_pct=self._drawdown(peak_equity, balance),
+                drawdown_absolute=unrealized_drawdown_absolute(balance, balance),
+                drawdown_pct=unrealized_drawdown_pct(balance, balance),
             )
 
         metrics = self._metrics(settings.initial_capital, balance, trades, equity_curve)
@@ -337,18 +337,6 @@ class BacktestEngine:
         return quantize_decimal(
             balance + trade.gross_profit + trade.swap - exit_commission
         )
-
-    @staticmethod
-    def _drawdown(peak: Decimal, equity: Decimal) -> Decimal:
-        if peak <= 0:
-            return Decimal("0")
-        return quantize_decimal(
-            max((peak - equity) / peak * HUNDRED, Decimal("0"))
-        )
-
-    @staticmethod
-    def _drawdown_absolute(peak: Decimal, equity: Decimal) -> Decimal:
-        return quantize_decimal(max(peak - equity, Decimal("0")))
 
     @staticmethod
     def _metrics(

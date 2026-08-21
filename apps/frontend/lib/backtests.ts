@@ -3,6 +3,10 @@ import type {
   EquityPointRecord,
   VirtualTradeRecord,
 } from "@/lib/api/types";
+import {
+  formatMoney as sharedFormatMoney,
+  formatPercent as sharedFormatPercent,
+} from "@/lib/formatters";
 
 export interface TradeMarker {
   candleIndex: number;
@@ -190,13 +194,9 @@ export function buildEquityPath(
 }
 
 export function formatMoney(value: string | number, locale = "en-US"): string {
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(Number(value));
+  return sharedFormatMoney(value, locale);
 }
 
 export function formatPercent(value: string | number): string {
-  return `${Number(value).toFixed(2)}%`;
+  return sharedFormatPercent(value);
 }

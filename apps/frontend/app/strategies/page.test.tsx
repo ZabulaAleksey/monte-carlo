@@ -207,8 +207,8 @@ describe("StrategiesPage", () => {
   });
 
   it("loads the research form and renders a completed result", async () => {
-    const scrollIntoView = vi.fn();
-    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    const scrollTo = vi.fn();
+    HTMLElement.prototype.scrollTo = scrollTo;
     render(<StrategiesPage />);
 
     expect(await screen.findByRole("heading", { name: "Run configuration" })).toBeInTheDocument();
@@ -246,7 +246,21 @@ describe("StrategiesPage", () => {
     expect(screen.getByRole("img", { name: /Balance and current-liquidation chart with 2 observations and 1 completed operations/ })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /Candlestick chart with 1 virtual trades/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Trade ledger" })).toBeInTheDocument();
-    expect(scrollIntoView).toHaveBeenCalled();
+    expect(scrollTo).toHaveBeenCalled();
+  });
+
+  it("provides independently scrollable setup and results columns", async () => {
+    render(<StrategiesPage />);
+
+    await screen.findByRole("heading", { name: "Run configuration" });
+    const setupColumn = screen.getByTestId("backtest-setup-column");
+    const resultsColumn = screen.getByTestId("backtest-results-column");
+
+    setupColumn.scrollTop = 160;
+    fireEvent.scroll(setupColumn);
+
+    expect(setupColumn.scrollTop).toBe(160);
+    expect(resultsColumn.scrollTop).toBe(0);
   });
 
   it("warns visibly and runs on cached candles when the full range is unavailable", async () => {
@@ -464,6 +478,52 @@ describe("StrategiesPage", () => {
 
     expect(apiClient.requestHistoricalData).not.toHaveBeenCalled();
     expect(apiClient.startBacktestJob).not.toHaveBeenCalled();
+  });
+
+  it("ignores a late job polling response after Stop", async () => {
+    let releasePoll: ((job: Awaited<ReturnType<typeof apiClient.getBacktestJob>>) => void) | undefined;
+    vi.mocked(apiClient.startBacktestJob).mockResolvedValueOnce({
+      id: "job-running",
+      state: "simulating",
+      stage: "simulating",
+      progress_pct: "25",
+      processed_candles: 2,
+      total_candles: 8,
+      result_id: null,
+      error: null,
+    });
+    vi.mocked(apiClient.getBacktestJob).mockReturnValueOnce(
+      new Promise((resolve) => { releasePoll = resolve; }),
+    );
+    vi.mocked(apiClient.stopBacktestJob).mockResolvedValueOnce({
+      id: "job-running",
+      state: "stopped",
+      stage: "stopped",
+      progress_pct: "25",
+      processed_candles: 2,
+      total_candles: 8,
+      result_id: null,
+      error: null,
+    });
+
+    render(<StrategiesPage />);
+    await screen.findByRole("heading", { name: "Run configuration" });
+    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+    await waitFor(() => expect(apiClient.getBacktestJob).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await act(async () => releasePoll?.({
+      id: "job-running",
+      state: "completed",
+      stage: "completed",
+      progress_pct: "100",
+      processed_candles: 8,
+      total_candles: 8,
+      result_id: result.id,
+      error: null,
+    }));
+
+    expect(apiClient.getBacktestResult).not.toHaveBeenCalled();
+    expect(await screen.findByText("Simulation stopped")).toBeVisible();
   });
 
   it("does not start a job without any confirmed historical interval", async () => {

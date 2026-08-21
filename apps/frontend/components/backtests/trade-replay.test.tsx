@@ -58,9 +58,9 @@ describe("TradeReplay", () => {
       trade(2, "2026-01-01T02:15:00Z", "2026-01-01T02:45:00Z", "200.10", "202.10"),
     ];
     const equityPoints: EquityPointRecord[] = [
-      { sequence: 1, timestamp: "2026-01-01T01:00:00Z", balance: "1000", equity: "995", drawdown_pct: "0.5" },
-      { sequence: 2, timestamp: "2026-01-01T02:00:00Z", balance: "1002", equity: "1002", drawdown_pct: "0" },
-      { sequence: 3, timestamp: "2026-01-01T03:00:00Z", balance: "1004", equity: "1004", drawdown_pct: "0" },
+      { sequence: 1, timestamp: "2026-01-01T01:00:00Z", balance: "1000", equity: "995", drawdown_pct: "0.5", drawdown_absolute: "5" },
+      { sequence: 2, timestamp: "2026-01-01T02:00:00Z", balance: "1002", equity: "1002", drawdown_pct: "0", drawdown_absolute: "0" },
+      { sequence: 3, timestamp: "2026-01-01T03:00:00Z", balance: "1004", equity: "1004", drawdown_pct: "0", drawdown_absolute: "0" },
     ];
 
     render(
