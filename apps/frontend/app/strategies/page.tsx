@@ -19,7 +19,11 @@ import type {
   StrategyDefinition,
   SymbolRecord,
 } from "@/lib/api/types";
-import { formatMoney, formatPercent } from "@/lib/backtests";
+import {
+  formatMoney,
+  formatPercent,
+  splitHistoricalIntervalByYear,
+} from "@/lib/backtests";
 import { useI18n } from "@/lib/i18n";
 
 const TERMINAL_JOB_STATES = new Set(["completed", "stopped", "failed"]);
@@ -145,45 +149,36 @@ export default function StrategiesPage(): React.JSX.Element {
       let coverage = await apiClient.getHistoricalDataCoverage(
         payload.symbol_id, payload.timeframe, payload.start_at, payload.end_at,
       );
+      if (sequence !== jobSequence.current) return;
       if (!coverage.complete) {
-        let historyRequest = await apiClient.requestHistoricalData(
-          payload.symbol_id,
-          payload.timeframe,
-          payload.start_at,
-          payload.end_at,
+        const missingIntervals = coverage.missing_intervals.length > 0
+          ? coverage.missing_intervals
+          : [{ start_at: payload.start_at, end_at: payload.end_at }];
+        const yearlyIntervals = missingIntervals.flatMap((interval) =>
+          splitHistoricalIntervalByYear(interval.start_at, interval.end_at)
         );
-        setNotice({
-          tone: historyRequest.status === "failed" ? "warning" : "loading",
-          message: historyRequest.status === "failed"
-            ? t("history.requestFailed", { reason: historyRequest.error ?? "MT5" })
-            : t("history.requestQueued"),
+        const dateFormatter = new Intl.DateTimeFormat(intlLocale, {
+          dateStyle: "medium",
+          timeZone: "UTC",
         });
-        for (
-          let attempt = 1;
-          !coverage.complete &&
-            historyRequest.status !== "failed" &&
-            attempt <= HISTORY_POLL_ATTEMPTS;
-          attempt += 1
-        ) {
+
+        for (const interval of yearlyIntervals) {
+          if (coverage.complete || sequence !== jobSequence.current) break;
           setNotice({
             tone: "loading",
-            message: t("history.waitingRange", {
-              attempt,
-              count: coverage.candle_count,
-              total: HISTORY_POLL_ATTEMPTS,
+            message: t("history.loadingYear", {
+              year: interval.year,
+              from: dateFormatter.format(new Date(interval.startAt)),
+              to: dateFormatter.format(new Date(interval.endAt)),
             }),
           });
-          await wait(HISTORY_POLL_INTERVAL_MS);
+          let historyRequest = await apiClient.requestHistoricalData(
+            payload.symbol_id,
+            payload.timeframe,
+            interval.startAt,
+            interval.endAt,
+          );
           if (sequence !== jobSequence.current) return;
-          [historyRequest, coverage] = await Promise.all([
-            apiClient.getHistoricalDataRequest(historyRequest.id),
-            apiClient.getHistoricalDataCoverage(
-              payload.symbol_id,
-              payload.timeframe,
-              payload.start_at,
-              payload.end_at,
-            ),
-          ]);
           if (historyRequest.status === "failed") {
             setNotice({
               tone: "warning",
@@ -192,14 +187,52 @@ export default function StrategiesPage(): React.JSX.Element {
               }),
             });
           }
-          if (historyRequest.status === "completed" && !coverage.complete) break;
+          for (
+            let attempt = 1;
+            !coverage.complete &&
+              historyRequest.status !== "failed" &&
+              attempt <= HISTORY_POLL_ATTEMPTS;
+            attempt += 1
+          ) {
+            setNotice({
+              tone: "loading",
+              message: t("history.waitingYear", {
+                year: interval.year,
+                attempt,
+                count: coverage.candle_count,
+                total: HISTORY_POLL_ATTEMPTS,
+              }),
+            });
+            await wait(HISTORY_POLL_INTERVAL_MS);
+            if (sequence !== jobSequence.current) return;
+            [historyRequest, coverage] = await Promise.all([
+              apiClient.getHistoricalDataRequest(historyRequest.id),
+              apiClient.getHistoricalDataCoverage(
+                payload.symbol_id,
+                payload.timeframe,
+                payload.start_at,
+                payload.end_at,
+              ),
+            ]);
+            if (sequence !== jobSequence.current) return;
+            if (historyRequest.status === "failed") {
+              setNotice({
+                tone: "warning",
+                message: t("history.requestFailed", {
+                  reason: historyRequest.error ?? "MT5",
+                }),
+              });
+            }
+            if (historyRequest.status === "completed") break;
+          }
+          coverage = await apiClient.getHistoricalDataCoverage(
+            payload.symbol_id,
+            payload.timeframe,
+            payload.start_at,
+            payload.end_at,
+          );
+          if (sequence !== jobSequence.current) return;
         }
-        coverage = await apiClient.getHistoricalDataCoverage(
-          payload.symbol_id,
-          payload.timeframe,
-          payload.start_at,
-          payload.end_at,
-        );
       }
       const hasConfirmedData =
         coverage.candle_count > 0 && coverage.cached_intervals.length > 0;
@@ -215,6 +248,7 @@ export default function StrategiesPage(): React.JSX.Element {
         tone: "success",
         message: t("history.complete", { count: coverage.candle_count }),
       });
+      if (sequence !== jobSequence.current) return;
       let current = await apiClient.startBacktestJob({
         ...payload,
         allow_partial_data: allowPartialData,

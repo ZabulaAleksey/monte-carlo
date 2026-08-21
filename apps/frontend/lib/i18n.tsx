@@ -317,8 +317,11 @@ const en = {
   "calendar.open": "Open {label} calendar",
   "calendar.previous": "Previous month",
   "calendar.next": "Next month",
+  "calendar.year": "Year",
   "calendar.time": "Time",
   "calendar.done": "Done",
+  "history.loadingYear": "Loading {year}: {from} to {to}...",
+  "history.waitingYear": "MT5 is loading {year}: {count} candles available ({attempt}/{total} sec).",
   "history.loadingRange": "Checking and loading candles for the complete selected range…",
   "history.waitingRange": "MT5 is loading history: {count} candles available ({attempt}/{total} sec).",
   "history.requestQueued": "The selected range was queued for the connected MT5 terminal.",
@@ -331,6 +334,8 @@ const en = {
   "history.status": "Historical data",
   "equity.maxDrawdown": "Max drawdown {value}",
   "equity.axisValue": "Portfolio value, USD",
+  "chart.fullscreenOpen": "Open {chart} full screen",
+  "chart.fullscreenClose": "Exit full screen",
   "market.quotesEyebrow": "Live quote feed",
   "market.allQuotes": "All broker instruments",
   "market.ticksActive": "Tick snapshots refresh only while this Market Data page is open.",
@@ -344,6 +349,11 @@ type MessageKey = keyof typeof en;
 type Messages = Record<MessageKey, string>;
 
 const ru: Messages = {
+  "calendar.year": "Год",
+  "history.loadingYear": "Загружаем {year} год: с {from} по {to}...",
+  "history.waitingYear": "MT5 загружает {year} год: доступно {count} свечей ({attempt}/{total} с).",
+  "chart.fullscreenOpen": "Открыть «{chart}» на весь экран",
+  "chart.fullscreenClose": "Выйти из полноэкранного режима",
   "market.eyebrow": "История цен",
   "market.title": "Рыночные данные",
   "market.descriptionLive": "Нормализованные онлайн-свечи, синхронизированные с подключённым терминалом MT5.",
@@ -480,6 +490,11 @@ const ru: Messages = {
 
 const uk: Messages = {
   ...ru,
+  "calendar.year": "Рік",
+  "history.loadingYear": "Завантажуємо {year} рік: від {from} до {to}...",
+  "history.waitingYear": "MT5 завантажує {year} рік: доступно {count} свічок ({attempt}/{total} с).",
+  "chart.fullscreenOpen": "Відкрити «{chart}» на весь екран",
+  "chart.fullscreenClose": "Вийти з повноекранного режиму",
   "market.eyebrow": "Історія цін",
   "market.title": "Ринкові дані",
   "market.descriptionLive": "Нормалізовані онлайн-свічки, синхронізовані з підключеним терміналом MT5.",
@@ -622,6 +637,11 @@ const uk: Messages = {
 
 const be: Messages = {
   ...ru,
+  "calendar.year": "Год",
+  "history.loadingYear": "Загружаем {year} год: ад {from} да {to}...",
+  "history.waitingYear": "MT5 загружае {year} год: даступна {count} свечак ({attempt}/{total} с).",
+  "chart.fullscreenOpen": "Адкрыць «{chart}» на ўвесь экран",
+  "chart.fullscreenClose": "Выйсці з поўнаэкраннага рэжыму",
   "market.eyebrow": "Гісторыя цэн",
   "market.title": "Рынкавыя даныя",
   "market.descriptionLive": "Нармалізаваныя анлайн-свечкі, сінхранізаваныя з падключаным тэрміналам MT5.",

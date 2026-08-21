@@ -362,7 +362,7 @@ describe("StrategiesPage", () => {
     await screen.findByRole("heading", { name: "Run configuration" });
     fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
 
-    expect(await screen.findByText(/MT5 is loading history/)).toBeVisible();
+    expect(await screen.findByText(/MT5 is loading 2026/)).toBeVisible();
     await waitFor(
       () => expect(apiClient.startBacktestJob).toHaveBeenCalledWith(
         expect.objectContaining({ allow_partial_data: false }),
@@ -372,6 +372,99 @@ describe("StrategiesPage", () => {
     expect(apiClient.requestHistoricalData).toHaveBeenCalledTimes(1);
     expect(apiClient.getHistoricalDataRequest).toHaveBeenCalledWith("history-queued");
   }, 4_000);
+
+  it("requests every missing year separately before running on confirmed data", async () => {
+    const requestedStart = "2024-12-15T00:00:00.000Z";
+    const requestedEnd = "2025-02-15T00:00:00.000Z";
+    vi.mocked(apiClient.getHistoricalDataCoverage).mockResolvedValue({
+      symbol_id: "symbol-1",
+      timeframe: "H1",
+      requested_start: requestedStart,
+      requested_end: requestedEnd,
+      candle_count: 8,
+      complete: false,
+      cached_intervals: [{
+        start_at: requestedStart,
+        end_at: "2024-12-16T00:00:00.000Z",
+      }],
+      missing_intervals: [{
+        start_at: requestedStart,
+        end_at: requestedEnd,
+      }],
+    });
+    vi.mocked(apiClient.requestHistoricalData).mockImplementation(
+      async (_symbolId, timeframe, startAt, endAt) => ({
+        id: `history-${startAt}`,
+        symbol_id: "symbol-1",
+        symbol: "EURUSD",
+        timeframe,
+        requested_start: startAt,
+        requested_end: endAt,
+        status: "failed",
+        requested_at: "2026-01-01T00:00:00Z",
+        claimed_at: null,
+        completed_at: "2026-01-01T00:00:01Z",
+        terminal_id: null,
+        candle_count: 0,
+        error: "Broker history is unavailable",
+      }),
+    );
+
+    render(<StrategiesPage />);
+    await screen.findByRole("heading", { name: "Run configuration" });
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2024-12-15T00:00" },
+    });
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2025-02-15T00:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+
+    await waitFor(() => expect(apiClient.requestHistoricalData).toHaveBeenCalledTimes(2));
+    expect(apiClient.requestHistoricalData).toHaveBeenNthCalledWith(
+      1, "symbol-1", "H1", requestedStart, "2025-01-01T00:00:00.000Z",
+    );
+    expect(apiClient.requestHistoricalData).toHaveBeenNthCalledWith(
+      2, "symbol-1", "H1", "2025-01-01T00:00:00.000Z", requestedEnd,
+    );
+    expect(apiClient.startBacktestJob).toHaveBeenCalledWith(
+      expect.objectContaining({ allow_partial_data: true }),
+    );
+  });
+
+  it("does not enqueue history or start a job after Stop cancels a pending coverage check", async () => {
+    const incompleteCoverage = {
+      symbol_id: "symbol-1",
+      timeframe: "H1",
+      requested_start: result.requested_start,
+      requested_end: result.requested_end,
+      candle_count: 8,
+      complete: false,
+      cached_intervals: [{
+        start_at: result.requested_start,
+        end_at: result.data_end,
+      }],
+      missing_intervals: [{
+        start_at: result.requested_start,
+        end_at: result.requested_end,
+      }],
+    };
+    let releaseCoverage: (() => void) | undefined;
+    vi.mocked(apiClient.getHistoricalDataCoverage).mockImplementationOnce(
+      () => new Promise((resolve) => {
+        releaseCoverage = () => resolve(incompleteCoverage);
+      }),
+    );
+
+    render(<StrategiesPage />);
+    await screen.findByRole("heading", { name: "Run configuration" });
+    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Stop" }));
+    await act(async () => releaseCoverage?.());
+
+    expect(apiClient.requestHistoricalData).not.toHaveBeenCalled();
+    expect(apiClient.startBacktestJob).not.toHaveBeenCalled();
+  });
 
   it("does not start a job without any confirmed historical interval", async () => {
     vi.mocked(apiClient.getHistoricalDataCoverage).mockResolvedValue({

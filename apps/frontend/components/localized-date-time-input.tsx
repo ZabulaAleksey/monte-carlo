@@ -56,6 +56,10 @@ export function LocalizedDateTimeInput({
       new Date(2026, 0, 5 + index),
     ),
   );
+  const years = Array.from(
+    { length: 41 },
+    (_, index) => viewMonth.getFullYear() - 20 + index,
+  );
   const formatted = new Intl.DateTimeFormat(intlLocale, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -104,9 +108,17 @@ export function LocalizedDateTimeInput({
             <strong>
               {new Intl.DateTimeFormat(intlLocale, {
                 month: "long",
-                year: "numeric",
               }).format(viewMonth)}
             </strong>
+            <select
+              aria-label={t("calendar.year")}
+              onChange={(event) => setViewMonth(new Date(
+                Number(event.target.value), viewMonth.getMonth(), 1,
+              ))}
+              value={viewMonth.getFullYear()}
+            >
+              {years.map((year) => <option key={year} value={year}>{year}</option>)}
+            </select>
             <button
               aria-label={t("calendar.next")}
               onClick={() => setViewMonth(new Date(

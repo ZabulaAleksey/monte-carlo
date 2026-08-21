@@ -5,6 +5,7 @@ import {
   buildEquityPath,
   buildPeriodSeparators,
   mapTradesToCandles,
+  splitHistoricalIntervalByYear,
   sortCandles,
 } from "@/lib/backtests";
 
@@ -47,6 +48,31 @@ describe("backtest chart helpers", () => {
 
     expect(sortCandles(candles).map((item) => item.id)).toEqual(["early", "late"]);
     expect(candles.map((item) => item.id)).toEqual(["late", "early"]);
+  });
+
+  it("splits a multi-year historical request at every UTC year boundary", () => {
+    expect(
+      splitHistoricalIntervalByYear(
+        "2023-11-15T00:00:00.000Z",
+        "2025-02-10T00:00:00.000Z",
+      ),
+    ).toEqual([
+      {
+        startAt: "2023-11-15T00:00:00.000Z",
+        endAt: "2024-01-01T00:00:00.000Z",
+        year: 2023,
+      },
+      {
+        startAt: "2024-01-01T00:00:00.000Z",
+        endAt: "2025-01-01T00:00:00.000Z",
+        year: 2024,
+      },
+      {
+        startAt: "2025-01-01T00:00:00.000Z",
+        endAt: "2025-02-10T00:00:00.000Z",
+        year: 2025,
+      },
+    ]);
   });
 
   it("places an intrabar fill on its containing candle", () => {

@@ -118,4 +118,33 @@ describe("TradeReplay", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     expect(screen.getByText("Candle 1 of 3")).toBeInTheDocument();
   });
+
+  it("opens either chart in a fullscreen overlay and closes it with Escape", () => {
+    const candles = [candle("one", "2026-01-01T00:00:00Z")];
+    render(<TradeReplay candles={candles} trades={[]} />);
+
+    const equityFullscreenButton = screen.getByRole("button", {
+      name: "Open Equity curve full screen",
+    });
+    equityFullscreenButton.focus();
+    fireEvent.click(equityFullscreenButton);
+    expect(screen.getByRole("dialog", { name: "Equity curve" })).toHaveClass(
+      "chart-fullscreen",
+    );
+    expect(document.body).toHaveClass("chart-fullscreen-open");
+    expect(screen.getByRole("button", { name: "Exit full screen" })).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Equity curve" })).not.toBeInTheDocument();
+    expect(equityFullscreenButton).toHaveFocus();
+
+    fireEvent.click(screen.getByRole("button", {
+      name: "Open Candles and trades full screen",
+    }));
+    expect(screen.getByRole("dialog", { name: "Candles and trades" })).toHaveClass(
+      "chart-fullscreen",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
 });

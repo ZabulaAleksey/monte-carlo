@@ -6,6 +6,14 @@ Stage 3 — Strategy engine and backtesting.
 
 ## Implemented
 
+- Missing historical intervals are split at UTC year boundaries and requested
+  sequentially before a partial backtest is allowed; the active year is visible
+  in the loading status.
+- The localized From/To calendar has an explicit year selector.
+- Equity and execution-map panels support viewport fullscreen mode with button
+  and Escape dismissal, focus containment and focus restoration.
+- Stop invalidates pending coverage/history responses so a cancelled preload
+  cannot enqueue later work or start a partial backtest.
 - Framework-independent deterministic backtest domain and persistence.
 - Backtest API, saved runs, virtual trades, equity curve and strategy replay.
 - Localized EN/RU/UA/BE frontend.

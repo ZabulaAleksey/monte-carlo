@@ -17,6 +17,42 @@ export interface PeriodSeparator {
   label: string;
 }
 
+export interface HistoricalYearInterval {
+  endAt: string;
+  startAt: string;
+  year: number;
+}
+
+export function splitHistoricalIntervalByYear(
+  startAt: string,
+  endAt: string,
+): HistoricalYearInterval[] {
+  const start = new Date(startAt);
+  const end = new Date(endAt);
+  if (
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    start.getTime() >= end.getTime()
+  ) {
+    return [];
+  }
+
+  const intervals: HistoricalYearInterval[] = [];
+  let cursor = start;
+  while (cursor.getTime() < end.getTime()) {
+    const year = cursor.getUTCFullYear();
+    const yearBoundary = new Date(Date.UTC(year + 1, 0, 1));
+    const segmentEnd = yearBoundary.getTime() < end.getTime() ? yearBoundary : end;
+    intervals.push({
+      startAt: cursor.toISOString(),
+      endAt: segmentEnd.toISOString(),
+      year,
+    });
+    cursor = segmentEnd;
+  }
+  return intervals;
+}
+
 export function sortCandles(candles: CandleRecord[]): CandleRecord[] {
   return [...candles].sort(
     (left, right) =>
