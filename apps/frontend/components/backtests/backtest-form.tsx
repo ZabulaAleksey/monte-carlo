@@ -25,8 +25,11 @@ interface BacktestFormProps {
   job: BacktestJobRecord | null;
   strategies: StrategyDefinition[];
   symbols: SymbolRecord[];
+  timeframes: readonly string[];
+  timeframesLoading: boolean;
   onPause: () => Promise<void>;
   onResume: () => Promise<void>;
+  onSymbolChange: (symbolId: string) => void;
   onStop: () => Promise<void>;
   onSubmit: (payload: BacktestCreateRequest) => Promise<void>;
 }
@@ -114,8 +117,11 @@ export function BacktestForm({
   job,
   strategies,
   symbols,
+  timeframes,
+  timeframesLoading,
   onPause,
   onResume,
+  onSymbolChange,
   onStop,
   onSubmit,
 }: BacktestFormProps): React.JSX.Element {
@@ -146,6 +152,12 @@ export function BacktestForm({
       // Date selection still works when persistence is unavailable.
     }
   }, [form.endAt, form.startAt]);
+  useEffect(() => {
+    if (timeframesLoading || timeframes.length === 0) return;
+    setForm((current) => timeframes.includes(current.timeframe)
+      ? current
+      : { ...current, timeframe: timeframes[0] ?? "" });
+  }, [timeframes, timeframesLoading]);
   const selectedStrategy = strategies.find((item) => item.name === form.strategyName);
   const selectedSymbol = symbols.find((item) => item.id === form.symbolId);
   const strategyTitle = (strategy: StrategyDefinition): string =>
@@ -181,10 +193,12 @@ export function BacktestForm({
         ),
       },
     }));
+    onSymbolChange(symbolId);
   };
 
   const submit = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (!form.symbolId || !form.timeframe || timeframesLoading || timeframes.length === 0) return;
     const parameters = Object.fromEntries(
       (selectedStrategy?.parameters ?? []).map((parameter) => {
         const value = form.parameters[parameter.name] ?? String(parameter.default);
@@ -268,10 +282,15 @@ export function BacktestForm({
             <span>{t("form.timeframe")}</span>
             <select
               aria-label={t("form.timeframe")}
+              disabled={timeframesLoading || timeframes.length === 0}
               onChange={(event) => update("timeframe", event.target.value)}
               value={form.timeframe}
             >
-              {["M1", "M5", "M15", "M30", "H1", "H4", "D1"].map((timeframe) => (
+              {timeframesLoading ? (
+                <option value="">{t("form.timeframeChecking")}</option>
+              ) : timeframes.length === 0 ? (
+                <option value="">{t("form.timeframeUnavailable")}</option>
+              ) : timeframes.map((timeframe) => (
                 <option key={timeframe}>{timeframe}</option>
               ))}
             </select>
@@ -400,7 +419,11 @@ export function BacktestForm({
         </div>
       </fieldset>
 
-      <button className="primary-button" disabled={busy || !form.symbolId} type="submit">
+      <button
+        className="primary-button"
+        disabled={busy || !form.symbolId || !form.timeframe || timeframesLoading || timeframes.length === 0}
+        type="submit"
+      >
         <Play aria-hidden="true" size={16} />
         {busy ? jobMessage || t("job.loading_data") : t("form.run")}
       </button>

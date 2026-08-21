@@ -16,10 +16,12 @@ import type {
   BacktestResultRecord,
   BacktestRunSummary,
   CandleRecord,
+  QuoteRecord,
   StrategyDefinition,
   SymbolRecord,
 } from "@/lib/api/types";
 import {
+  BACKTEST_TIMEFRAMES,
   formatMoney,
   formatPercent,
   splitHistoricalIntervalByYear,
@@ -29,6 +31,17 @@ import { useI18n } from "@/lib/i18n";
 const TERMINAL_JOB_STATES = new Set(["completed", "stopped", "failed"]);
 const HISTORY_POLL_INTERVAL_MS = 1_000;
 const HISTORY_POLL_ATTEMPTS = 60;
+const AVAILABILITY_POLL_ATTEMPTS = 20;
+const TIMEFRAME_DURATION_MS: Record<(typeof BACKTEST_TIMEFRAMES)[number], number> = {
+  M1: 60_000,
+  M5: 5 * 60_000,
+  M15: 15 * 60_000,
+  M30: 30 * 60_000,
+  H1: 60 * 60_000,
+  H4: 4 * 60 * 60_000,
+  D1: 24 * 60 * 60_000,
+};
+const EMPTY_TIMEFRAMES: readonly string[] = [];
 const RESULT_PARAMETER_LABELS = {
   short_window: "advisor.short_window",
   long_window: "advisor.long_window",
@@ -44,6 +57,10 @@ function wait(milliseconds: number): Promise<void> {
 export function StrategiesWorkbench(): React.JSX.Element {
   const { intlLocale, t } = useI18n();
   const [symbols, setSymbols] = useState<SymbolRecord[]>([]);
+  const [quotes, setQuotes] = useState<QuoteRecord[]>([]);
+  const [selectedSymbolId, setSelectedSymbolId] = useState("");
+  const [availableTimeframes, setAvailableTimeframes] = useState<Record<string, readonly string[]>>({});
+  const [timeframesLoading, setTimeframesLoading] = useState(false);
   const [strategies, setStrategies] = useState<StrategyDefinition[]>([]);
   const [runs, setRuns] = useState<BacktestRunSummary[]>([]);
   const [result, setResult] = useState<BacktestResultRecord | null>(null);
@@ -64,6 +81,7 @@ export function StrategiesWorkbench(): React.JSX.Element {
   const selectionSequence = useRef(0);
   const jobSequence = useRef(0);
   const resultsRef = useRef<HTMLElement>(null);
+  const timeframeSequence = useRef(0);
 
   const scrollToResults = (): void => {
     const target = resultsRef.current;
@@ -101,11 +119,13 @@ export function StrategiesWorkbench(): React.JSX.Element {
         const quotedSymbolIds = new Set(
           nextQuotes.map((quote) => quote.symbol_id),
         );
-        setSymbols(
-          nextSymbols.filter(
-            (symbol) => symbol.is_active && quotedSymbolIds.has(symbol.id),
-          ),
+        const nextAvailableSymbols = nextSymbols.filter(
+          (symbol) => symbol.is_active && quotedSymbolIds.has(symbol.id),
         );
+        setSymbols(nextAvailableSymbols);
+        setQuotes(nextQuotes);
+        setSelectedSymbolId(nextAvailableSymbols[0]?.id ?? "");
+        setTimeframesLoading(nextAvailableSymbols.length > 0);
         setStrategies(nextStrategies);
         setRuns(nextRuns);
         setInitialLoading(false);
@@ -118,8 +138,77 @@ export function StrategiesWorkbench(): React.JSX.Element {
     return () => {
       active = false;
       jobSequence.current += 1;
+      timeframeSequence.current += 1;
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedSymbolId || availableTimeframes[selectedSymbolId]) return;
+    const quote = quotes.find((item) => item.symbol_id === selectedSymbolId);
+    if (!quote) {
+      setAvailableTimeframes((current) => ({ ...current, [selectedSymbolId]: [] }));
+      setTimeframesLoading(false);
+      return;
+    }
+    const sequence = timeframeSequence.current + 1;
+    timeframeSequence.current = sequence;
+    setTimeframesLoading(true);
+
+    const probe = async (
+      timeframe: (typeof BACKTEST_TIMEFRAMES)[number],
+    ): Promise<boolean> => {
+      try {
+        const cached = await apiClient.getCandles({
+          symbolId: selectedSymbolId,
+          timeframe,
+          limit: 1,
+          source: quote.source,
+        });
+        if (cached.length > 0) return true;
+        if (quote.source !== "mt5") return false;
+
+        const observedAt = new Date(quote.observed_at);
+        if (Number.isNaN(observedAt.getTime())) return false;
+        const endAt = observedAt.toISOString();
+        const startAt = new Date(
+          observedAt.getTime() - TIMEFRAME_DURATION_MS[timeframe] * 3,
+        ).toISOString();
+        let request = await apiClient.requestHistoricalData(
+          selectedSymbolId,
+          timeframe,
+          startAt,
+          endAt,
+        );
+        for (
+          let attempt = 0;
+          attempt < AVAILABILITY_POLL_ATTEMPTS &&
+          request.status !== "completed" &&
+          request.status !== "failed";
+          attempt += 1
+        ) {
+          await wait(HISTORY_POLL_INTERVAL_MS);
+          request = await apiClient.getHistoricalDataRequest(request.id);
+        }
+        return request.status === "completed" && request.candle_count > 0;
+      } catch {
+        return false;
+      }
+    };
+
+    void Promise.all(BACKTEST_TIMEFRAMES.map(probe)).then((availability) => {
+      if (sequence !== timeframeSequence.current) return;
+      setAvailableTimeframes((current) => ({
+        ...current,
+        [selectedSymbolId]: BACKTEST_TIMEFRAMES.filter((_, index) => availability[index]),
+      }));
+      setTimeframesLoading(false);
+    });
+  }, [availableTimeframes, quotes, selectedSymbolId]);
+
+  const selectBacktestSymbol = (symbolId: string): void => {
+    setSelectedSymbolId(symbolId);
+    setTimeframesLoading(!availableTimeframes[symbolId]);
+  };
 
   const candlesFor = (nextResult: BacktestResultRecord): Promise<CandleRecord[]> =>
     apiClient.getCandles({
@@ -409,12 +498,15 @@ export function StrategiesWorkbench(): React.JSX.Element {
             <BacktestForm
               busy={running}
               job={job}
+              onSymbolChange={selectBacktestSymbol}
               onPause={pauseJob}
               onResume={resumeJob}
               onStop={stopJob}
               onSubmit={runBacktest}
               strategies={strategies}
               symbols={symbols}
+              timeframes={availableTimeframes[selectedSymbolId] ?? EMPTY_TIMEFRAMES}
+              timeframesLoading={timeframesLoading}
             />
             <BacktestRunsTable
               busy={loadingRun || running}

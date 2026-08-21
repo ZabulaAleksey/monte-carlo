@@ -95,6 +95,12 @@ const result: BacktestResultRecord = {
   warnings: [],
 };
 
+async function runButton(): Promise<HTMLElement> {
+  const button = await screen.findByRole("button", { name: "Run backtesting" });
+  await waitFor(() => expect(button).toBeEnabled());
+  return button;
+}
+
 describe("StrategiesPage", () => {
   beforeEach(() => {
     cleanup();
@@ -216,13 +222,13 @@ describe("StrategiesPage", () => {
     expect(screen.getByLabelText("To")).toHaveAttribute("lang", "en-US");
     expect(screen.getByLabelText("Starting capital")).toHaveAttribute("min", "100");
     expect(screen.getByLabelText("Starting capital")).toHaveAttribute("step", "100");
-    expect(screen.getByRole("option", { name: "M30" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "M30" })).toBeInTheDocument();
     const positionSize = screen.getByLabelText("Position size / lots");
     expect(positionSize).toHaveAttribute("min", "0.01");
     expect(positionSize).toHaveAttribute("step", "0.01");
     expect(positionSize).toHaveAttribute("max", "99");
     fireEvent.change(positionSize, { target: { value: "1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+    fireEvent.click(await runButton());
 
     await waitFor(() =>
       expect(apiClient.startBacktestJob).toHaveBeenCalledWith(
@@ -249,18 +255,76 @@ describe("StrategiesPage", () => {
     expect(scrollTo).toHaveBeenCalled();
   });
 
-  it("provides independently scrollable setup and results columns", async () => {
+  it("keeps only timeframes with cached or successfully probed candles", async () => {
+    vi.mocked(apiClient.getCandles).mockImplementation(async (query) => {
+      if (query && typeof query !== "number" && query.timeframe === "M5") {
+        return [{
+          id: "probe-m5",
+          symbol_id: "symbol-1",
+          timeframe: "M5",
+          open_time: "2026-01-01T07:55:00Z",
+          open: "1.1",
+          high: "1.2",
+          low: "1.0",
+          close: "1.15",
+          volume: "10",
+          source: "mt5",
+        }];
+      }
+      return [];
+    });
+    vi.mocked(apiClient.requestHistoricalData).mockImplementation(
+      async (symbolId, timeframe, startAt, endAt) => ({
+        id: `probe-${timeframe}`,
+        symbol_id: symbolId,
+        symbol: "EURUSD",
+        timeframe,
+        requested_start: startAt,
+        requested_end: endAt,
+        status: timeframe === "H1" ? "completed" : "failed",
+        requested_at: "2026-01-01T08:00:00Z",
+        claimed_at: null,
+        completed_at: "2026-01-01T08:00:01Z",
+        terminal_id: "terminal-1",
+        candle_count: timeframe === "H1" ? 1 : 0,
+        error: timeframe === "H1" ? null : "Unsupported timeframe",
+      }),
+    );
+
+    render(<StrategiesPage />);
+    await screen.findByRole("heading", { name: "Run configuration" });
+
+    expect(await screen.findByRole("option", { name: "M5" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "H1" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("option", { name: "M1" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "M15" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "D1" })).not.toBeInTheDocument();
+    });
+    expect(apiClient.requestHistoricalData).not.toHaveBeenCalledWith(
+      "symbol-1",
+      "M5",
+      expect.any(String),
+      expect.any(String),
+    );
+    const h1Probe = vi.mocked(apiClient.requestHistoricalData).mock.calls.find(
+      ([, timeframe]) => timeframe === "H1",
+    );
+    expect(h1Probe).toBeDefined();
+    expect(new Date(h1Probe![3]).getTime() - new Date(h1Probe![2]).getTime()).toBe(
+      3 * 60 * 60 * 1000,
+    );
+    expect(screen.getByRole("button", { name: "Run backtesting" })).toBeEnabled();
+  });
+
+  it("renders setup and results in the shared page scroll", async () => {
     render(<StrategiesPage />);
 
     await screen.findByRole("heading", { name: "Run configuration" });
     const setupColumn = screen.getByTestId("backtest-setup-column");
     const resultsColumn = screen.getByTestId("backtest-results-column");
 
-    setupColumn.scrollTop = 160;
-    fireEvent.scroll(setupColumn);
-
-    expect(setupColumn.scrollTop).toBe(160);
-    expect(resultsColumn.scrollTop).toBe(0);
+    expect(setupColumn.parentElement).toBe(resultsColumn.parentElement);
   });
 
   it("warns visibly and runs on cached candles when the full range is unavailable", async () => {
@@ -303,7 +367,7 @@ describe("StrategiesPage", () => {
 
     render(<StrategiesPage />);
     await screen.findByRole("heading", { name: "Run configuration" });
-    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+    fireEvent.click(await runButton());
 
     expect(await screen.findByText(/Checking and loading candles/)).toBeVisible();
     await waitFor(
@@ -374,7 +438,7 @@ describe("StrategiesPage", () => {
 
     render(<StrategiesPage />);
     await screen.findByRole("heading", { name: "Run configuration" });
-    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+    fireEvent.click(await runButton());
 
     expect(await screen.findByText(/MT5 is loading 2026/)).toBeVisible();
     await waitFor(
@@ -432,7 +496,7 @@ describe("StrategiesPage", () => {
     fireEvent.change(screen.getByLabelText("To"), {
       target: { value: "2025-02-15T00:00" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+    fireEvent.click(await runButton());
 
     await waitFor(() => expect(apiClient.requestHistoricalData).toHaveBeenCalledTimes(2));
     expect(apiClient.requestHistoricalData).toHaveBeenNthCalledWith(
@@ -472,7 +536,7 @@ describe("StrategiesPage", () => {
 
     render(<StrategiesPage />);
     await screen.findByRole("heading", { name: "Run configuration" });
-    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+    fireEvent.click(await runButton());
     fireEvent.click(await screen.findByRole("button", { name: "Stop" }));
     await act(async () => releaseCoverage?.());
 
@@ -508,7 +572,7 @@ describe("StrategiesPage", () => {
 
     render(<StrategiesPage />);
     await screen.findByRole("heading", { name: "Run configuration" });
-    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+    fireEvent.click(await runButton());
     await waitFor(() => expect(apiClient.getBacktestJob).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     await act(async () => releasePoll?.({
@@ -561,7 +625,7 @@ describe("StrategiesPage", () => {
     fireEvent.change(screen.getByLabelText("Timeframe"), {
       target: { value: "M30" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+    fireEvent.click(await runButton());
 
     expect(await screen.findByText(/broker did not provide confirmed candles/i)).toBeVisible();
     expect(apiClient.startBacktestJob).not.toHaveBeenCalled();
@@ -727,7 +791,7 @@ describe("StrategiesPage", () => {
 
     render(<StrategiesPage />);
     await screen.findByRole("heading", { name: "Run configuration" });
-    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+    fireEvent.click(await runButton());
 
     expect(await screen.findByRole("button", { name: "Loading historical candles" })).toBeDisabled();
     await act(async () => {

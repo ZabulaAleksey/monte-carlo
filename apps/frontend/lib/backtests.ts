@@ -8,6 +8,8 @@ import {
   formatPercent as sharedFormatPercent,
 } from "@/lib/formatters";
 
+export const BACKTEST_TIMEFRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1"] as const;
+
 export interface TradeMarker {
   candleIndex: number;
   kind: "entry" | "exit";

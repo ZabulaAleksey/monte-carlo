@@ -105,8 +105,15 @@ mapping and locale-explicit formatters are framework-neutral shared modules.
 The dependency direction is `app -> feature screen -> feature model/hooks ->
 lib/api`. Models do not import React, browser globals or UI components. Symbol
 records are indexed once before table rows are built. The Strategies workbench
-uses two independent desktop scroll containers and falls back to normal page
-scroll below the two-column breakpoint.
+uses normal page scrolling in both layouts; only a virtual trade ledger longer
+than ten rows gets its own vertical viewport.
+
+The backtest form limits instruments to active symbols with a current quote.
+For the selected symbol it checks each timeframe against the immutable candle
+cache first. Missing MT5 combinations enqueue a bounded three-candle historical
+probe through the existing durable queue, and only confirmed combinations are
+enabled for a run. Successful probes populate the same candle cache and are
+therefore reused on later visits.
 
 `GET /api/v1/database/overview` uses a dedicated application port and a
 SQLAlchemy adapter. It exposes counts, schema revision, database size and
