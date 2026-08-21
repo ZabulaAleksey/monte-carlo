@@ -1,11 +1,12 @@
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.database.models import PositionModel
+from app.infrastructure.database.models import AccountModel, PositionModel
 from tests.conftest import MT5_TEST_API_KEY
 
 HEADERS = {"X-MT5-API-Key": MT5_TEST_API_KEY}
@@ -59,6 +60,43 @@ async def sync_account_and_symbol(client: AsyncClient) -> None:
     )
     assert symbols.status_code == 200
 
+
+@pytest.mark.asyncio
+async def test_mt5_account_sync_persists_signed_balance_and_equity(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    response = await client.post(
+        "/api/v1/mt5/account",
+        headers=HEADERS,
+        json={
+            "terminal_id": TERMINAL_ID,
+            "sent_at": now_iso(),
+            "external_id": ACCOUNT_ID,
+            "name": "MetaTrader Live",
+            "currency": "USD",
+            "balance": "-176.32",
+            "equity": "-201.45",
+            "margin": "0",
+            "free_margin": "-201.45",
+            "leverage": 100,
+            "company": "MetaQuotes",
+            "server": "Live-Server",
+        },
+    )
+
+    accounts = await client.get("/api/v1/accounts")
+    stored_account = await session.scalar(
+        select(AccountModel).where(AccountModel.external_id == ACCOUNT_ID)
+    )
+
+    assert response.status_code == 200
+    assert accounts.status_code == 200
+    assert stored_account is not None
+    assert stored_account.balance == Decimal("-176.32")
+    assert stored_account.equity == Decimal("-201.45")
+    account = next(item for item in accounts.json() if item["external_id"] == ACCOUNT_ID)
+    assert account["balance"] == "-176.32000000"
 
 @pytest.mark.asyncio
 async def test_symbol_sync_persists_mt5_lot_spec_and_caps_platform_maximum(

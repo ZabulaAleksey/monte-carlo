@@ -74,6 +74,9 @@ Stage 3 — Strategy engine and backtesting.
 - Account/trades инициализируют portfolio cards независимо от загрузки
   брокерского каталога символов.
 
+- Исправлена синхронизация MT5 account: `balance` и `equity` принимают знаковые значения, поэтому корректные отрицательные значения больше не вызывают HTTP 422.
+- Live runtime подтвердил для счёта `10011992327`: POST `/api/v1/mt5/account` возвращает 200, `balance/equity = -176.32`, `updated_at` актуален; Dashboard опрашивает accounts каждые 2 секунды.
+
 ## Known constraints
 
 - A single run currently reads and returns at most 20,000 candles/equity points.

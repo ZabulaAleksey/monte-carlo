@@ -39,8 +39,9 @@ class Mt5AccountRequest(Mt5RequestBase):
     external_id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=128)
     currency: str = Field(min_length=3, max_length=8)
-    balance: Decimal = Field(ge=0)
-    equity: Decimal = Field(ge=0)
+    # MT5 can report signed account values after an overdraft or liquidation.
+    balance: Decimal
+    equity: Decimal
     margin: Decimal = Field(ge=0)
     free_margin: Decimal
     leverage: int = Field(ge=1, le=10000)
