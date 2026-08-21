@@ -204,6 +204,7 @@ describe("StrategiesPage", () => {
     expect(screen.getByLabelText("To")).toHaveAttribute("lang", "en-US");
     expect(screen.getByLabelText("Starting capital")).toHaveAttribute("min", "100");
     expect(screen.getByLabelText("Starting capital")).toHaveAttribute("step", "100");
+    expect(screen.getByRole("option", { name: "M30" })).toBeInTheDocument();
     const positionSize = screen.getByLabelText("Position size / lots");
     expect(positionSize).toHaveAttribute("min", "0.01");
     expect(positionSize).toHaveAttribute("step", "0.01");
@@ -359,6 +360,48 @@ describe("StrategiesPage", () => {
     expect(apiClient.requestHistoricalData).toHaveBeenCalledTimes(1);
     expect(apiClient.getHistoricalDataRequest).toHaveBeenCalledWith("history-queued");
   }, 4_000);
+
+  it("does not start a job without any confirmed historical interval", async () => {
+    vi.mocked(apiClient.getHistoricalDataCoverage).mockResolvedValue({
+      symbol_id: "symbol-1",
+      timeframe: "M30",
+      requested_start: result.requested_start,
+      requested_end: result.requested_end,
+      candle_count: 0,
+      complete: false,
+      cached_intervals: [],
+      missing_intervals: [{
+        start_at: result.requested_start,
+        end_at: result.requested_end,
+      }],
+    });
+    vi.mocked(apiClient.requestHistoricalData).mockResolvedValue({
+      id: "history-empty",
+      symbol_id: "symbol-1",
+      symbol: "EURUSD",
+      timeframe: "M30",
+      requested_start: result.requested_start,
+      requested_end: result.requested_end,
+      status: "failed",
+      requested_at: "2026-01-01T00:00:00Z",
+      claimed_at: null,
+      completed_at: "2026-01-01T00:00:01Z",
+      terminal_id: null,
+      candle_count: 0,
+      error: "No broker history",
+    });
+
+    render(<StrategiesPage />);
+    await screen.findByRole("heading", { name: "Run configuration" });
+    fireEvent.change(screen.getByLabelText("Timeframe"), {
+      target: { value: "M30" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Run backtesting" }));
+
+    expect(await screen.findByText(/broker did not provide confirmed candles/i)).toBeVisible();
+    expect(apiClient.startBacktestJob).not.toHaveBeenCalled();
+    expect(screen.queryByText(/backend container/i)).not.toBeInTheDocument();
+  });
 
   it("opens a saved chart and deletes selected research", async () => {
     const secondRun = {

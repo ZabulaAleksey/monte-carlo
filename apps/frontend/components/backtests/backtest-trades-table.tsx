@@ -25,6 +25,7 @@ export function BacktestTradesTable({
     reverse: t("trade.reason.reverse"),
     stop_loss: t("trade.reason.stop_loss"),
     take_profit: t("trade.reason.take_profit"),
+    bankruptcy: t("trade.reason.bankruptcy"),
     end_of_data: t("trade.reason.end_of_data"),
   })[reason];
   return (

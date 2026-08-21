@@ -109,6 +109,7 @@ export type BacktestExitReason =
   | "reverse"
   | "stop_loss"
   | "take_profit"
+  | "bankruptcy"
   | "end_of_data";
 
 export interface StrategyParameterDefinition {

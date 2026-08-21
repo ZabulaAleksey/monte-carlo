@@ -36,8 +36,8 @@ describe("EquityChart", () => {
     expect(
       screen.getByRole("img", { name: /Balance and current-liquidation chart/ }),
     ).toBeInTheDocument();
-    expect(container.querySelector(".equity-line")).toBeInTheDocument();
-    expect(container.querySelector(".drawdown-line")).toBeInTheDocument();
+    expect(container.querySelector(".balance-line")).toBeInTheDocument();
+    expect(container.querySelector(".liquidation-line")).toBeInTheDocument();
     expect(screen.getByText("Balance (closed P&L)")).toBeInTheDocument();
     expect(screen.getByText("If closed now")).toBeInTheDocument();
     expect(screen.getByText("Portfolio value, USD")).toBeInTheDocument();
@@ -46,8 +46,8 @@ describe("EquityChart", () => {
     expect(screen.queryByText("Drawdown, %")).not.toBeInTheDocument();
     expect(screen.getAllByText(/2026/).length).toBeGreaterThanOrEqual(1);
 
-    const balancePath = container.querySelector(".equity-line")?.getAttribute("d");
-    const liquidationPath = container.querySelector(".drawdown-line")?.getAttribute("d");
+    const balancePath = container.querySelector(".balance-line")?.getAttribute("d");
+    const liquidationPath = container.querySelector(".liquidation-line")?.getAttribute("d");
     expect(balancePath).not.toEqual(liquidationPath);
     expect(balancePath?.split(" L ").at(-1)).toEqual(
       liquidationPath?.split(" L ").at(-1),

@@ -186,6 +186,18 @@ export default function StrategiesPage(): React.JSX.Element {
           }
           if (historyRequest.status === "completed" && !coverage.complete) break;
         }
+        coverage = await apiClient.getHistoricalDataCoverage(
+          payload.symbol_id,
+          payload.timeframe,
+          payload.start_at,
+          payload.end_at,
+        );
+      }
+      const hasConfirmedData =
+        coverage.candle_count > 0 && coverage.cached_intervals.length > 0;
+      if (!coverage.complete && !hasConfirmedData) {
+        setNotice({ tone: "warning", message: t("history.unavailable") });
+        return;
       }
       const allowPartialData = !coverage.complete;
       setNotice(allowPartialData ? {

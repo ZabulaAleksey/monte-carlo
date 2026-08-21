@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import MarketDataPage from "./page";
@@ -28,6 +28,8 @@ const onlineStatus = {
 
 describe("MarketDataPage", () => {
   beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
     vi.mocked(useMt5Status).mockReturnValue({ error: null, status: onlineStatus });
     vi.mocked(apiClient.getSymbols).mockResolvedValue([
       { id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100000" },
@@ -108,5 +110,50 @@ describe("MarketDataPage", () => {
     expect(await screen.findByText("1.00555")).toBeInTheDocument();
     expect(screen.getByText("Demo fallback")).toBeInTheDocument();
     expect(apiClient.getCandles).toHaveBeenCalledWith({ limit: 100, source: "demo" });
+  });
+
+  it("keeps the selected quote sorting during realtime refreshes", async () => {
+    vi.mocked(apiClient.getSymbols).mockResolvedValue([
+      { id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100000" },
+      { id: "gbpusd", name: "GBPUSD", description: "Pound", digits: 5, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100000" },
+    ]);
+    const quote = (
+      symbol_id: string,
+      bid: string,
+      ask: string,
+    ) => ({
+      symbol_id,
+      terminal_id: "terminal-1",
+      bid,
+      ask,
+      observed_at: "2026-08-10T10:05:00Z",
+      received_at: "2026-08-10T10:05:00Z",
+      source: "mt5" as const,
+    });
+    vi.mocked(apiClient.getQuotes)
+      .mockResolvedValueOnce([
+        quote("eurusd", "1.10000", "1.10020"),
+        quote("gbpusd", "2.10000", "2.10020"),
+      ])
+      .mockResolvedValue([
+        quote("eurusd", "3.10000", "3.10020"),
+        quote("gbpusd", "1.10000", "1.10020"),
+    ]);
+
+    render(<MarketDataPage />);
+    const askButton = await screen.findByRole("button", { name: /Ask/ });
+    const table = askButton.closest("table") as HTMLTableElement;
+    fireEvent.click(askButton);
+    fireEvent.click(askButton);
+    expect(askButton.closest("th")).toHaveAttribute("aria-sort", "descending");
+
+    await waitFor(() => expect(apiClient.getQuotes).toHaveBeenCalledTimes(2), {
+      timeout: 2_000,
+    });
+    await waitFor(() => {
+      const firstDataRow = within(table).getAllByRole("row")[1];
+      expect(within(firstDataRow!).getByText("EURUSD")).toBeInTheDocument();
+    });
+    expect(askButton.closest("th")).toHaveAttribute("aria-sort", "descending");
   });
 });

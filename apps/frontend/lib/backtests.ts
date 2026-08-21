@@ -58,7 +58,9 @@ export function mapTradesToCandles(
     const entryIndex = findIndex(trade.opened_at);
     const exitIndex = findIndex(
       trade.closed_at,
-      ["stop_loss", "take_profit", "end_of_data"].includes(trade.exit_reason),
+      ["stop_loss", "take_profit", "bankruptcy", "end_of_data"].includes(
+        trade.exit_reason,
+      ),
     );
     const markers: TradeMarker[] = [];
     if (entryIndex >= 0 && new Date(trade.opened_at).getTime() < cutoff) {

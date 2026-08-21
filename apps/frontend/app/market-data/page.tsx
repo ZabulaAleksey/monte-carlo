@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
@@ -13,6 +13,73 @@ import { useI18n } from "@/lib/i18n";
 
 const REFRESH_INTERVAL_MS = 10_000;
 
+type SortDirection = "ascending" | "descending";
+type QuoteSortKey = "symbol" | "bid" | "ask" | "spread" | "updated";
+type CandleSortKey =
+  | "source"
+  | "symbol"
+  | "time"
+  | "timeframe"
+  | "open"
+  | "high"
+  | "low"
+  | "close"
+  | "volume";
+
+interface SortState<Key extends string> {
+  direction: SortDirection;
+  key: Key;
+}
+
+function compareValues(left: number | string, right: number | string): number {
+  return typeof left === "number" && typeof right === "number"
+    ? left - right
+    : String(left).localeCompare(String(right), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+}
+
+function nextSort<Key extends string>(
+  current: SortState<Key>,
+  key: Key,
+): SortState<Key> {
+  return {
+    key,
+    direction:
+      current.key === key && current.direction === "ascending"
+        ? "descending"
+        : "ascending",
+  };
+}
+
+function SortableHeader<Key extends string>({
+  active,
+  direction,
+  label,
+  onSort,
+  sortKey,
+}: {
+  active: boolean;
+  direction: SortDirection;
+  label: string;
+  onSort: (key: Key) => void;
+  sortKey: Key;
+}): React.JSX.Element {
+  return (
+    <th aria-sort={active ? direction : "none"}>
+      <button
+        className="table-sort-button"
+        onClick={() => onSort(sortKey)}
+        type="button"
+      >
+        <span>{label}</span>
+        <span aria-hidden="true">{active ? (direction === "ascending" ? "↑" : "↓") : "↕"}</span>
+      </button>
+    </th>
+  );
+}
+
 export default function MarketDataPage(): React.JSX.Element {
   const { intlLocale, t } = useI18n();
   const { error: statusError, status } = useMt5Status();
@@ -21,6 +88,14 @@ export default function MarketDataPage(): React.JSX.Element {
   const [symbols, setSymbols] = useState<SymbolRecord[]>([]);
   const [candles, setCandles] = useState<CandleRecord[] | null>(null);
   const [cachedQuotes, setCachedQuotes] = useState<QuoteRecord[]>([]);
+  const [quoteSort, setQuoteSort] = useState<SortState<QuoteSortKey>>({
+    direction: "ascending",
+    key: "symbol",
+  });
+  const [candleSort, setCandleSort] = useState<SortState<CandleSortKey>>({
+    direction: "descending",
+    key: "time",
+  });
   const [error, setError] = useState<string | null>(null);
   const { error: quoteError, quotes: liveQuotes } = useLiveQuotes(connected);
 
@@ -59,6 +134,61 @@ export default function MarketDataPage(): React.JSX.Element {
   const quotes = (connected ? liveQuotes : cachedQuotes).filter(
     (quote) => quote.source === source,
   );
+  const quoteRows = useMemo(
+    () =>
+      quotes
+        .map((quote) => {
+          const symbol = symbols.find((item) => item.id === quote.symbol_id);
+          const digits = symbol?.digits ?? 5;
+          return {
+            quote,
+            symbolName: symbol?.name ?? "—",
+            digits,
+            spread: (Number(quote.ask) - Number(quote.bid)) * 10 ** digits,
+          };
+        })
+        .sort((left, right) => {
+          const value = (row: typeof left): number | string => ({
+            symbol: row.symbolName,
+            bid: Number(row.quote.bid),
+            ask: Number(row.quote.ask),
+            spread: row.spread,
+            updated: new Date(row.quote.observed_at).getTime(),
+          })[quoteSort.key];
+          const primary = compareValues(value(left), value(right));
+          const stable = primary || left.symbolName.localeCompare(right.symbolName);
+          return quoteSort.direction === "ascending" ? stable : -stable;
+        }),
+    [quoteSort, quotes, symbols],
+  );
+  const candleRows = useMemo(
+    () =>
+      candles === null
+        ? []
+        : candles
+            .map((candle) => ({
+              candle,
+              symbolName:
+                symbols.find((item) => item.id === candle.symbol_id)?.name ?? "—",
+            }))
+            .sort((left, right) => {
+              const value = (row: typeof left): number | string => ({
+                source: row.candle.source,
+                symbol: row.symbolName,
+                time: new Date(row.candle.open_time).getTime(),
+                timeframe: row.candle.timeframe,
+                open: Number(row.candle.open),
+                high: Number(row.candle.high),
+                low: Number(row.candle.low),
+                close: Number(row.candle.close),
+                volume: Number(row.candle.volume),
+              })[candleSort.key];
+              const primary = compareValues(value(left), value(right));
+              const stable = primary || left.symbolName.localeCompare(right.symbolName);
+              return candleSort.direction === "ascending" ? stable : -stable;
+            }),
+    [candleSort, candles, symbols],
+  );
   const visibleError = error ?? quoteError;
 
   return (
@@ -86,24 +216,24 @@ export default function MarketDataPage(): React.JSX.Element {
             <span className="count-badge">{t("common.rows", { count: quotes.length })}</span>
           </div>
           <div className="table-scroll">
-            <table>
+            <table className="market-data-table quotes-table">
+              <colgroup>
+                <col /><col /><col /><col /><col />
+              </colgroup>
               <thead>
                 <tr>
-                  <th>{t("common.symbol")}</th>
-                  <th>Bid</th>
-                  <th>Ask</th>
-                  <th>{t("market.spreadPoints")}</th>
-                  <th>{t("market.updated")}</th>
+                  <SortableHeader active={quoteSort.key === "symbol"} direction={quoteSort.direction} label={t("common.symbol")} onSort={(key) => setQuoteSort((current) => nextSort(current, key))} sortKey="symbol" />
+                  <SortableHeader active={quoteSort.key === "bid"} direction={quoteSort.direction} label="Bid" onSort={(key) => setQuoteSort((current) => nextSort(current, key))} sortKey="bid" />
+                  <SortableHeader active={quoteSort.key === "ask"} direction={quoteSort.direction} label="Ask" onSort={(key) => setQuoteSort((current) => nextSort(current, key))} sortKey="ask" />
+                  <SortableHeader active={quoteSort.key === "spread"} direction={quoteSort.direction} label={t("market.spreadPoints")} onSort={(key) => setQuoteSort((current) => nextSort(current, key))} sortKey="spread" />
+                  <SortableHeader active={quoteSort.key === "updated"} direction={quoteSort.direction} label={t("market.updated")} onSort={(key) => setQuoteSort((current) => nextSort(current, key))} sortKey="updated" />
                 </tr>
               </thead>
               <tbody>
-                {quotes.map((quote) => {
-                  const symbol = symbols.find((item) => item.id === quote.symbol_id);
-                  const digits = symbol?.digits ?? 5;
-                  const spread = (Number(quote.ask) - Number(quote.bid)) * 10 ** digits;
+                {quoteRows.map(({ digits, quote, spread, symbolName }) => {
                   return (
                     <tr key={quote.symbol_id}>
-                      <td><strong>{symbol?.name ?? "—"}</strong></td>
+                      <td><strong>{symbolName}</strong></td>
                       <td className="quote-bid">{Number(quote.bid).toFixed(digits)}</td>
                       <td className="quote-ask">{Number(quote.ask).toFixed(digits)}</td>
                       <td>{spread.toFixed(1)}</td>
@@ -134,22 +264,25 @@ export default function MarketDataPage(): React.JSX.Element {
             </div>
           </div>
           <div className="table-scroll">
-            <table>
+            <table className="market-data-table candles-table">
+              <colgroup>
+                {Array.from({ length: 9 }, (_, index) => <col key={index} />)}
+              </colgroup>
               <thead>
                 <tr>
-                  <th>{t("common.source")}</th>
-                  <th>{t("common.symbol")}</th>
-                  <th>{t("common.time")}</th>
-                  <th>{t("common.timeframe")}</th>
-                  <th>{t("common.priceOpen")}</th>
-                  <th>{t("common.priceHigh")}</th>
-                  <th>{t("common.priceLow")}</th>
-                  <th>{t("common.priceClose")}</th>
-                  <th>{t("common.volume")}</th>
+                  <SortableHeader active={candleSort.key === "source"} direction={candleSort.direction} label={t("common.source")} onSort={(key) => setCandleSort((current) => nextSort(current, key))} sortKey="source" />
+                  <SortableHeader active={candleSort.key === "symbol"} direction={candleSort.direction} label={t("common.symbol")} onSort={(key) => setCandleSort((current) => nextSort(current, key))} sortKey="symbol" />
+                  <SortableHeader active={candleSort.key === "time"} direction={candleSort.direction} label={t("common.time")} onSort={(key) => setCandleSort((current) => nextSort(current, key))} sortKey="time" />
+                  <SortableHeader active={candleSort.key === "timeframe"} direction={candleSort.direction} label={t("common.timeframe")} onSort={(key) => setCandleSort((current) => nextSort(current, key))} sortKey="timeframe" />
+                  <SortableHeader active={candleSort.key === "open"} direction={candleSort.direction} label={t("common.priceOpen")} onSort={(key) => setCandleSort((current) => nextSort(current, key))} sortKey="open" />
+                  <SortableHeader active={candleSort.key === "high"} direction={candleSort.direction} label={t("common.priceHigh")} onSort={(key) => setCandleSort((current) => nextSort(current, key))} sortKey="high" />
+                  <SortableHeader active={candleSort.key === "low"} direction={candleSort.direction} label={t("common.priceLow")} onSort={(key) => setCandleSort((current) => nextSort(current, key))} sortKey="low" />
+                  <SortableHeader active={candleSort.key === "close"} direction={candleSort.direction} label={t("common.priceClose")} onSort={(key) => setCandleSort((current) => nextSort(current, key))} sortKey="close" />
+                  <SortableHeader active={candleSort.key === "volume"} direction={candleSort.direction} label={t("common.volume")} onSort={(key) => setCandleSort((current) => nextSort(current, key))} sortKey="volume" />
                 </tr>
               </thead>
               <tbody>
-                {candles.map((candle) => (
+                {candleRows.map(({ candle, symbolName }) => (
                   <tr key={candle.id}>
                     <td>
                       <span className={`tag source-${candle.source}`}>
@@ -158,7 +291,7 @@ export default function MarketDataPage(): React.JSX.Element {
                     </td>
                     <td>
                       <strong>
-                        {symbols.find((item) => item.id === candle.symbol_id)?.name ?? "—"}
+                        {symbolName}
                       </strong>
                     </td>
                     <td>{new Date(candle.open_time).toLocaleString(intlLocale)}</td>

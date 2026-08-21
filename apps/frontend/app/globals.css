@@ -206,13 +206,13 @@ tbody tr:hover { background: #f7f9f5; }
 .chart-frame { min-width: 0; overflow-x: auto; }
 .chart-caption { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; color: var(--muted); font-family: var(--font-mono); font-size: 9px; flex-wrap: wrap; }
 .equity-chart, .candlestick-chart { width: 100%; min-width: 560px; height: auto; display: block; border: 1px solid var(--line); border-radius: 10px; background: repeating-linear-gradient(to bottom, #f8faf7 0, #f8faf7 62px, #e9eee9 63px); }
-.equity-line { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.balance-line { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .equity-area { fill: url("#equity-fill"); stroke: none; }
-.drawdown-line { fill: none; stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; stroke-linecap: round; stroke-linejoin: round; }
+.liquidation-line { fill: none; stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; stroke-linecap: round; stroke-linejoin: round; }
 .equity-legend { display: flex; align-items: center; gap: 14px; }
 .equity-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .equity-legend i { width: 16px; height: 3px; display: inline-block; border-radius: 2px; background: var(--green); }
-.equity-legend .drawdown-swatch { background: repeating-linear-gradient(to right, var(--red) 0, var(--red) 5px, transparent 5px, transparent 8px); }
+.equity-legend .liquidation-swatch { background: repeating-linear-gradient(to right, var(--red) 0, var(--red) 5px, transparent 5px, transparent 8px); }
 .chart-grid line { stroke: var(--line); stroke-width: .7; stroke-dasharray: 2 4; }
 .price-axis line { stroke: #d9e1db; stroke-width: .65; stroke-dasharray: 2 5; vector-effect: non-scaling-stroke; }
 .price-axis text { fill: #405148; font-family: var(--font-mono); font-size: 8px; font-weight: 650; paint-order: stroke; stroke: #f8faf7; stroke-width: 3px; stroke-linejoin: round; }
@@ -231,9 +231,30 @@ tbody tr:hover { background: #f7f9f5; }
 .trade-connection line { fill: none; stroke-width: 1.4; stroke-dasharray: 4 4; opacity: .65; vector-effect: non-scaling-stroke; }
 .trade-connection.buy line { stroke: #0d6f4d; }
 .trade-connection.sell line { stroke: var(--red); }
+.trade-risk-level line { stroke-width: 1.2; stroke-dasharray: 7 4; opacity: .85; vector-effect: non-scaling-stroke; }
+.trade-risk-level text { font-family: var(--font-mono); font-size: 8px; font-weight: 700; paint-order: stroke; stroke: #f8faf7; stroke-width: 3px; stroke-linejoin: round; }
+.trade-risk-level.stop-loss line { stroke: #b42318; }
+.trade-risk-level.stop-loss text { fill: #b42318; }
+.trade-risk-level.take-profit line { stroke: #157f5b; }
+.trade-risk-level.take-profit text { fill: #157f5b; }
 .trade-exit-pnl { font-family: var(--font-mono); font-size: 8px; font-weight: 700; paint-order: stroke; stroke: #f8faf7; stroke-width: 3px; stroke-linejoin: round; }
 .trade-exit-pnl.positive { fill: #0d6f4d; }
 .trade-exit-pnl.negative { fill: var(--red); }
+.market-data-table { table-layout: fixed; }
+.market-data-table th, .market-data-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quotes-table { min-width: 760px; }
+.quotes-table col:nth-child(1) { width: 18%; }
+.quotes-table col:nth-child(2), .quotes-table col:nth-child(3) { width: 18%; }
+.quotes-table col:nth-child(4) { width: 18%; }
+.quotes-table col:nth-child(5) { width: 28%; }
+.candles-table { min-width: 1080px; }
+.candles-table col:nth-child(1) { width: 9%; }
+.candles-table col:nth-child(2) { width: 12%; }
+.candles-table col:nth-child(3) { width: 18%; }
+.candles-table col:nth-child(4) { width: 7%; }
+.candles-table col:nth-child(n+5) { width: 10.8%; }
+.table-sort-button { width: 100%; border: 0; padding: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: inherit; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.table-sort-button:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; border-radius: 2px; }
 .chart-empty { min-height: 220px; display: grid; place-items: center; color: var(--muted); font-size: 11px; }
 .run-settings { padding: 18px 20px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
 .run-settings span, .run-settings strong { display: block; }

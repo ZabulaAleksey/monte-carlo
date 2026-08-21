@@ -113,6 +113,11 @@ def test_lot_step_is_measured_from_the_symbol_minimum() -> None:
         BacktestService._validate_lot_size(Decimal("0.1"), symbol)
 
 
+@pytest.mark.parametrize("timeframe", ["M1", "M5", "M15", "M30", "H1", "H4", "D1"])
+def test_engine_supports_every_fx_backtest_timeframe(timeframe: str) -> None:
+    assert BacktestEngine._timeframe_duration(timeframe) > timedelta(0)
+
+
 def candle(
     sequence: int,
     *,
@@ -409,6 +414,32 @@ async def test_drawdown_tracks_current_unrealized_position_loss() -> None:
     assert unrealized.drawdown_absolute == Decimal("10")
     assert result.equity_curve[-1].drawdown_pct == Decimal("0")
     assert result.metrics.max_drawdown_absolute == Decimal("10")
+
+
+@pytest.mark.asyncio
+async def test_bankruptcy_closes_position_and_stops_future_strategy_calls() -> None:
+    candles = [
+        candle(1, open_price="100"),
+        candle(2, open_price="100", low="9", close="9"),
+        candle(3, open_price="500", close="500"),
+        candle(4, open_price="1000", close="1000"),
+    ]
+    strategy = ScriptedStrategy({1: Signal.BUY, 2: Signal.SELL, 3: Signal.BUY})
+
+    result = await run_engine(
+        candles,
+        strategy,
+        settings(position_size="11"),
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0].exit_reason == ExitReason.BANKRUPTCY
+    assert result.metrics.final_balance == Decimal("-1")
+    assert result.equity_curve[-1].balance == Decimal("-1")
+    assert result.equity_curve[-1].equity == Decimal("-1")
+    assert result.candle_count == 2
+    assert result.data_end == candles[1].open_time
+    assert len(strategy.contexts) == 1
 
 
 @pytest.mark.asyncio

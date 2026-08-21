@@ -30,6 +30,7 @@ def test_mql5_bridge_exposes_documented_connection_inputs() -> None:
     assert "input int    TradeRetrySeconds" in source
     assert "input bool   IncludeAllBrokerQuotes" in source
     assert "input int    HistoryRequestSeconds" in source
+    assert "input int    HistoryCopyRetryCount" in source
     assert "input int    CandleLookbackDays" in source
     assert '"/api/v1/mt5/quotes"' in source
     assert "SymbolInfoTick(symbol,tick)" in source
@@ -66,6 +67,8 @@ def test_mql5_bridge_polls_and_fulfils_historical_requests() -> None:
 
     assert 'HttpGet("/api/v1/mt5/history/requests/next?terminal_id="' in source
     assert "CopyRates(symbol,timeframe," in source
+    assert "for(int attempt=0;attempt<copy_attempts;attempt++)" in source
+    assert "Sleep(250*(attempt+1))" in source
     assert '"/complete"' in source
     assert '"/fail"' in source
     assert "ProcessHistoricalRequest()" in source

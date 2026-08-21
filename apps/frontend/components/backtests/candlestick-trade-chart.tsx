@@ -118,13 +118,37 @@ export function CandlestickTradeChart({
   if (visible.length === 0) {
     return <div className="chart-empty">{t("replay.empty")}</div>;
   }
+  const markers = mapTradesToCandles(visible, trades, visibleUntil);
+  const rawTradeRanges = new Map<
+    number,
+    Partial<Record<TradeMarker["kind"], TradeMarker>>
+  >();
+  markers.forEach((marker) => {
+    const pair = rawTradeRanges.get(marker.tradeSequence) ?? {};
+    pair[marker.kind] = marker;
+    rawTradeRanges.set(marker.tradeSequence, pair);
+  });
   const scaleCandles = visible.slice(
     viewportRange.start,
     Math.min(viewportRange.end + 1, visible.length),
   );
   const scaleSource = scaleCandles.length > 0 ? scaleCandles : visible;
-  const lows = scaleSource.map((item) => Number(item.low));
-  const highs = scaleSource.map((item) => Number(item.high));
+  const riskLevels = trades.flatMap((trade) => {
+    const range = rawTradeRanges.get(trade.sequence);
+    if (
+      !range?.entry ||
+      range.entry.candleIndex > viewportRange.end ||
+      (range.exit?.candleIndex ?? visible.length - 1) < viewportRange.start
+    ) {
+      return [];
+    }
+    return [trade.stop_loss, trade.take_profit]
+      .filter((value): value is string => value !== null)
+      .map(Number)
+      .filter(Number.isFinite);
+  });
+  const lows = [...scaleSource.map((item) => Number(item.low)), ...riskLevels];
+  const highs = [...scaleSource.map((item) => Number(item.high)), ...riskLevels];
   const minimum = Math.min(...lows);
   const maximum = Math.max(...highs);
   const range = maximum - minimum || 1;
@@ -133,7 +157,6 @@ export function CandlestickTradeChart({
   const y = (price: number): number =>
     PADDING + ((maximum - price) / range) * plotHeight;
   const x = (index: number): number => PADDING + step * index + step / 2;
-  const markers = mapTradesToCandles(visible, trades, visibleUntil);
   const periods = buildPeriodSeparators(visible, intlLocale);
   const markerRanks = new Map<string, number>();
   const positionedMarkers: PositionedTradeMarker[] = markers.map((marker) => {
@@ -174,6 +197,29 @@ export function CandlestickTradeChart({
     if (pair.entry && pair.exit) {
       connections.push({ entry: pair.entry, exit: pair.exit, sequence });
     }
+  });
+  const riskSegments = trades.flatMap((trade) => {
+    const pair = tradePositions.get(trade.sequence);
+    if (!pair?.entry) return [];
+    const endX = pair.exit?.markerX ?? x(visible.length - 1);
+    return [
+      trade.stop_loss === null ? null : {
+        kind: "stop-loss",
+        label: "SL",
+        price: Number(trade.stop_loss),
+        sequence: trade.sequence,
+        startX: pair.entry.markerX,
+        endX,
+      },
+      trade.take_profit === null ? null : {
+        kind: "take-profit",
+        label: "TP",
+        price: Number(trade.take_profit),
+        sequence: trade.sequence,
+        startX: pair.entry.markerX,
+        endX,
+      },
+    ].filter((item): item is NonNullable<typeof item> => item !== null);
   });
   const visibleTradeCount = new Set(markers.map((marker) => marker.tradeSequence)).size;
   const priceTicks = Array.from(
@@ -262,6 +308,23 @@ export function CandlestickTradeChart({
               y1={entry.markerY}
               y2={exit.markerY}
             />
+          </g>
+        ))}
+        {riskSegments.map((level) => (
+          <g
+            className={`trade-risk-level ${level.kind}`}
+            key={`${level.sequence}-${level.kind}`}
+          >
+            <line
+              aria-label={`#${level.sequence} ${level.label} ${level.price.toFixed(normalizedDigits)}`}
+              x1={level.startX}
+              x2={level.endX}
+              y1={y(level.price)}
+              y2={y(level.price)}
+            />
+            <text x={level.startX + 4} y={y(level.price) - 3}>
+              {level.label} {level.price.toFixed(normalizedDigits)}
+            </text>
           </g>
         ))}
         {positionedMarkers.map((marker) => {

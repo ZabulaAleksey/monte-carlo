@@ -50,8 +50,8 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
     PLOT.left + (index / Math.max(points.length - 1, 1)) * plotWidth;
   const valueY = (value: number): number =>
     PLOT.top + ((maximum - value) / valueRange) * plotHeight;
-  const equityPath = seriesPath(balanceValues, x, valueY);
-  const drawdownPath = seriesPath(liquidationValues, x, valueY);
+  const balancePath = seriesPath(balanceValues, x, valueY);
+  const liquidationPath = seriesPath(liquidationValues, x, valueY);
   const valueTicks = [maximum, minimum + valueRange / 2, minimum];
   const xTickIndices = [
     ...new Set([0, Math.floor((points.length - 1) / 2), points.length - 1]),
@@ -74,8 +74,8 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
       <div className="chart-caption">
         <span>{t("equity.low", { value: formatMoney(equityMinimum, intlLocale) })}</span>
         <div className="equity-legend">
-          <span><i className="equity-swatch" />{t("equity.legendEquity")}</span>
-          <span><i className="drawdown-swatch" />{t("equity.legendDrawdown")}</span>
+          <span><i className="balance-swatch" />{t("equity.legendEquity")}</span>
+          <span><i className="liquidation-swatch" />{t("equity.legendDrawdown")}</span>
         </div>
         <strong>{t("equity.operations", { count: trades.length })}</strong>
         <span>
@@ -160,10 +160,10 @@ export function EquityChart({ points, trades }: EquityChartProps): React.JSX.Ele
         </g>
         <path
           className="equity-area"
-          d={`${equityPath} L ${PLOT.right} ${PLOT.bottom} L ${PLOT.left} ${PLOT.bottom} Z`}
+          d={`${balancePath} L ${PLOT.right} ${PLOT.bottom} L ${PLOT.left} ${PLOT.bottom} Z`}
         />
-        <path className="equity-line" d={equityPath} />
-        <path className="drawdown-line" d={drawdownPath} />
+        <path className="balance-line" d={balancePath} />
+        <path className="liquidation-line" d={liquidationPath} />
         {operationMarkers.map(({ trade, x: markerX, y: markerY }) => (
           <circle
             className={`equity-operation ${Number(trade.net_profit) >= 0 ? "win" : "loss"}`}

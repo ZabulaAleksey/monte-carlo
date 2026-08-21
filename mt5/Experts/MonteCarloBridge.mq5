@@ -16,6 +16,7 @@ input int    AccountMilliseconds = 1000;
 input int    TradeRetrySeconds   = 5;
 input bool   IncludeAllBrokerQuotes = true;
 input int    HistoryRequestSeconds = 1;
+input int    HistoryCopyRetryCount = 3;
 input int    SynchronizeSeconds  = 60;
 input int    RequestTimeoutMs    = 5000;
 input int    RetryCount          = 3;
@@ -651,8 +652,17 @@ bool SendRequestedCandles(const string request_id,
    if(to_server<from_server)
       return FailHistoricalRequest(request_id,
                                    "The requested range has no completed candles yet");
-   ResetLastError();
-   int copied=CopyRates(symbol,timeframe,from_server,to_server,rates);
+   int copied=-1;
+   int copy_attempts=MathMax(1,HistoryCopyRetryCount);
+   for(int attempt=0;attempt<copy_attempts;attempt++)
+     {
+      ResetLastError();
+      copied=CopyRates(symbol,timeframe,from_server,to_server,rates);
+      if(copied>0)
+         break;
+      if(attempt+1<copy_attempts)
+         Sleep(250*(attempt+1));
+     }
    if(copied<0)
      {
       // CopyRates starts terminal-side history synchronization asynchronously.
@@ -662,8 +672,11 @@ bool SendRequestedCandles(const string request_id,
       return false;
      }
    if(copied==0)
-      return FailHistoricalRequest(request_id,
-                                   "No broker candles are available for the requested range");
+     {
+      PrintFormat("Historical request has no synchronized candles yet: request=%s symbol=%s",
+                  request_id,symbol);
+      return false;
+     }
 
    string items="";
    int accepted=0;

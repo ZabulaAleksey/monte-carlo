@@ -62,6 +62,7 @@ class PositionSide(StrEnum):
 
 
 class ExitReason(StrEnum):
+    BANKRUPTCY = "bankruptcy"
     SIGNAL = "signal"
     REVERSE = "reverse"
     STOP_LOSS = "stop_loss"

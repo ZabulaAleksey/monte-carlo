@@ -33,8 +33,8 @@ const trade: VirtualTradeRecord = {
   closed_at: "2026-02-01T00:30:00Z",
   open_price: "100",
   close_price: "102",
-  stop_loss: null,
-  take_profit: null,
+  stop_loss: "99",
+  take_profit: "103",
   exit_reason: "signal",
   gross_profit: "2",
   commission: "0",
@@ -73,12 +73,28 @@ describe("CandlestickTradeChart", () => {
     expect(container.querySelectorAll(".price-axis text")).toHaveLength(5);
     expect(screen.getByText("103.00000")).toBeInTheDocument();
     expect(container.querySelectorAll(".trade-connection")).toHaveLength(1);
+    expect(container.querySelectorAll(".trade-risk-level.stop-loss")).toHaveLength(1);
+    expect(container.querySelectorAll(".trade-risk-level.take-profit")).toHaveLength(1);
+    expect(screen.getByLabelText("#1 SL 99.00000")).toBeInTheDocument();
+    expect(screen.getByLabelText("#1 TP 103.00000")).toBeInTheDocument();
     expect(container.querySelector('[data-trade-sequence="1"]')).toBeInTheDocument();
     expect(screen.getByText("+$2.00")).toBeInTheDocument();
     expect(screen.getByLabelText("Trade 1 exit, P&L +$2.00")).toBeInTheDocument();
 
     delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
     delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+  });
+
+  it("does not reveal risk levels before the entry candle", () => {
+    const { container } = render(
+      <CandlestickTradeChart
+        candles={[candle("before-entry", "2026-01-31T22:00:00Z")]}
+        trades={[trade]}
+        visibleUntil="2026-01-31T23:00:00Z"
+      />,
+    );
+
+    expect(container.querySelector(".trade-risk-level")).not.toBeInTheDocument();
   });
 
   it("rescales prices from the candles in the visible horizontal viewport", async () => {

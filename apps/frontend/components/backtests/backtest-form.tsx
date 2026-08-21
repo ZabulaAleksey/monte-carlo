@@ -271,7 +271,7 @@ export function BacktestForm({
               onChange={(event) => update("timeframe", event.target.value)}
               value={form.timeframe}
             >
-              {["M1", "M5", "M15", "H1", "H4", "D1"].map((timeframe) => (
+              {["M1", "M5", "M15", "M30", "H1", "H4", "D1"].map((timeframe) => (
                 <option key={timeframe}>{timeframe}</option>
               ))}
             </select>

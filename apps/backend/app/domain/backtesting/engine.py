@@ -119,8 +119,11 @@ class BacktestEngine:
         balance = settings.initial_capital
         peak_equity = settings.initial_capital
         pending_signal = Signal.HOLD
+        processed_candles = 0
+        account_depleted = False
 
         for candle_index, candle in enumerate(candles, start=1):
+            processed_candles = candle_index
             candle_close_time = candle.open_time + candle_duration
             balance = self._execute_pending_signal(
                 pending_signal,
@@ -146,6 +149,34 @@ class BacktestEngine:
                 equity += self._orders.unrealized_profit(position, candle.close)
                 equity += self._orders.accrued_swap(position, candle_close_time)
             equity = quantize_decimal(equity)
+
+            if equity <= 0:
+                if self._positions.current is not None:
+                    balance = self._close_position(
+                        candle_close_time,
+                        candle.close,
+                        ExitReason.BANKRUPTCY,
+                        balance,
+                        trades,
+                    )
+                equity = balance
+                peak_equity = max(peak_equity, equity)
+                equity_curve.append(
+                    EquityPoint(
+                        sequence=len(equity_curve) + 1,
+                        timestamp=candle_close_time,
+                        balance=balance,
+                        equity=equity,
+                        drawdown_absolute=self._drawdown_absolute(peak_equity, equity),
+                        drawdown_pct=self._drawdown(peak_equity, equity),
+                    )
+                )
+                if control is not None:
+                    await control.checkpoint(
+                        "simulating", candle_index, len(candles)
+                    )
+                account_depleted = True
+                break
 
             context = StrategyContext(
                 current_candle=candle,
@@ -173,8 +204,8 @@ class BacktestEngine:
             if control is not None:
                 await control.checkpoint("simulating", candle_index, len(candles))
 
-        last_candle = candles[-1]
-        if self._positions.current is not None:
+        last_candle = candles[processed_candles - 1]
+        if not account_depleted and self._positions.current is not None:
             balance = self._close_position(
                 last_candle.open_time + candle_duration,
                 last_candle.close,
@@ -198,8 +229,8 @@ class BacktestEngine:
             requested_start=start_at,
             requested_end=end_at,
             data_start=candles[0].open_time,
-            data_end=candles[-1].open_time,
-            candle_count=len(candles),
+            data_end=last_candle.open_time,
+            candle_count=processed_candles,
             strategy_name=strategy.name,
             strategy_version=strategy.version,
             parameters=immutable_parameters,
