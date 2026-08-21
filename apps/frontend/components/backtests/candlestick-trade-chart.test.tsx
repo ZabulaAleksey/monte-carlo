@@ -280,6 +280,40 @@ describe("CandlestickTradeChart", () => {
     delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
   });
 
+  it("keeps candle geometry stable while the replay reveals more history", () => {
+    const candles = Array.from({ length: 200 }, (_, index) =>
+      candleAtPrice(`candle-${index}`, index, 100),
+    );
+    const { container, rerender } = render(
+      <CandlestickTradeChart
+        candles={candles}
+        trades={[]}
+        visibleCandleCount={1}
+      />,
+    );
+    const chart = container.querySelector(".candlestick-chart") as SVGSVGElement;
+    const firstWick = container.querySelector('[data-candle-index="0"] line');
+    const initialViewBox = chart.getAttribute("viewBox");
+    const initialX = firstWick?.getAttribute("x1");
+
+    expect(container.querySelectorAll(".candle")).toHaveLength(1);
+
+    rerender(
+      <CandlestickTradeChart
+        candles={candles}
+        trades={[]}
+        visibleCandleCount={2}
+      />,
+    );
+
+    expect(container.querySelectorAll(".candle")).toHaveLength(2);
+    expect(chart.getAttribute("viewBox")).toBe(initialViewBox);
+    expect(container.querySelector('[data-candle-index="0"] line')).toHaveAttribute(
+      "x1",
+      initialX,
+    );
+  });
+
   it("keeps trade and risk lines that cross the viewport when markers are outside it", async () => {
     Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
       configurable: true,

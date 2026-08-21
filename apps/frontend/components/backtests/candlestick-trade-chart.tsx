@@ -18,6 +18,7 @@ interface CandlestickTradeChartProps {
   priceDigits?: number;
   smoothFollow?: boolean;
   trades: VirtualTradeRecord[];
+  visibleCandleCount?: number;
   visibleUntil?: string;
 }
 
@@ -46,10 +47,17 @@ export function CandlestickTradeChart({
   priceDigits = 5,
   smoothFollow = false,
   trades,
+  visibleCandleCount,
   visibleUntil,
 }: CandlestickTradeChartProps): React.JSX.Element {
   const { intlLocale, t } = useI18n();
-  const visible = useMemo(() => sortCandles(candles), [candles]);
+  const sorted = useMemo(() => sortCandles(candles), [candles]);
+  const visible = useMemo(
+    () => visibleCandleCount === undefined
+      ? sorted
+      : sorted.slice(0, Math.max(0, Math.min(visibleCandleCount, sorted.length))),
+    [sorted, visibleCandleCount],
+  );
   const frameRef = useRef<HTMLDivElement>(null);
   const scrollAnimationFrameRef = useRef<number | null>(null);
   const scrollTargetRef = useRef(0);
@@ -59,8 +67,8 @@ export function CandlestickTradeChart({
     offset: 0,
     width: MINIMUM_WIDTH,
   });
-  const width = Math.max(MINIMUM_WIDTH, visible.length * 7 + PADDING * 2);
-  const step = visible.length > 0 ? (width - PADDING * 2) / visible.length : 0;
+  const width = Math.max(MINIMUM_WIDTH, sorted.length * 7 + PADDING * 2);
+  const step = sorted.length > 0 ? (width - PADDING * 2) / sorted.length : 0;
   const latestCandleX = visible.length > 0
     ? PADDING + step * (visible.length - 1) + step / 2
     : 0;

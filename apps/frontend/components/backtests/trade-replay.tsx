@@ -131,10 +131,6 @@ export function TradeReplay({
   }, [fullscreenChart]);
 
   const visibleCount = Math.min(index + 1, sorted.length);
-  const visibleCandles = useMemo(
-    () => sorted.slice(0, visibleCount),
-    [sorted, visibleCount],
-  );
   const nextCandle = visibleCount < sorted.length ? sorted[visibleCount] : undefined;
   const visibleBefore = nextCandle?.open_time;
   const cutoff = visibleBefore
@@ -340,11 +336,12 @@ export function TradeReplay({
         </span>
       </div>
       <CandlestickTradeChart
-        candles={visibleCandles}
+        candles={sorted}
         followLatest={followLatest}
         priceDigits={priceDigits}
         smoothFollow
         trades={trades}
+        visibleCandleCount={visibleCount}
         visibleUntil={visibleBefore}
       />
       </section>

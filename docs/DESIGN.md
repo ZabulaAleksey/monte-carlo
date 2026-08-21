@@ -23,7 +23,9 @@ count and actual dates; it never appears only below the fold.
   follow-chart, speed и playback controls без отдельного переключателя анимации.
 - Follow-chart keeps the latest candle near 72% of the visible chart width so
   upcoming movement and exit labels have space. Viewport moves toward that
-  position continuously between replay frames instead of jumping.
+  position continuously between replay frames instead of jumping. The SVG uses
+  the full run width from the first frame; replay only reveals candles, so
+  existing candle coordinates do not shift or flash.
 - Supported speeds are 0.5x, 1x, 2x, 4x, 5x, 10x, 20x, 50x and 100x.
 - Entry markers are triangles; exit markers are circles with a nearby signed
   P&L value.
