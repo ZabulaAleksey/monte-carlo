@@ -14,6 +14,9 @@ Stage 3 — Strategy engine and backtesting.
   only the current buffered viewport. The initial and zero-width states remain
   bounded, while crossing trade connections and SL/TP lines stay visible when
   their endpoint markers are outside the viewport.
+- Virtual execution keeps a stable 360 px panel height while its trade ledger
+  scrolls internally with a sticky table header, including empty and animated
+  replay states.
 - Frontend route files сведены к композиции feature screens; общий polling
   primitive используется Dashboard, Trades, Market Data, quotes и MT5 status.
   Account/environment, MT5 presentation state, форматирование и табличные

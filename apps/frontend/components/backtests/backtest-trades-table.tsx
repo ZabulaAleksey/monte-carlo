@@ -42,7 +42,7 @@ export function BacktestTradesTable({
           {animationEnabled && trades.length > 0 ? t("trades.waitingReplay") : t("trades.empty")}
         </div>
       ) : (
-        <div className="table-scroll">
+        <div className="table-scroll backtest-trades-scroll">
           <table>
             <thead>
               <tr>

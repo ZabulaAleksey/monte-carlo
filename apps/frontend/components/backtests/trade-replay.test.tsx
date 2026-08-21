@@ -79,6 +79,8 @@ describe("TradeReplay", () => {
 
     const ledger = screen.getByRole("heading", { name: "Trade ledger" }).closest("section");
     expect(ledger).not.toBeNull();
+    expect(ledger).toHaveClass("backtest-trades");
+    expect(ledger?.querySelector(".backtest-trades-scroll")).toBeInTheDocument();
     expect(within(ledger as HTMLElement).getByText("100.10")).toBeInTheDocument();
     expect(within(ledger as HTMLElement).getByText("Open")).toBeInTheDocument();
     expect(within(ledger as HTMLElement).queryByText("102.10")).not.toBeInTheDocument();

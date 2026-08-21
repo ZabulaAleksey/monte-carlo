@@ -268,7 +268,11 @@ body.chart-fullscreen-open { overflow: hidden; }
 .run-settings span, .run-settings strong { display: block; }
 .run-settings span { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; }
 .run-settings strong { margin-top: 7px; font-family: var(--font-mono); font-size: 10px; overflow-wrap: anywhere; }
-.backtest-trades { width: 100%; min-width: 0; max-width: none; }
+.backtest-trades { width: 100%; min-width: 0; max-width: none; height: 360px; display: flex; flex-direction: column; }
+.backtest-trades .panel-heading { flex: 0 0 auto; }
+.backtest-trades-scroll { min-height: 0; flex: 1 1 auto; overflow: auto; scrollbar-gutter: stable; }
+.backtest-trades-scroll thead th { position: sticky; z-index: 1; top: 0; }
+.backtest-trades .panel-empty { min-height: 0; flex: 1 1 auto; }
 
 .language-switcher { margin-top: auto; padding: 8px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; background: rgba(255,255,255,.04); }
 .language-switcher button { min-height: 32px; border: 0; border-radius: 6px; padding: 5px 4px; display: grid; place-items: center; color: #91a89d; background: transparent; cursor: pointer; }
