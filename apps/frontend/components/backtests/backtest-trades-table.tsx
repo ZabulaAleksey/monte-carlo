@@ -20,6 +20,7 @@ export function BacktestTradesTable({
   const visibleTrades = trades.filter(
     (trade) => new Date(trade.opened_at).getTime() < cutoff,
   );
+  const isScrollable = visibleTrades.length > 10;
   const exitReason = (reason: VirtualTradeRecord["exit_reason"]): string => ({
     signal: t("trade.reason.signal"),
     reverse: t("trade.reason.reverse"),
@@ -42,7 +43,7 @@ export function BacktestTradesTable({
           {animationEnabled && trades.length > 0 ? t("trades.waitingReplay") : t("trades.empty")}
         </div>
       ) : (
-        <div className="table-scroll backtest-trades-scroll">
+        <div className={`table-scroll backtest-trades-scroll${isScrollable ? " is-scrollable" : ""}`}>
           <table>
             <thead>
               <tr>

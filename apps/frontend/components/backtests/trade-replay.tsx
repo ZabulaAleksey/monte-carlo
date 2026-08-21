@@ -43,6 +43,7 @@ export function TradeReplay({
   const [enabled, setEnabled] = useState(true);
   const [followLatest, setFollowLatest] = useState(true);
   const [playing, setPlaying] = useState(!startAtEnd);
+  const [stopped, setStopped] = useState(false);
   const [index, setIndex] = useState(startAtEnd ? Math.max(sorted.length - 1, 0) : 0);
   const [fullscreenChart, setFullscreenChart] = useState<FullscreenChart | null>(null);
   const equitySectionRef = useRef<HTMLElement>(null);
@@ -53,6 +54,7 @@ export function TradeReplay({
   useEffect(() => {
     setIndex(startAtEnd ? Math.max(sorted.length - 1, 0) : 0);
     setPlaying(!startAtEnd);
+    setStopped(false);
   }, [candles, sorted.length, startAtEnd]);
 
   useEffect(() => {
@@ -232,7 +234,7 @@ export function TradeReplay({
         </label>
         <div className="replay-actions">
           <button
-            disabled={!enabled || playing || sorted.length === 0}
+            disabled={!enabled || stopped || playing || sorted.length === 0}
             onClick={() => setPlaying(true)}
             type="button"
           >
@@ -246,9 +248,10 @@ export function TradeReplay({
             <Pause size={13} /> {t("replay.pause")}
           </button>
           <button
-            disabled={!enabled || sorted.length === 0}
+            disabled={!enabled || stopped || sorted.length === 0}
             onClick={() => {
               setPlaying(false);
+              setStopped(true);
             }}
             type="button"
           >

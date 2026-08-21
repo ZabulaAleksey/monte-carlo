@@ -270,7 +270,10 @@ body.chart-fullscreen-open { overflow: hidden; }
 .run-settings strong { margin-top: 7px; font-family: var(--font-mono); font-size: 10px; overflow-wrap: anywhere; }
 .backtest-trades { width: 100%; min-width: 0; max-width: none; height: 360px; display: flex; flex-direction: column; }
 .backtest-trades .panel-heading { flex: 0 0 auto; }
-.backtest-trades-scroll { min-height: 0; flex: 1 1 auto; overflow-x: auto; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.backtest-trades-scroll { min-height: 0; flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; }
+.backtest-trades-scroll.is-scrollable { overflow-y: auto; scrollbar-gutter: stable; }
+.backtest-trades-scroll th { padding: 8px 10px; }
+.backtest-trades-scroll td { padding: 4px 10px; }
 .backtest-trades-scroll thead th { position: sticky; z-index: 1; top: 0; }
 .backtest-trades .panel-empty { min-height: 0; flex: 1 1 auto; }
 

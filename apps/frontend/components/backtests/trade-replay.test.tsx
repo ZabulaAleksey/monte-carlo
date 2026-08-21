@@ -119,6 +119,30 @@ describe("TradeReplay", () => {
     expect(screen.getByText("Candle 1 of 3")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     expect(screen.getByText("Candle 1 of 3")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Play" })).toBeDisabled();
+
+    rerender(<TradeReplay key="next-run" candles={candles} trades={trades} />);
+    expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+  });
+
+  it("enables vertical ledger scrolling only after the tenth visible order", () => {
+    const candles = [candle("one", "2026-01-02T00:00:00Z")];
+    const trades = Array.from({ length: 11 }, (_, index) => trade(
+      index + 1,
+      `2026-01-01T${String(index).padStart(2, "0")}:00:00Z`,
+      `2026-01-01T${String(index).padStart(2, "0")}:30:00Z`,
+      "100.10",
+      "102.10",
+    ));
+    const { rerender } = render(
+      <TradeReplay candles={candles} startAtEnd trades={trades.slice(0, 10)} />,
+    );
+
+    expect(document.querySelector(".backtest-trades-scroll")).not.toHaveClass("is-scrollable");
+
+    rerender(<TradeReplay candles={candles} startAtEnd trades={trades} />);
+    expect(document.querySelector(".backtest-trades-scroll")).toHaveClass("is-scrollable");
   });
 
   it("opens either chart in a fullscreen overlay and closes it with Escape", () => {
