@@ -10,6 +10,8 @@ vi.mock("@/lib/api/client", () => ({
     getQuotes: vi.fn(),
     getSymbols: vi.fn(),
     getTrades: vi.fn(),
+    getHistoricalDataRequest: vi.fn(),
+    requestHistoricalData: vi.fn(),
   },
 }));
 
@@ -106,6 +108,7 @@ describe("useDashboardData", () => {
       limit: 500,
       symbolId: "gbpjpy",
       timeframe: "H1",
+      source: "mt5",
     });
     expect(result.current.data?.candles).toHaveLength(1);
 
@@ -116,6 +119,67 @@ describe("useDashboardData", () => {
     });
     await waitFor(() => expect(apiClient.getCandles).toHaveBeenCalledTimes(3));
     expect(result.current.data?.candles).toHaveLength(1);
+  });
+
+  it("queues missing timeframe history and refetches candles after MT5 completes it", async () => {
+    const candle = {
+      id: "eurusd-m5",
+      symbol_id: "eurusd",
+      timeframe: "M5",
+      open_time: "2026-08-21T10:00:00Z",
+      open: "1.16900",
+      high: "1.17000",
+      low: "1.16800",
+      close: "1.16950",
+      volume: "42",
+      source: "mt5" as const,
+    };
+    vi.mocked(apiClient.getAccounts).mockResolvedValue([]);
+    vi.mocked(apiClient.getCandles)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([candle]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([]);
+    vi.mocked(apiClient.getSymbols).mockResolvedValue([]);
+    vi.mocked(apiClient.getTrades).mockResolvedValue([]);
+    vi.mocked(apiClient.requestHistoricalData).mockResolvedValue({
+      id: "history-request",
+      symbol_id: "eurusd",
+      symbol: "EURUSD",
+      timeframe: "M5",
+      requested_start: "2026-08-19T16:20:00Z",
+      requested_end: "2026-08-21T10:00:00Z",
+      status: "completed",
+      requested_at: "2026-08-21T10:00:00Z",
+      claimed_at: "2026-08-21T10:00:00Z",
+      completed_at: "2026-08-21T10:00:01Z",
+      terminal_id: "terminal",
+      candle_count: 500,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useDashboardData());
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    await act(async () => {
+      await result.current.loadCandles("eurusd", "M5");
+    });
+
+    expect(apiClient.requestHistoricalData).toHaveBeenCalledWith(
+      "eurusd",
+      "M5",
+      expect.any(String),
+      expect.any(String),
+    );
+    expect(apiClient.getHistoricalDataRequest).not.toHaveBeenCalled();
+    expect(apiClient.getCandles).toHaveBeenLastCalledWith({
+      limit: 500,
+      symbolId: "eurusd",
+      timeframe: "M5",
+      source: "mt5",
+    });
+    expect(result.current.data?.candles).toContainEqual(candle);
+    expect(result.current.loadingSeriesKey).toBeNull();
   });
 
   it("refreshes account and closed trades every two seconds", async () => {
@@ -148,6 +212,35 @@ describe("useDashboardData", () => {
     await waitFor(() => expect(result.current.data?.accounts[0]?.balance).toBe("10100"));
     expect(apiClient.getTrades).toHaveBeenCalledTimes(2);
     expect(apiClient.getTrades).toHaveBeenCalledWith(2_000);
+  });
+
+  it("shows portfolio metrics even while the large symbol snapshot is still loading", async () => {
+    const account = {
+      id: "account",
+      external_id: "100001",
+      name: "MT5",
+      currency: "USD",
+      balance: "10300",
+      created_at: "2026-08-21T10:00:00Z",
+    };
+    vi.mocked(apiClient.getAccounts).mockResolvedValue([account]);
+    vi.mocked(apiClient.getCandles).mockResolvedValue([]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([]);
+    vi.mocked(apiClient.getSymbols).mockReturnValue(new Promise(() => undefined));
+    vi.mocked(apiClient.getTrades).mockResolvedValue([]);
+    const setIntervalSpy = vi.spyOn(window, "setInterval");
+
+    const { result } = renderHook(() => useDashboardData());
+    const metricsTimer = setIntervalSpy.mock.calls.find(([, delay]) => delay === 2_000);
+
+    await act(async () => {
+      (metricsTimer?.[0] as () => void)();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.data?.accounts[0]?.balance).toBe("10300"));
+    expect(result.current.data?.symbols).toEqual([]);
+    expect(result.current.data?.trades).toEqual([]);
   });
 
   it("does not let an older full snapshot overwrite newer portfolio metrics", async () => {

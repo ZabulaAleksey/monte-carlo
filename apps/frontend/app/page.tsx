@@ -44,7 +44,7 @@ function money(value: number, locale: string, currency = "USD"): string {
 
 export default function DashboardPage(): React.JSX.Element {
   const { intlLocale, t } = useI18n();
-  const { data, error, loadCandles } = useDashboardData();
+  const { data, error, loadingSeriesKey, loadCandles } = useDashboardData();
   const { status: mt5Status } = useMt5Status();
   const [selectedSeriesKey, setSelectedSeriesKey] = useState<string | null>(
     storedMarketSeries,
@@ -108,6 +108,7 @@ export default function DashboardPage(): React.JSX.Element {
   const activeSeriesSymbolId = activeSeries?.symbol.id ?? null;
   const activeSeriesTimeframe = activeSeries?.timeframe ?? null;
   const activeSeriesNeedsCandles = activeSeries?.candles.length === 0;
+  const activeSeriesLoading = activeSeries?.key === loadingSeriesKey;
   const metrics = useMemo(
     () => calculatePortfolioMetrics(accountTrades),
     [accountTrades],
@@ -245,12 +246,21 @@ export default function DashboardPage(): React.JSX.Element {
                         : t("dashboard.waitingBidAsk")}
                     </small>
                   </div>
-                  <MarketCandlestickChart
-                    candles={activeSeries.candles}
-                    digits={activeSeries.symbol.digits}
-                    quote={activeQuote}
-                    symbol={activeSeries.symbol.name}
-                  />
+                  {activeSeriesLoading ? (
+                    <div className="panel-empty" role="status">
+                      {t("dashboard.loadingCandles", {
+                        symbol: activeSeries.symbol.name,
+                        timeframe: activeSeries.timeframe,
+                      })}
+                    </div>
+                  ) : (
+                    <MarketCandlestickChart
+                      candles={activeSeries.candles}
+                      digits={activeSeries.symbol.digits}
+                      quote={activeQuote}
+                      symbol={activeSeries.symbol.name}
+                    />
+                  )}
                 </>
               ) : (
                 <div className="panel-empty">

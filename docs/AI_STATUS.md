@@ -66,8 +66,13 @@ Stage 3 — Strategy engine and backtesting.
   учётом commission и swap.
 - MT5 считается подключённым по свежему heartbeat или свежей успешной
   аутентифицированной синхронизации; пустой список закрытых сделок допустим.
-- EA 2.30 отправляет account snapshot раз в секунду и обновляет закрытую
-  историю после `OnTradeTransaction`.
+- EA 2.41 ограничивает периодический candle backfill символом chart,
+  приоритизирует account/positions/trades и обходит каталог/котировки порциями
+  по 500 с ограниченным фоновым timeout без retry.
+- Dashboard ставит пустой `symbol/timeframe` в durable historical queue,
+  показывает загрузку и повторно читает кэш после completion.
+- Account/trades инициализируют portfolio cards независимо от загрузки
+  брокерского каталога символов.
 
 ## Known constraints
 

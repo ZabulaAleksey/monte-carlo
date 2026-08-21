@@ -157,6 +157,12 @@ symbol/candle snapshot. Effect cleanup stops fast polling immediately when
 either route unmounts. Trades similarly polls only the small open-position
 snapshot at 500 ms for current P&L.
 
+Account/trade polling may initialize a partial Dashboard snapshot while the
+large broker symbol catalogue is still loading. Selecting a series with an
+empty candle cache enqueues one bounded historical request, polls its durable
+state and refetches candles after terminal completion. Periodic EA candle
+backfill remains limited to the chart symbol; quote discovery cannot widen it.
+
 Terminal liveness uses the freshest of `last_heartbeat_at` and
 `last_sync_at`: a recent authenticated quote/account/position/trade upload is
 proof that the bridge is online even if a dedicated heartbeat was delayed.
@@ -164,9 +170,9 @@ Dashboard matches the portfolio account by the active terminal's
 `account_external_id`.
 
 Market pulse объединяет уже загруженные свечные серии со всеми активными
-валютными парами, присутствующими в latest quote snapshot. Для quote-only пары
-H1-свечи загружаются лениво после выбора одним дедуплицированным запросом с
-лимитом 500; отдельный realtime-поток для каждого инструмента не создаётся.
+валютными парами, присутствующими в latest quote snapshot. Для пустого
+`symbol/timeframe` последние свечи загружаются лениво через durable request;
+отдельный realtime-поток для каждого инструмента не создаётся.
 
 The same backtest router is exposed under `/api/v1/tester/backtests` for
 non-browser clients. See [`backtesting-api.md`](backtesting-api.md).

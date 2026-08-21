@@ -40,20 +40,26 @@ prints request headers, bodies, or the key. Temporary network errors, HTTP 408,
 
 ## Operational notes
 
-- Only completed candles are sent. On first synchronization the bridge requests
-  the configured CandleLookbackDays range and uploads it in bounded batches;
-  later calls request only candles newer than the last successful batch.
+- Only completed candles are sent. Periodic `CandleLookbackDays` backfill is
+  intentionally limited to the chart symbol and uploads bounded batches;
+  other symbol/timeframe pairs are handled by addressable historical requests.
 - Changed Bid/Ask observations are sampled every `QuoteMilliseconds` (500 ms by
-  default) and uploaded in batches of at most 500 symbols.
+  default) and uploaded in cursor-based batches of at most 500 symbols.
+  Background catalog and quote requests use a bounded timeout without retries,
+  so network failures cannot starve heartbeat, account or trade synchronization.
+  Forex instruments are also sent through a dedicated fast batch, independent
+  of the full broker-catalog round-robin.
+  The chart symbol and the symbol of the latest historical request are sent
+  through independent priority quote slots outside the full catalog cursor.
 - Open positions, including their current price, profit and swap, are uploaded
   every `PositionMilliseconds` (500 ms by default).
 - Account balance/equity is uploaded independently every
   `AccountMilliseconds` (one second by default). A trade transaction schedules
   an immediate closed-history refresh, retried every `TradeRetrySeconds` after
   a transient failure.
-- The initial Market Watch selection is captured for background candle sync.
-  Expanding live quotes to all broker symbols therefore does not trigger a
-  ten-year candle backfill for every broker instrument.
+- Account, positions and closed deals are synchronized before candle backfill.
+  A failed full pass records its attempt time, preventing a tight retry loop
+  from starving the realtime account/trade timers.
 - `/strategies` creates an exact From/To request when coverage is incomplete.
   The EA claims it, retries `CopyRates` while MT5 synchronizes history, uploads
   idempotent batches, then completes or fails the request explicitly.

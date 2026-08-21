@@ -45,13 +45,21 @@ consistent.
   the stored quote is ignored.
 - Quote batches contain only symbols whose `time_msc` changed. By default the
   EA subscribes to all broker symbols and samples changed ticks every 500 ms.
+  The catalog and quote cursors inspect at most 500 symbols per timer pass;
+  these background requests have a bounded timeout and no retry loop.
+  Instruments reported by MT5 as Forex use a separate fast changed-tick batch,
+  so cached Dashboard currency pairs do not wait for a full catalog pass.
+  The chart symbol and the latest historical-request symbol use a separate
+  priority quote path, so their Bid/Ask does not wait for a full catalog pass.
   Raw tick history is deliberately not persisted: PostgreSQL stores one bounded
   latest snapshot per symbol.
 - A successful MT5 candle upsert sets `source=mt5`, including when it replaces
   a matching candle that was previously marked as demo data.
-- Initial candle synchronization covers CandleLookbackDays and is split into
-  batches no larger than 1,000 records. Subsequent synchronization is
-  incremental from the last successfully uploaded candle.
+- Periodic candle synchronization covers `CandleLookbackDays` only for the
+  chart symbol and is split into batches no larger than 1,000 records.
+  Subsequent synchronization is incremental. Quote-only broker symbols never
+  widen this periodic backfill; the durable historical request queue serves
+  every other symbol/timeframe pair.
 - After all batches, the EA reports the actual first copied time, requested end
   and copied count. The backend verifies that at least this many MT5 candles
   were stored before recording coverage. A failed confirmation rewinds the
@@ -70,6 +78,9 @@ consistent.
   (one second by default). Closed history is refreshed after
   `OnTradeTransaction` and retried on transient delivery failures. An empty
   `trades` batch is a valid synchronized state.
+- Full synchronization sends account, positions and trades before candle
+  backfill and records every attempt time, so an incomplete backfill cannot
+  create a tight retry loop that starves portfolio updates.
 - Terminals and accounts use their external identifiers.
 
 The database keeps unique constraints as the final safety boundary. The

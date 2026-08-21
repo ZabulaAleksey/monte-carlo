@@ -3,7 +3,7 @@
 //| Read-only data bridge from MetaTrader 5 to the analytics API.    |
 //+------------------------------------------------------------------+
 #property strict
-#property version   "2.30"
+#property version   "2.41"
 #property description "Read-only bridge. It never sends trading orders."
 
 input string BridgeBaseUrl       = "http://127.0.0.1:8000";
@@ -19,6 +19,7 @@ input int    HistoryRequestSeconds = 1;
 input int    SynchronizeSeconds  = 60;
 input int    RequestTimeoutMs    = 5000;
 input int    RetryCount          = 3;
+input int    BackgroundRequestTimeoutMs = 1000;
 input ENUM_TIMEFRAMES CandleTimeframe = PERIOD_H1;
 input int    CandleBatchSize     = 100;
 input int    CandleLookbackDays  = 3650;
@@ -38,6 +39,14 @@ string   g_symbol_names[];
 datetime g_last_candle_at[];
 string   g_quote_symbol_names[];
 long     g_last_quote_msc[];
+int      g_symbol_catalog_cursor = 0;
+int      g_quote_cursor = 0;
+bool     g_symbol_catalog_pending = true;
+string   g_priority_quote_symbol = "";
+int      g_priority_quote_index = -1;
+int      g_chart_quote_index = -1;
+int      g_fx_quote_indexes[];
+int      g_fx_quote_cursor = 0;
 
 string JsonEscape(string value)
   {
@@ -146,7 +155,8 @@ bool IsTemporaryHttpStatus(const int status_code)
    return status_code==-1 || status_code==408 || status_code==429 || status_code>=500;
   }
 
-bool HttpPost(const string path,const string body)
+bool HttpPostWithPolicy(const string path,const string body,
+                        const int timeout_ms,const int retry_count)
   {
    string url=BridgeBaseUrl+path;
    string headers="Content-Type: application/json\r\n"+
@@ -156,12 +166,12 @@ bool HttpPost(const string path,const string body)
    if(copied>0 && data[copied-1]==0)
       ArrayResize(data,copied-1);
 
-   for(int attempt=0;attempt<=RetryCount;attempt++)
+   for(int attempt=0;attempt<=retry_count;attempt++)
      {
       char result[];
       string response_headers;
       ResetLastError();
-      int status_code=WebRequest("POST",url,headers,RequestTimeoutMs,
+      int status_code=WebRequest("POST",url,headers,timeout_ms,
                                  data,result,response_headers);
       if(status_code>=200 && status_code<300)
          return true;
@@ -169,11 +179,23 @@ bool HttpPost(const string path,const string body)
       int error_code=GetLastError();
       PrintFormat("MonteCarlo bridge request failed: endpoint=%s status=%d error=%d attempt=%d",
                   path,status_code,error_code,attempt+1);
-      if(!IsTemporaryHttpStatus(status_code) || attempt>=RetryCount)
+      if(!IsTemporaryHttpStatus(status_code) || attempt>=retry_count)
          return false;
       Sleep(250*(attempt+1));
      }
-   return false;
+  return false;
+  }
+
+bool HttpPost(const string path,const string body)
+  {
+   return HttpPostWithPolicy(path,body,RequestTimeoutMs,RetryCount);
+  }
+
+bool HttpPostBackground(const string path,const string body)
+  {
+   return HttpPostWithPolicy(path,body,
+                             MathMax(100,MathMin(RequestTimeoutMs,
+                                                 BackgroundRequestTimeoutMs)),0);
   }
 
 int HttpGet(const string path,string &body)
@@ -253,14 +275,13 @@ bool SendAccount()
 
 void InitializeCandleSymbols()
   {
-   int total=SymbolsTotal(true);
-   ArrayResize(g_symbol_names,total);
-   ArrayResize(g_last_candle_at,total);
-   for(int i=0;i<total;i++)
-     {
-      g_symbol_names[i]=SymbolName(i,true);
-      g_last_candle_at[i]=0;
-     }
+   // Quote discovery may select thousands of broker instruments. Periodic
+   // candle backfill must remain bounded; other symbol/timeframe pairs are
+   // loaded on demand through HistoricalDataRequest.
+   ArrayResize(g_symbol_names,1);
+   ArrayResize(g_last_candle_at,1);
+   g_symbol_names[0]=_Symbol;
+   g_last_candle_at[0]=0;
   }
 
 void RefreshQuoteSymbolState()
@@ -268,6 +289,9 @@ void RefreshQuoteSymbolState()
    bool selected_only=!IncludeAllBrokerQuotes;
    int total=SymbolsTotal(selected_only);
    int previous=ArraySize(g_quote_symbol_names);
+   g_priority_quote_index=-1;
+   g_chart_quote_index=-1;
+   ArrayResize(g_fx_quote_indexes,0);
    ArrayResize(g_quote_symbol_names,total);
    ArrayResize(g_last_quote_msc,total);
    for(int i=0;i<total;i++)
@@ -276,17 +300,137 @@ void RefreshQuoteSymbolState()
       if(i>=previous || g_quote_symbol_names[i]!=name)
          g_last_quote_msc[i]=0;
       g_quote_symbol_names[i]=name;
+      if(name==g_priority_quote_symbol)
+         g_priority_quote_index=i;
+      if(name==_Symbol)
+         g_chart_quote_index=i;
+      long calc_mode=SymbolInfoInteger(name,SYMBOL_TRADE_CALC_MODE);
+      if(calc_mode==SYMBOL_CALC_MODE_FOREX ||
+         calc_mode==SYMBOL_CALC_MODE_FOREX_NO_LEVERAGE)
+        {
+         int fx_count=ArraySize(g_fx_quote_indexes);
+         ArrayResize(g_fx_quote_indexes,fx_count+1);
+         g_fx_quote_indexes[fx_count]=i;
+        }
       if(IncludeAllBrokerQuotes && !SymbolInfoInteger(name,SYMBOL_SELECT))
          SymbolSelect(name,true);
      }
+   g_symbol_catalog_cursor=0;
+   g_symbol_catalog_pending=(total>0);
+   if(g_quote_cursor>=total)
+      g_quote_cursor=0;
+   if(g_fx_quote_cursor>=ArraySize(g_fx_quote_indexes))
+      g_fx_quote_cursor=0;
+  }
+
+void SetPriorityQuoteSymbol(const string symbol)
+  {
+   if(StringLen(symbol)==0)
+      return;
+   g_priority_quote_symbol=symbol;
+   g_priority_quote_index=-1;
+   for(int i=0;i<ArraySize(g_quote_symbol_names);i++)
+     {
+      if(g_quote_symbol_names[i]==symbol)
+        {
+         g_priority_quote_index=i;
+         return;
+        }
+     }
+  }
+
+bool SendFxQuotes()
+  {
+   int total=ArraySize(g_fx_quote_indexes);
+   if(total<=0)
+      return true;
+   int start=MathMax(0,MathMin(g_fx_quote_cursor,total-1));
+   int finish=MathMin(total,start+500);
+   string items="";
+   int accepted=0;
+   int batch_indexes[];
+   long batch_times[];
+   for(int position=start;position<finish;position++)
+     {
+      int index=g_fx_quote_indexes[position];
+      if(index<0 || index>=ArraySize(g_quote_symbol_names))
+         continue;
+      string symbol=g_quote_symbol_names[index];
+      MqlTick tick;
+      if(!SymbolInfoTick(symbol,tick) || tick.bid<=0.0 || tick.ask<=0.0 ||
+         tick.time_msc<=g_last_quote_msc[index])
+         continue;
+      int digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
+      if(accepted>0)
+         items+=",";
+      items+="{"+JsonString("symbol")+":"+JsonString(symbol)+
+             ","+JsonString("bid")+":"+JsonNumber(tick.bid,digits)+
+             ","+JsonString("ask")+":"+JsonNumber(tick.ask,digits)+
+             ","+JsonString("observed_at")+":"+
+             JsonString(ServerIsoUtc((datetime)tick.time))+"}";
+      ArrayResize(batch_indexes,accepted+1);
+      ArrayResize(batch_times,accepted+1);
+      batch_indexes[accepted]=index;
+      batch_times[accepted]=tick.time_msc;
+      accepted++;
+     }
+   if(accepted>0)
+     {
+      if(!HttpPostBackground("/api/v1/mt5/quotes",
+                             RequestPrefix()+","+JsonString("quotes")+":["+items+"]}"))
+         return false;
+      for(int i=0;i<accepted;i++)
+         g_last_quote_msc[batch_indexes[i]]=batch_times[i];
+     }
+   g_fx_quote_cursor=(finish>=total ? 0 : finish);
+   return true;
+  }
+
+bool SendQuoteAtIndex(const int index)
+  {
+   if(index<0 || index>=ArraySize(g_quote_symbol_names))
+      return true;
+   string symbol=g_quote_symbol_names[index];
+   MqlTick tick;
+   if(!SymbolInfoTick(symbol,tick) || tick.bid<=0.0 || tick.ask<=0.0)
+      return true;
+   if(tick.time_msc<=g_last_quote_msc[index])
+      return true;
+   int digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
+   string item="{"+JsonString("symbol")+":"+JsonString(symbol)+
+               ","+JsonString("bid")+":"+JsonNumber(tick.bid,digits)+
+               ","+JsonString("ask")+":"+JsonNumber(tick.ask,digits)+
+               ","+JsonString("observed_at")+":"+
+               JsonString(ServerIsoUtc((datetime)tick.time))+"}";
+   if(!HttpPostBackground("/api/v1/mt5/quotes",
+                          RequestPrefix()+","+JsonString("quotes")+":["+item+"]}"))
+      return false;
+   g_last_quote_msc[index]=tick.time_msc;
+   return true;
+  }
+
+bool SendPriorityQuote()
+  {
+   bool success=SendQuoteAtIndex(g_chart_quote_index);
+   if(g_priority_quote_index!=g_chart_quote_index &&
+      !SendQuoteAtIndex(g_priority_quote_index))
+      success=false;
+   return success;
   }
 
 bool SendSymbols()
   {
-   RefreshQuoteSymbolState();
+   int total=ArraySize(g_quote_symbol_names);
+   if(total<=0)
+     {
+      g_symbol_catalog_pending=false;
+      return true;
+     }
+   int start=MathMax(0,MathMin(g_symbol_catalog_cursor,total-1));
+   int finish=MathMin(total,start+500);
    string items="";
    int accepted=0;
-   for(int i=0;i<ArraySize(g_quote_symbol_names);i++)
+   for(int i=start;i<finish;i++)
      {
       string symbol=g_quote_symbol_names[i];
       double volume_min=SymbolInfoDouble(symbol,SYMBOL_VOLUME_MIN);
@@ -318,27 +462,37 @@ bool SendSymbols()
       accepted++;
       if(accepted>=500)
         {
-         if(!HttpPost("/api/v1/mt5/symbols",
+         if(!HttpPostBackground("/api/v1/mt5/symbols",
                       RequestPrefix()+",\"symbols\":["+items+"]}"))
             return false;
          items="";
          accepted=0;
         }
      }
-   if(accepted>0 && !HttpPost("/api/v1/mt5/symbols",
+   if(accepted>0 && !HttpPostBackground("/api/v1/mt5/symbols",
                               RequestPrefix()+",\"symbols\":["+items+"]}"))
       return false;
+   g_symbol_catalog_cursor=finish;
+   if(g_symbol_catalog_cursor>=total)
+     {
+      g_symbol_catalog_cursor=0;
+      g_symbol_catalog_pending=false;
+     }
    return true;
   }
 
 bool SendQuotes()
   {
-   RefreshQuoteSymbolState();
+   int total=ArraySize(g_quote_symbol_names);
+   if(total<=0)
+      return true;
+   int start=MathMax(0,MathMin(g_quote_cursor,total-1));
+   int finish=MathMin(total,start+500);
    string items="";
    int accepted=0;
    int batch_indexes[];
    long batch_times[];
-   for(int i=0;i<ArraySize(g_quote_symbol_names);i++)
+   for(int i=start;i<finish;i++)
      {
       string symbol=g_quote_symbol_names[i];
       MqlTick tick;
@@ -360,7 +514,7 @@ bool SendQuotes()
       accepted++;
       if(accepted>=500)
         {
-         if(!HttpPost("/api/v1/mt5/quotes",
+         if(!HttpPostBackground("/api/v1/mt5/quotes",
                       RequestPrefix()+",\"quotes\":["+items+"]}"))
             return false;
          for(int j=0;j<accepted;j++)
@@ -373,12 +527,13 @@ bool SendQuotes()
      }
    if(accepted>0)
      {
-      if(!HttpPost("/api/v1/mt5/quotes",
+      if(!HttpPostBackground("/api/v1/mt5/quotes",
                    RequestPrefix()+",\"quotes\":["+items+"]}"))
          return false;
       for(int j=0;j<accepted;j++)
          g_last_quote_msc[batch_indexes[j]]=batch_times[j];
      }
+   g_quote_cursor=(finish>=total ? 0 : finish);
    g_last_quote_at_ms=GetTickCount64();
    return true;
   }
@@ -570,6 +725,7 @@ bool ProcessHistoricalRequest()
       Print("Historical request response is malformed");
       return false;
      }
+   SetPriorityQuoteSymbol(symbol);
    datetime start_utc=ParseIsoUtc(start_value);
    datetime end_utc=ParseIsoUtc(end_value);
    if(start_utc<=0 || end_utc<=start_utc)
@@ -731,11 +887,12 @@ bool SynchronizeAll()
   {
    bool success=true;
    if(!SendAccount())   success=false;
+   if(!SendPositions()) success=false;
+   if(!SendTrades())    success=false;
+   RefreshQuoteSymbolState();
    if(!SendSymbols())   success=false;
    if(!SendQuotes())    success=false;
    if(!SendCandles())   success=false;
-   if(!SendPositions()) success=false;
-   if(!SendTrades())    success=false;
    return success;
   }
 
@@ -746,6 +903,7 @@ int OnInit()
       Print("MonteCarlo bridge configuration is incomplete. API key value is not logged.");
       return INIT_PARAMETERS_INCORRECT;
      }
+   g_priority_quote_symbol=_Symbol;
    InitializeCandleSymbols();
    if(!EventSetMillisecondTimer(250))
      {
@@ -754,11 +912,10 @@ int OnInit()
      }
    if(SendHeartbeat())
       g_last_heartbeat_at=TimeLocal();
-   if(SynchronizeAll())
-     {
-      g_last_sync_at=TimeLocal();
+   bool initial_sync_success=SynchronizeAll();
+   g_last_sync_at=TimeLocal();
+   if(initial_sync_success)
       g_trade_sync_pending=false;
-     }
    ProcessHistoricalRequest();
    return INIT_SUCCEEDED;
   }
@@ -784,15 +941,12 @@ void OnTimer()
       if(SendHeartbeat())
          g_last_heartbeat_at=now;
      }
-   if(g_last_quote_at_ms==0 ||
-      now_ms-g_last_quote_at_ms>=(ulong)MathMax(100,QuoteMilliseconds))
-      SendQuotes();
-   if(g_last_position_at_ms==0 ||
-      now_ms-g_last_position_at_ms>=(ulong)MathMax(100,PositionMilliseconds))
-      SendPositions();
    if(g_last_account_at_ms==0 ||
       now_ms-g_last_account_at_ms>=(ulong)MathMax(250,AccountMilliseconds))
       SendAccount();
+   if(g_last_position_at_ms==0 ||
+      now_ms-g_last_position_at_ms>=(ulong)MathMax(100,PositionMilliseconds))
+      SendPositions();
    if(g_trade_sync_pending &&
       (g_last_trade_sync_at==0 ||
        now-g_last_trade_sync_at>=MathMax(1,TradeRetrySeconds)))
@@ -801,13 +955,22 @@ void OnTimer()
       if(SendTrades())
          g_trade_sync_pending=false;
      }
+   SendFxQuotes();
+   SendPriorityQuote();
+   if(g_symbol_catalog_pending)
+      SendSymbols();
+   if(g_last_quote_at_ms==0 ||
+      now_ms-g_last_quote_at_ms>=(ulong)MathMax(100,QuoteMilliseconds))
+      SendQuotes();
    if(g_last_history_request_at==0 ||
       now-g_last_history_request_at>=MathMax(1,HistoryRequestSeconds))
       ProcessHistoricalRequest();
    if(g_last_sync_at==0 || now-g_last_sync_at>=MathMax(10,SynchronizeSeconds))
      {
-      if(SynchronizeAll())
-         g_last_sync_at=now;
+      bool sync_success=SynchronizeAll();
+      g_last_sync_at=now;
+      if(sync_success)
+         g_trade_sync_pending=false;
      }
   }
 

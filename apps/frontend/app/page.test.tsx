@@ -10,6 +10,8 @@ vi.mock("@/lib/api/client", () => ({
     getQuotes: vi.fn(),
     getSymbols: vi.fn(),
     getTrades: vi.fn(),
+    getHistoricalDataRequest: vi.fn(),
+    requestHistoricalData: vi.fn(),
   },
 }));
 

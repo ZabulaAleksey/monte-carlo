@@ -852,3 +852,36 @@ quotes через SSE/WebSocket.
 
 Переход с короткого polling на SSE/WebSocket, а также явные `asset_class` и
 base/profit currency в контракте символа вместо классификации по имени.
+
+## 2026-08-21 — Устранено блокирование Dashboard многолетним candle backfill
+
+### Наблюдаемая проблема и первопричина
+
+- В live API M1/M5/M15/M30/H4/D1 возвращали ноль свечей, хотя Bid/Ask были
+  актуальными.
+- Каталог содержал 12 540 инструментов, а EA непрерывно отправлял candle
+  batches. За 20 минут в логах не было account/trades/heartbeat.
+- `IncludeAllBrokerQuotes` выбирал весь каталог, а следующий запуск
+  `InitializeCandleSymbols` принимал его за Market Watch и запускал
+  `CandleLookbackDays=3650` для каждого инструмента.
+- Быстрый account/trades polling frontend отбрасывал результат, пока общий
+  snapshot ожидал огромный symbol response.
+
+### Исправление
+
+- EA 2.41 синхронизирует периодические свечи только для `_Symbol` chart.
+  Остальные пары и таймфреймы обслуживаются существующей durable history queue.
+- Account, positions и trades отправляются до candle backfill; полный sync не
+  повторяется каждые 250 мс после частичной ошибки.
+- Dashboard при пустом кэше создаёт запрос примерно на 500 свечей, показывает
+  загрузку, ждёт completion и перечитывает выбранную серию.
+- Account/trades могут создать частичный snapshot и показать баланс/P&L до
+  завершения загрузки каталога.
+
+### Как проверить вручную
+
+1. Скомпилировать и установить EA 2.41 на один chart.
+2. Убедиться, что в backend-логах регулярно появляются account, trades и
+   heartbeat, а не непрерывный all-symbol candle backfill.
+3. На Dashboard выбрать EURUSD и M5: увидеть загрузку, затем свечной график.
+4. Сверить баланс и закрытые сделки с активным MT5-счётом.
