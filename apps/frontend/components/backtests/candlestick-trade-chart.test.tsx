@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CandlestickTradeChart } from "./candlestick-trade-chart";
 import type { CandleRecord, VirtualTradeRecord } from "@/lib/api/types";
@@ -119,6 +119,150 @@ describe("CandlestickTradeChart", () => {
     frame.scrollLeft = 1000;
     fireEvent.scroll(frame);
     await waitFor(() => expect(Number(chart.dataset.scaleMin)).toBeGreaterThan(900));
+
+    delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
+    delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+  });
+
+  it("renders a bounded viewport while preserving navigation across 20,000 candles", async () => {
+    const fullWidth = 20_000 * 7 + 60;
+    Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+      configurable: true,
+      get: () => fullWidth,
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 300,
+    });
+    const candles = Array.from({ length: 20_000 }, (_, index) =>
+      candleAtPrice(`candle-${index}`, index, 100),
+    );
+    const { container } = render(
+      <CandlestickTradeChart candles={candles} trades={[]} />,
+    );
+    const frame = container.querySelector(".chart-frame") as HTMLDivElement;
+    const chart = container.querySelector(".candlestick-chart") as SVGSVGElement;
+
+    expect(container.querySelectorAll(".candle").length).toBeLessThanOrEqual(700);
+    await waitFor(() => {
+      expect(container.querySelectorAll(".candle").length).toBeLessThan(100);
+    });
+    expect(chart.style.minWidth).toBe(`${fullWidth}px`);
+    expect(chart.getAttribute("viewBox")).toBe(`0 0 ${fullWidth} 320`);
+    expect(container.querySelector('[data-candle-index="0"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-candle-index="1000"]')).not.toBeInTheDocument();
+
+    frame.scrollLeft = fullWidth - 300;
+    fireEvent.scroll(frame);
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-candle-index="19999"]')).toBeInTheDocument();
+    });
+    expect(container.querySelectorAll(".candle").length).toBeLessThan(100);
+    expect(container.querySelector('[data-candle-index="0"]')).not.toBeInTheDocument();
+
+    delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
+    delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+  });
+
+  it("keeps a 20,000-candle mount bounded while the chart has zero width", async () => {
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 0,
+    });
+    const candles = Array.from({ length: 20_000 }, (_, index) =>
+      candleAtPrice(`candle-${index}`, index, 100),
+    );
+    const { container } = render(
+      <CandlestickTradeChart candles={candles} trades={[]} />,
+    );
+
+    expect(container.querySelectorAll(".candle").length).toBeLessThanOrEqual(700);
+    await waitFor(() => {
+      expect(container.querySelectorAll(".candle").length).toBeLessThanOrEqual(700);
+    });
+    expect(container.querySelector('[data-candle-index="19999"]')).not.toBeInTheDocument();
+
+    delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+  });
+
+  it("follows the latest candle after a zero-width chart becomes visible", async () => {
+    const fullWidth = 20_000 * 7 + 60;
+    let clientWidth = 0;
+    let scrollWidth = 0;
+    let triggerResize: (() => void) | undefined;
+    class TestResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        triggerResize = () => callback([], this as unknown as ResizeObserver);
+      }
+      disconnect(): void {}
+      observe(): void {}
+      unobserve(): void {}
+    }
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => clientWidth,
+    });
+    Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+      configurable: true,
+      get: () => scrollWidth,
+    });
+    const candles = Array.from({ length: 20_000 }, (_, index) =>
+      candleAtPrice(`candle-${index}`, index, 100),
+    );
+    const { container } = render(
+      <CandlestickTradeChart candles={candles} followLatest trades={[]} />,
+    );
+    const frame = container.querySelector(".chart-frame") as HTMLDivElement;
+
+    expect(frame.scrollLeft).toBe(0);
+    expect(container.querySelectorAll(".candle").length).toBeLessThanOrEqual(700);
+    clientWidth = 300;
+    scrollWidth = fullWidth;
+    act(() => triggerResize?.());
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-candle-index="19999"]')).toBeInTheDocument();
+    });
+    expect(frame.scrollLeft).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".candle").length).toBeLessThan(100);
+
+    vi.unstubAllGlobals();
+    delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
+    delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+  });
+
+  it("keeps trade and risk lines that cross the viewport when markers are outside it", async () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+      configurable: true,
+      get: () => 1460,
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 300,
+    });
+    const candles = Array.from({ length: 200 }, (_, index) =>
+      candleAtPrice(`candle-${index}`, index, 100),
+    );
+    const spanningTrade: VirtualTradeRecord = {
+      ...trade,
+      opened_at: new Date(Date.UTC(2026, 0, 1, 10, 30)).toISOString(),
+      closed_at: new Date(Date.UTC(2026, 0, 1, 190, 30)).toISOString(),
+    };
+    const { container } = render(
+      <CandlestickTradeChart candles={candles} trades={[spanningTrade]} />,
+    );
+    const frame = container.querySelector(".chart-frame") as HTMLDivElement;
+
+    frame.scrollLeft = 700;
+    fireEvent.scroll(frame);
+
+    await waitFor(() => {
+      expect(container.querySelector(".trade-marker")).not.toBeInTheDocument();
+    });
+    expect(container.querySelector(".trade-connection")).toBeInTheDocument();
+    expect(container.querySelectorAll(".trade-risk-level")).toHaveLength(2);
 
     delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
     delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;

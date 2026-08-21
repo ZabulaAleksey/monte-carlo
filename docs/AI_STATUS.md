@@ -10,6 +10,10 @@ Stage 3 — Strategy engine and backtesting.
   candle/trade mapping. Dense runs no longer repeat a linear scan through up to
   20,000 candles for every marker or after viewport-only scroll updates; the
   exact boundary behavior for protective exits remains unchanged.
+- Execution-map SVG rendering keeps the complete horizontal range but mounts
+  only the current buffered viewport. The initial and zero-width states remain
+  bounded, while crossing trade connections and SL/TP lines stay visible when
+  their endpoint markers are outside the viewport.
 - Frontend route files сведены к композиции feature screens; общий polling
   primitive используется Dashboard, Trades, Market Data, quotes и MT5 status.
   Account/environment, MT5 presentation state, форматирование и табличные
@@ -135,8 +139,6 @@ Stage 3 — Strategy engine and backtesting.
 
 ## Next reasonable checks
 
-- Limit execution-map SVG candle nodes to the visible viewport while preserving
-  full-range horizontal navigation and marker/risk-line continuity.
 - Validate marker density on runs with many simultaneous positions.
 - Profile rendering near the 20,000-candle frontend limit and design paginated
   delivery for larger data sets.

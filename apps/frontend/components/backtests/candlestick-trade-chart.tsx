@@ -36,6 +36,8 @@ interface ViewportRange {
 const MINIMUM_WIDTH = 900;
 const HEIGHT = 320;
 const PADDING = 30;
+const VIEWPORT_BUFFER_CANDLES = 30;
+const INITIAL_VIEWPORT_CANDLES = 640;
 
 export function CandlestickTradeChart({
   candles,
@@ -49,7 +51,7 @@ export function CandlestickTradeChart({
   const frameRef = useRef<HTMLDivElement>(null);
   const [viewportRange, setViewportRange] = useState<ViewportRange>({
     start: 0,
-    end: Number.MAX_SAFE_INTEGER,
+    end: INITIAL_VIEWPORT_CANDLES - 1,
     offset: 0,
     width: MINIMUM_WIDTH,
   });
@@ -64,7 +66,10 @@ export function CandlestickTradeChart({
     if (!frame || visible.length === 0 || step <= 0 || frame.clientWidth <= 0) {
       setViewportRange({
         start: 0,
-        end: Math.max(visible.length - 1, 0),
+        end: Math.min(
+          Math.max(visible.length - 1, 0),
+          INITIAL_VIEWPORT_CANDLES - 1,
+        ),
         offset: 0,
         width: frame?.clientWidth ?? MINIMUM_WIDTH,
       });
@@ -90,6 +95,16 @@ export function CandlestickTradeChart({
     );
   }, [step, visible.length]);
 
+  const scrollToLatest = useCallback((): boolean => {
+    const frame = frameRef.current;
+    if (!followLatest || !frame || frame.clientWidth <= 0) return false;
+    const maximumScroll = Math.max(0, frame.scrollWidth - frame.clientWidth);
+    const target = latestCandleX - frame.clientWidth * 0.72;
+    frame.scrollLeft = Math.max(0, Math.min(maximumScroll, target));
+    updateViewportRange();
+    return true;
+  }, [followLatest, latestCandleX, updateViewportRange]);
+
   useEffect(() => {
     const frame = frameRef.current;
     if (!frame) return undefined;
@@ -97,23 +112,19 @@ export function CandlestickTradeChart({
     frame.addEventListener("scroll", updateViewportRange, { passive: true });
     const observer = typeof ResizeObserver === "undefined"
       ? null
-      : new ResizeObserver(updateViewportRange);
+      : new ResizeObserver(() => {
+          if (!scrollToLatest()) updateViewportRange();
+        });
     observer?.observe(frame);
     return () => {
       frame.removeEventListener("scroll", updateViewportRange);
       observer?.disconnect();
     };
-  }, [updateViewportRange]);
+  }, [scrollToLatest, updateViewportRange]);
 
   useEffect(() => {
-    const frame = frameRef.current;
-    if (followLatest && frame) {
-      const maximumScroll = Math.max(0, frame.scrollWidth - frame.clientWidth);
-      const target = latestCandleX - frame.clientWidth * 0.72;
-      frame.scrollLeft = Math.max(0, Math.min(maximumScroll, target));
-      updateViewportRange();
-    }
-  }, [followLatest, latestCandleX, updateViewportRange]);
+    scrollToLatest();
+  }, [scrollToLatest]);
 
   const markers = useMemo(
     () => mapTradesToCandles(visible, trades, visibleUntil),
@@ -238,6 +249,11 @@ export function CandlestickTradeChart({
   const axisStart = Math.max(0, viewportRange.offset);
   const axisEnd = Math.min(width, axisStart + viewportRange.width);
   const normalizedDigits = Math.min(Math.max(priceDigits, 0), 6);
+  const bufferedStart = Math.max(0, viewportRange.start - VIEWPORT_BUFFER_CANDLES);
+  const bufferedEnd = Math.min(
+    visible.length - 1,
+    viewportRange.end + VIEWPORT_BUFFER_CANDLES,
+  );
 
   return (
     <div className="chart-frame" ref={frameRef}>
@@ -271,7 +287,9 @@ export function CandlestickTradeChart({
             </g>
           ))}
         </g>
-        {periods.map((period) => {
+        {periods.filter((period) => (
+          period.candleIndex >= bufferedStart && period.candleIndex <= bufferedEnd
+        )).map((period) => {
           const periodX = x(period.candleIndex) - step / 2;
           return (
             <g className="period-separator" key={`${period.candleIndex}-${period.label}`}>
@@ -280,14 +298,19 @@ export function CandlestickTradeChart({
             </g>
           );
         })}
-        {visible.map((item, index) => {
+        {visible.slice(bufferedStart, bufferedEnd + 1).map((item, relativeIndex) => {
+          const index = bufferedStart + relativeIndex;
           const open = Number(item.open);
           const close = Number(item.close);
           const top = y(Math.max(open, close));
           const bodyHeight = Math.max(Math.abs(y(open) - y(close)), 1.5);
           const direction = close >= open ? "up" : "down";
           return (
-            <g className={`candle ${direction}`} key={item.id}>
+            <g
+              className={`candle ${direction}`}
+              data-candle-index={index}
+              key={item.id}
+            >
               <title>
                 {t("dashboard.candleTooltip", {
                   time: new Date(item.open_time).toLocaleString(intlLocale),
@@ -307,7 +330,10 @@ export function CandlestickTradeChart({
             </g>
           );
         })}
-        {connections.map(({ entry, exit, sequence }) => (
+        {connections.filter(({ entry, exit }) => (
+          Math.max(entry.candleIndex, exit.candleIndex) >= bufferedStart &&
+          Math.min(entry.candleIndex, exit.candleIndex) <= bufferedEnd
+        )).map(({ entry, exit, sequence }) => (
           <g className={`trade-connection ${entry.side}`} key={`${sequence}-connection`}>
             <title>#{sequence}</title>
             <line
@@ -319,7 +345,12 @@ export function CandlestickTradeChart({
             />
           </g>
         ))}
-        {riskSegments.map((level) => (
+        {riskSegments.filter((level) => {
+          const startIndex = tradePositions.get(level.sequence)?.entry?.candleIndex ?? 0;
+          const endIndex = tradePositions.get(level.sequence)?.exit?.candleIndex ?? visible.length - 1;
+          return Math.max(startIndex, endIndex) >= bufferedStart &&
+            Math.min(startIndex, endIndex) <= bufferedEnd;
+        }).map((level) => (
           <g
             className={`trade-risk-level ${level.kind}`}
             key={`${level.sequence}-${level.kind}`}
@@ -336,7 +367,9 @@ export function CandlestickTradeChart({
             </text>
           </g>
         ))}
-        {positionedMarkers.map((marker) => {
+        {positionedMarkers.filter((marker) => (
+          marker.candleIndex >= bufferedStart && marker.candleIndex <= bufferedEnd
+        )).map((marker) => {
           const isEntry = marker.kind === "entry";
           const className = `trade-marker ${marker.side} ${marker.kind}`;
           const side = marker.side === "buy" ? t("common.buy") : t("common.sell");
