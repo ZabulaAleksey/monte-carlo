@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { CandleRecord, VirtualTradeRecord } from "@/lib/api/types";
 import type { TradeMarker } from "@/lib/backtests";
@@ -45,7 +45,7 @@ export function CandlestickTradeChart({
   visibleUntil,
 }: CandlestickTradeChartProps): React.JSX.Element {
   const { intlLocale, t } = useI18n();
-  const visible = sortCandles(candles);
+  const visible = useMemo(() => sortCandles(candles), [candles]);
   const frameRef = useRef<HTMLDivElement>(null);
   const [viewportRange, setViewportRange] = useState<ViewportRange>({
     start: 0,
@@ -115,19 +115,22 @@ export function CandlestickTradeChart({
     }
   }, [followLatest, latestCandleX, updateViewportRange]);
 
-  if (visible.length === 0) {
-    return <div className="chart-empty">{t("replay.empty")}</div>;
-  }
-  const markers = mapTradesToCandles(visible, trades, visibleUntil);
-  const rawTradeRanges = new Map<
+  const markers = useMemo(
+    () => mapTradesToCandles(visible, trades, visibleUntil),
+    [trades, visible, visibleUntil],
+  );
+  const rawTradeRanges = useMemo(() => {
+    const ranges = new Map<
     number,
     Partial<Record<TradeMarker["kind"], TradeMarker>>
   >();
-  markers.forEach((marker) => {
-    const pair = rawTradeRanges.get(marker.tradeSequence) ?? {};
-    pair[marker.kind] = marker;
-    rawTradeRanges.set(marker.tradeSequence, pair);
-  });
+    markers.forEach((marker) => {
+      const pair = ranges.get(marker.tradeSequence) ?? {};
+      pair[marker.kind] = marker;
+      ranges.set(marker.tradeSequence, pair);
+    });
+    return ranges;
+  }, [markers]);
   const scaleCandles = visible.slice(
     viewportRange.start,
     Math.min(viewportRange.end + 1, visible.length),
@@ -157,7 +160,13 @@ export function CandlestickTradeChart({
   const y = (price: number): number =>
     PADDING + ((maximum - price) / range) * plotHeight;
   const x = (index: number): number => PADDING + step * index + step / 2;
-  const periods = buildPeriodSeparators(visible, intlLocale);
+  const periods = useMemo(
+    () => buildPeriodSeparators(visible, intlLocale),
+    [intlLocale, visible],
+  );
+  if (visible.length === 0) {
+    return <div className="chart-empty">{t("replay.empty")}</div>;
+  }
   const markerRanks = new Map<string, number>();
   const positionedMarkers: PositionedTradeMarker[] = markers.map((marker) => {
     const rankKey = `${marker.kind}-${marker.candleIndex}`;

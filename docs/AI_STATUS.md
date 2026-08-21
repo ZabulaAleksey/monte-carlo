@@ -6,6 +6,10 @@ Stage 3 — Strategy engine and backtesting.
 
 ## Implemented
 
+- Execution-map trade markers use binary timestamp lookup and memoized
+  candle/trade mapping. Dense runs no longer repeat a linear scan through up to
+  20,000 candles for every marker or after viewport-only scroll updates; the
+  exact boundary behavior for protective exits remains unchanged.
 - Frontend route files сведены к композиции feature screens; общий polling
   primitive используется Dashboard, Trades, Market Data, quotes и MT5 status.
   Account/environment, MT5 presentation state, форматирование и табличные
@@ -131,6 +135,8 @@ Stage 3 — Strategy engine and backtesting.
 
 ## Next reasonable checks
 
+- Limit execution-map SVG candle nodes to the visible viewport while preserving
+  full-range horizontal navigation and marker/risk-line continuity.
 - Validate marker density on runs with many simultaneous positions.
 - Profile rendering near the 20,000-candle frontend limit and design paginated
   delivery for larger data sets.

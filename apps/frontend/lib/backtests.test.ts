@@ -132,6 +132,67 @@ describe("backtest chart helpers", () => {
     expect(markers[1]).toMatchObject({ candleIndex: 0, kind: "exit" });
   });
 
+  it("uses the previous candle at an exact boundary for protective exits", () => {
+    const candles = [
+      candle("one", "2026-01-01T01:00:00Z"),
+      candle("two", "2026-01-01T02:00:00Z"),
+      candle("three", "2026-01-01T03:00:00Z"),
+    ];
+    const stoppedTrade = {
+      ...trade,
+      closed_at: "2026-01-01T03:00:00Z",
+      exit_reason: "take_profit" as const,
+    };
+
+    expect(mapTradesToCandles(candles, [stoppedTrade])).toEqual([
+      expect.objectContaining({ candleIndex: 0, kind: "entry" }),
+      expect.objectContaining({ candleIndex: 1, kind: "exit" }),
+    ]);
+  });
+
+  it("skips timestamps before the first candle and clamps later timestamps to the last candle", () => {
+    const candles = [
+      candle("one", "2026-01-01T01:00:00Z"),
+      candle("two", "2026-01-01T02:00:00Z"),
+    ];
+    const spanningTrade = {
+      ...trade,
+      opened_at: "2026-01-01T00:30:00Z",
+      closed_at: "2026-01-01T03:00:00Z",
+    };
+
+    expect(mapTradesToCandles(candles, [spanningTrade])).toEqual([
+      expect.objectContaining({ candleIndex: 1, kind: "exit" }),
+    ]);
+  });
+
+  it("maps 5,000 trades across the 20,000-candle limit deterministically", () => {
+    const candles = Array.from({ length: 20_000 }, (_, index) =>
+      candle(`candle-${index}`, new Date(Date.UTC(2020, 0, 1, index)).toISOString()),
+    );
+    const trades = Array.from({ length: 5_000 }, (_, index) => {
+      const entryIndex = index * 3 + 1;
+      return {
+        ...trade,
+        sequence: index + 1,
+        opened_at: new Date(Date.UTC(2020, 0, 1, entryIndex, 30)).toISOString(),
+        closed_at: new Date(Date.UTC(2020, 0, 1, entryIndex + 1)).toISOString(),
+      };
+    });
+
+    const markerPositions = mapTradesToCandles(candles, trades).map((marker) => ({
+      candleIndex: marker.candleIndex,
+      kind: marker.kind,
+      tradeSequence: marker.tradeSequence,
+    }));
+    const expectedPositions = trades.flatMap((item, index) => [
+      { candleIndex: index * 3 + 1, kind: "entry", tradeSequence: item.sequence },
+      { candleIndex: index * 3 + 2, kind: "exit", tradeSequence: item.sequence },
+    ]);
+
+    expect(markerPositions).toEqual(expectedPositions);
+  });
+
   it("adds net profit to the exit marker", () => {
     const markers = mapTradesToCandles(
       [

@@ -87,10 +87,20 @@ export function mapTradesToCandles(
     const target = new Date(timestamp).getTime() - (previousAtBoundary ? 1 : 0);
     const firstTimestamp = timestamps[0];
     if (firstTimestamp === undefined || target < firstTimestamp) return -1;
-    for (let index = timestamps.length - 1; index >= 0; index -= 1) {
-      if ((timestamps[index] ?? Number.POSITIVE_INFINITY) <= target) return index;
+    let low = 0;
+    let high = timestamps.length - 1;
+    let result = -1;
+    while (low <= high) {
+      const middle = low + Math.floor((high - low) / 2);
+      const value = timestamps[middle] ?? Number.POSITIVE_INFINITY;
+      if (value <= target) {
+        result = middle;
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
     }
-    return -1;
+    return result;
   };
 
   const cutoff = visibleUntil ? new Date(visibleUntil).getTime() : Number.POSITIVE_INFINITY;
