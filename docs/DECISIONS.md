@@ -150,6 +150,12 @@ Status: accepted for Stage 3.
 ledger. A trade row appears after its entry is reached; close price, exit
 reason, costs and P&L remain hidden until the close is reached.
 
+Replay is the only mode for a newly completed run; there is no separate
+animation-enable branch. The same boundary drives the live balance, return,
+maximum drawdown and win-rate summary. Replay Stop freezes charts and ledger at
+that boundary while summary cards deliberately switch to the persisted
+full-range metrics.
+
 The same visible trade markers are used for entry/exit symbols, dotted
 entry-to-exit connections and exit P&L labels. Period separators are derived
 from candle timeframe and UTC timestamps.

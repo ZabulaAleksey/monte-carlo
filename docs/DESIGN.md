@@ -19,17 +19,22 @@ count and actual dates; it never appears only below the fold.
 
 ## Animated execution map
 
-- Animation, follow-chart, speed and playback controls share one toolbar.
+- Новое исследование всегда воспроизводится автоматически; в toolbar остаются
+  follow-chart, speed и playback controls без отдельного переключателя анимации.
 - Follow-chart keeps the latest candle near 72% of the visible chart width so
-  upcoming movement and exit labels have space.
+  upcoming movement and exit labels have space. Viewport moves toward that
+  position continuously between replay frames instead of jumping.
 - Supported speeds are 0.5x, 1x, 2x, 4x, 5x, 10x, 20x, 50x and 100x.
 - Entry markers are triangles; exit markers are circles with a nearby signed
   P&L value.
 - A dotted line connects each visible entry and exit pair.
 - Vertical dashed separators indicate UTC days for intraday charts, months for
   daily/weekly charts and years for monthly charts.
-- While animation is enabled, Virtual execution reveals trades at entry and
-  withholds close information until exit. Disabling animation shows all rows.
+- During replay, Virtual execution reveals trades at entry and withholds close
+  information until exit. Saved research opens at the final frame and shows all rows.
+- Balance, return, maximum drawdown and win rate cards use only the reached
+  replay prefix. Replay Stop preserves the current chart frame but switches the
+  cards immediately to the persisted full-range result.
 - The green portfolio curve is realized balance after closed operations. The
   red curve is current liquidation value (`balance + unrealized P&L + swap`).
   They share the replay clock and monetary axis, diverge while a position is

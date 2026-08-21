@@ -233,6 +233,53 @@ describe("CandlestickTradeChart", () => {
     delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
   });
 
+  it("moves toward the followed candle over intermediate animation frames", () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+      configurable: true,
+      get: () => 1200,
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 300,
+    });
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    const { container } = render(
+      <CandlestickTradeChart
+        candles={[
+          candle("one", "2026-01-01T00:00:00Z"),
+          candle("two", "2026-01-01T01:00:00Z"),
+        ]}
+        followLatest
+        smoothFollow
+        trades={[]}
+      />,
+    );
+    const frame = container.querySelector(".chart-frame") as HTMLDivElement;
+    expect(frame.scrollLeft).toBe(0);
+
+    act(() => frames.shift()?.(0));
+
+    expect(frame.scrollLeft).toBeGreaterThan(0);
+    expect(frame.scrollLeft).toBeLessThan(444);
+
+    act(() => {
+      for (let index = 0; index < 80 && frames.length > 0; index += 1) {
+        frames.shift()?.(index + 1);
+      }
+    });
+    expect(frame.scrollLeft).toBeCloseTo(444, 0);
+
+    vi.unstubAllGlobals();
+    delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
+    delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+  });
+
   it("keeps trade and risk lines that cross the viewport when markers are outside it", async () => {
     Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
       configurable: true,

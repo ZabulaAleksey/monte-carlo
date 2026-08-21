@@ -16,6 +16,7 @@ interface CandlestickTradeChartProps {
   candles: CandleRecord[];
   followLatest?: boolean;
   priceDigits?: number;
+  smoothFollow?: boolean;
   trades: VirtualTradeRecord[];
   visibleUntil?: string;
 }
@@ -43,12 +44,15 @@ export function CandlestickTradeChart({
   candles,
   followLatest = false,
   priceDigits = 5,
+  smoothFollow = false,
   trades,
   visibleUntil,
 }: CandlestickTradeChartProps): React.JSX.Element {
   const { intlLocale, t } = useI18n();
   const visible = useMemo(() => sortCandles(candles), [candles]);
   const frameRef = useRef<HTMLDivElement>(null);
+  const scrollAnimationFrameRef = useRef<number | null>(null);
+  const scrollTargetRef = useRef(0);
   const [viewportRange, setViewportRange] = useState<ViewportRange>({
     start: 0,
     end: INITIAL_VIEWPORT_CANDLES - 1,
@@ -100,10 +104,47 @@ export function CandlestickTradeChart({
     if (!followLatest || !frame || frame.clientWidth <= 0) return false;
     const maximumScroll = Math.max(0, frame.scrollWidth - frame.clientWidth);
     const target = latestCandleX - frame.clientWidth * 0.72;
-    frame.scrollLeft = Math.max(0, Math.min(maximumScroll, target));
-    updateViewportRange();
+    const boundedTarget = Math.max(0, Math.min(maximumScroll, target));
+    if (!smoothFollow) {
+      frame.scrollLeft = boundedTarget;
+      updateViewportRange();
+      return true;
+    }
+    scrollTargetRef.current = boundedTarget;
+    if (scrollAnimationFrameRef.current === null) {
+      const move = (): void => {
+        const activeFrame = frameRef.current;
+        if (!activeFrame) {
+          scrollAnimationFrameRef.current = null;
+          return;
+        }
+        const distance = scrollTargetRef.current - activeFrame.scrollLeft;
+        if (Math.abs(distance) < 0.5) {
+          activeFrame.scrollLeft = scrollTargetRef.current;
+          updateViewportRange();
+          scrollAnimationFrameRef.current = null;
+          return;
+        }
+        activeFrame.scrollLeft += distance * 0.22;
+        updateViewportRange();
+        scrollAnimationFrameRef.current = window.requestAnimationFrame(move);
+      };
+      scrollAnimationFrameRef.current = window.requestAnimationFrame(move);
+    }
     return true;
-  }, [followLatest, latestCandleX, updateViewportRange]);
+  }, [followLatest, latestCandleX, smoothFollow, updateViewportRange]);
+
+  useEffect(() => () => {
+    if (scrollAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollAnimationFrameRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (followLatest || scrollAnimationFrameRef.current === null) return;
+    window.cancelAnimationFrame(scrollAnimationFrameRef.current);
+    scrollAnimationFrameRef.current = null;
+  }, [followLatest]);
 
   useEffect(() => {
     const frame = frameRef.current;

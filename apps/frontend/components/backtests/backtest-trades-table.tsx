@@ -3,18 +3,16 @@ import { formatMoney } from "@/lib/backtests";
 import { useI18n } from "@/lib/i18n";
 
 interface BacktestTradesTableProps {
-  animationEnabled?: boolean;
   trades: VirtualTradeRecord[];
   visibleBefore?: string;
 }
 
 export function BacktestTradesTable({
-  animationEnabled = false,
   trades,
   visibleBefore,
 }: BacktestTradesTableProps): React.JSX.Element {
   const { intlLocale, t } = useI18n();
-  const cutoff = animationEnabled && visibleBefore
+  const cutoff = visibleBefore
     ? new Date(visibleBefore).getTime()
     : Number.POSITIVE_INFINITY;
   const visibleTrades = trades.filter(
@@ -40,7 +38,7 @@ export function BacktestTradesTable({
       </div>
       {visibleTrades.length === 0 ? (
         <div className="panel-empty compact">
-          {animationEnabled && trades.length > 0 ? t("trades.waitingReplay") : t("trades.empty")}
+          {visibleBefore && trades.length > 0 ? t("trades.waitingReplay") : t("trades.empty")}
         </div>
       ) : (
         <div className={`table-scroll backtest-trades-scroll${isScrollable ? " is-scrollable" : ""}`}>

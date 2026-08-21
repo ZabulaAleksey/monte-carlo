@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { TradeReplay } from "./trade-replay";
 import type {
+  BacktestMetricsRecord,
   CandleRecord,
   EquityPointRecord,
   VirtualTradeRecord,
@@ -44,6 +45,23 @@ const trade = (
   net_profit: "2",
 });
 
+const metrics: BacktestMetricsRecord = {
+  initial_capital: "1000",
+  final_balance: "1004",
+  final_equity: "1004",
+  total_net_profit: "4",
+  return_pct: "0.4",
+  max_drawdown_pct: "0.5",
+  max_drawdown_absolute: "5",
+  total_trades: 2,
+  winning_trades: 2,
+  losing_trades: 0,
+  win_rate_pct: "100",
+  profit_factor: null,
+  total_commission: "0",
+  total_swap: "0",
+};
+
 describe("TradeReplay", () => {
   beforeEach(() => cleanup());
 
@@ -67,12 +85,14 @@ describe("TradeReplay", () => {
       <TradeReplay
         candles={candles}
         equityPoints={equityPoints}
+        metrics={metrics}
         trades={trades}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
 
     expect(screen.getByLabelText("Follow chart")).toBeChecked();
+    expect(screen.queryByLabelText("Show animated chart")).not.toBeInTheDocument();
     ["5\u00d7", "10\u00d7", "20\u00d7", "50\u00d7", "100\u00d7"].forEach((label) => {
       expect(screen.getByRole("option", { name: label })).toBeInTheDocument();
     });
@@ -88,13 +108,23 @@ describe("TradeReplay", () => {
     expect(screen.getByRole("img", {
       name: /Balance and current-liquidation chart with 1 observations and 0 completed operations/,
     })).toBeInTheDocument();
+    const balanceCard = screen.getByText("Final balance").closest("article");
+    const returnCard = screen.getByText("Net return").closest("article");
+    const drawdownCard = screen.getByText("Maximum drawdown").closest("article");
+    const winRateCard = screen.getByText("Win rate").closest("article");
+    expect(balanceCard).toHaveTextContent("$1,000.00");
+    expect(returnCard).toHaveTextContent("0.00%");
+    expect(drawdownCard).toHaveTextContent("$5.00");
+    expect(winRateCard).toHaveTextContent("0.00%");
 
-    fireEvent.click(screen.getByLabelText("Show animated chart"));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
 
-    expect(within(ledger as HTMLElement).getByText("102.10")).toBeInTheDocument();
-    expect(within(ledger as HTMLElement).getByText("200.10")).toBeInTheDocument();
+    expect(balanceCard).toHaveTextContent("$1,004.00");
+    expect(returnCard).toHaveTextContent("0.40%");
+    expect(winRateCard).toHaveTextContent("100.00%");
+    expect(within(ledger as HTMLElement).queryByText("102.10")).not.toBeInTheDocument();
     expect(screen.getByRole("img", {
-      name: /Balance and current-liquidation chart with 3 observations and 2 completed operations/,
+      name: /Balance and current-liquidation chart with 1 observations and 0 completed operations/,
     })).toBeInTheDocument();
   });
 

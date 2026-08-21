@@ -1,6 +1,5 @@
 "use client";
 
-import { Activity, BarChart3, CircleDollarSign, Gauge } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { BacktestForm } from "@/components/backtests/backtest-form";
@@ -23,7 +22,6 @@ import type {
 import {
   BACKTEST_TIMEFRAMES,
   formatMoney,
-  formatPercent,
   splitHistoricalIntervalByYear,
 } from "@/lib/backtests";
 import { useI18n } from "@/lib/i18n";
@@ -567,39 +565,11 @@ export function StrategiesWorkbench(): React.JSX.Element {
                   </div>
                 </div>
 
-                <div className="metric-grid backtest-metrics">
-                  <article className="metric-card primary">
-                    <span>{t("metric.balance")}</span>
-                    <strong>{formatMoney(result.metrics.final_balance, intlLocale)}</strong>
-                    <small><CircleDollarSign size={13} /> {t("metric.start", { value: formatMoney(result.metrics.initial_capital, intlLocale) })}</small>
-                  </article>
-                  <article className="metric-card">
-                    <span>{t("metric.return")}</span>
-                    <strong className={Number(result.metrics.return_pct) >= 0 ? "positive" : "negative"}>
-                      {formatPercent(result.metrics.return_pct)}
-                    </strong>
-                    <small><Activity size={13} /> {formatMoney(result.metrics.total_net_profit, intlLocale)}</small>
-                  </article>
-                  <article className="metric-card">
-                    <span>{t("metric.drawdown")}</span>
-                    <strong>
-                      {formatMoney(result.metrics.max_drawdown_absolute ?? "0", intlLocale)}
-                    </strong>
-                    <small>
-                      <Gauge size={13} /> {formatPercent(result.metrics.max_drawdown_pct)} / {t("metric.drawdownHint")}
-                    </small>
-                  </article>
-                  <article className="metric-card">
-                    <span>{t("metric.winRate")}</span>
-                    <strong>{formatPercent(result.metrics.win_rate_pct)}</strong>
-                    <small><BarChart3 size={13} /> {t("metric.trades", { count: result.metrics.total_trades })}</small>
-                  </article>
-                </div>
-
                 <TradeReplay
                   key={result.id}
                   candles={candles}
                   equityPoints={result.equity_curve}
+                  metrics={result.metrics}
                   onSpeedChange={setReplaySpeed}
                   priceDigits={selectedSymbol?.digits}
                   speed={replaySpeed}
