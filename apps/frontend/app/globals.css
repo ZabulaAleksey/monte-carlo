@@ -166,8 +166,8 @@ tbody tr:hover { background: #f7f9f5; }
 .setting-card strong { margin-top: 13px; color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
 .setting-card small { margin-top: 8px; color: var(--muted); font-size: 10px; }
 
-.backtest-workbench { width: 100%; max-width: 1380px; height: max(520px, calc(100dvh - 200px)); margin: 0 auto; display: grid; grid-template-columns: minmax(330px, 390px) minmax(0, 1fr); gap: 14px; align-items: stretch; overflow: hidden; }
-.backtest-sidebar, .backtest-results { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.backtest-workbench { width: 100%; max-width: 1380px; margin: 0 auto; display: grid; grid-template-columns: minmax(330px, 390px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.backtest-sidebar, .backtest-results { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; }
 .backtest-form { padding: 20px; }
 .backtest-form .panel-heading { margin-bottom: 18px; }
 .form-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -179,7 +179,7 @@ tbody tr:hover { background: #f7f9f5; }
 .primary-button { width: 100%; min-height: 44px; margin-top: 16px; border: 0; border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 9px; color: white; background: var(--green); font-size: 11px; font-weight: 650; cursor: pointer; transition: 160ms ease; }
 .primary-button:hover:not(:disabled) { background: #104b37; transform: translateY(-1px); }
 .primary-button:disabled { opacity: .55; cursor: wait; }
-.backtest-runs { width: 100%; min-width: 0; max-height: 430px; overflow: auto; }
+.backtest-runs { width: 100%; min-width: 0; overflow-x: auto; }
 .backtest-runs .panel-heading { position: sticky; top: 0; z-index: 2; background: var(--panel); }
 .backtest-runs td { padding: 12px; font-size: 10px; }
 .backtest-runs td small { display: block; margin-top: 4px; color: var(--muted); font-size: 8px; }
@@ -412,8 +412,6 @@ body.chart-fullscreen-open { overflow: hidden; }
   .guide-layout { grid-template-columns: 1fr; }
   .guide-aside { position: static; }
   .backtest-workbench { grid-template-columns: 1fr; }
-  .backtest-workbench { height: auto; overflow: visible; }
-  .backtest-sidebar, .backtest-results { overflow: visible; scrollbar-gutter: auto; }
   .backtest-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .run-settings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
