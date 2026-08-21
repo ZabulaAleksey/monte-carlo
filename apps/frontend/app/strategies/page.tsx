@@ -82,12 +82,20 @@ export default function StrategiesPage(): React.JSX.Element {
     let active = true;
     Promise.all([
       apiClient.getSymbols(),
+      apiClient.getQuotes(),
       apiClient.getBacktestStrategies(),
       apiClient.getBacktestRuns(),
     ])
-      .then(([nextSymbols, nextStrategies, nextRuns]) => {
+      .then(([nextSymbols, nextQuotes, nextStrategies, nextRuns]) => {
         if (!active) return;
-        setSymbols(nextSymbols.filter((symbol) => symbol.is_active));
+        const quotedSymbolIds = new Set(
+          nextQuotes.map((quote) => quote.symbol_id),
+        );
+        setSymbols(
+          nextSymbols.filter(
+            (symbol) => symbol.is_active && quotedSymbolIds.has(symbol.id),
+          ),
+        );
         setStrategies(nextStrategies);
         setRuns(nextRuns);
         setInitialLoading(false);

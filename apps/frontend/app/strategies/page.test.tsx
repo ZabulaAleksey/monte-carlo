@@ -11,6 +11,7 @@ vi.mock("@/lib/api/client", () => ({
     getBacktestJob: vi.fn(),
     getHistoricalDataCoverage: vi.fn(),
     getHistoricalDataRequest: vi.fn(),
+    getQuotes: vi.fn(),
     getBacktestRuns: vi.fn(),
     getBacktestStrategies: vi.fn(),
     getBacktestTrades: vi.fn(),
@@ -110,6 +111,17 @@ describe("StrategiesPage", () => {
         volume_step: "0.01",
         volume_max: "100",
         contract_size: "100000",
+      },
+    ]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([
+      {
+        symbol_id: "symbol-1",
+        terminal_id: "terminal-1",
+        bid: "1.10000",
+        ask: "1.10020",
+        observed_at: "2026-01-01T08:00:00Z",
+        received_at: "2026-01-01T08:00:00Z",
+        source: "mt5",
       },
     ]);
     vi.mocked(apiClient.getBacktestStrategies).mockResolvedValue([
@@ -486,6 +498,26 @@ describe("StrategiesPage", () => {
         contract_size: "50",
       },
     ]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValueOnce([
+      {
+        symbol_id: "symbol-1",
+        terminal_id: "terminal-1",
+        bid: "1.10000",
+        ask: "1.10020",
+        observed_at: "2026-01-01T08:00:00Z",
+        received_at: "2026-01-01T08:00:00Z",
+        source: "mt5",
+      },
+      {
+        symbol_id: "sp500",
+        terminal_id: "terminal-1",
+        bid: "6000.0",
+        ask: "6000.2",
+        observed_at: "2026-01-01T08:00:00Z",
+        received_at: "2026-01-01T08:00:00Z",
+        source: "mt5",
+      },
+    ]);
 
     render(<StrategiesPage />);
     await screen.findByRole("heading", { name: "Run configuration" });
@@ -497,6 +529,39 @@ describe("StrategiesPage", () => {
     expect(positionSize).toHaveAttribute("step", "0.1");
     expect(positionSize).toHaveAttribute("max", "99");
     expect(screen.getByText("Min 0.1 · step 0.1 · max 99 lots")).toBeInTheDocument();
+  });
+
+  it("offers only instruments that have a current quote", async () => {
+    vi.mocked(apiClient.getSymbols).mockResolvedValueOnce([
+      {
+        id: "symbol-1",
+        name: "EURUSD",
+        description: "Euro",
+        digits: 5,
+        is_active: true,
+        volume_min: "0.01",
+        volume_step: "0.01",
+        volume_max: "99",
+        contract_size: "100000",
+      },
+      {
+        id: "symbol-without-quote",
+        name: "GBPUSD",
+        description: "Pound",
+        digits: 5,
+        is_active: true,
+        volume_min: "0.01",
+        volume_step: "0.01",
+        volume_max: "99",
+        contract_size: "100000",
+      },
+    ]);
+
+    render(<StrategiesPage />);
+
+    const instrument = await screen.findByLabelText("Instrument");
+    expect(instrument).toHaveTextContent("EURUSD");
+    expect(instrument).not.toHaveTextContent("GBPUSD");
   });
 
   it("shows candle loading on the disabled run button", async () => {
