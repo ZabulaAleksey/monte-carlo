@@ -145,6 +145,32 @@ describe("TradeReplay", () => {
     expect(document.querySelector(".backtest-trades-scroll")).toHaveClass("is-scrollable");
   });
 
+  it("shows signed commission and swap impact in the trade ledger", () => {
+    const debitSwap = {
+      ...trade(1, "2026-01-01T00:00:00Z", "2026-01-01T01:00:00Z", "100", "100"),
+      commission: "1",
+      swap: "-2",
+      net_profit: "-3",
+    };
+    const creditSwap = {
+      ...trade(2, "2026-01-01T02:00:00Z", "2026-01-01T03:00:00Z", "100", "100"),
+      commission: "1",
+      swap: "5",
+      net_profit: "4",
+    };
+    render(
+      <TradeReplay
+        candles={[candle("one", "2026-01-02T00:00:00Z")]}
+        startAtEnd
+        trades={[debitSwap, creditSwap]}
+      />,
+    );
+
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(within(rows[0]!).getAllByRole("cell")[7]).toHaveTextContent("-$3.00");
+    expect(within(rows[1]!).getAllByRole("cell")[7]).toHaveTextContent("$4.00");
+  });
+
   it("opens either chart in a fullscreen overlay and closes it with Escape", () => {
     const candles = [candle("one", "2026-01-01T00:00:00Z")];
     render(<TradeReplay candles={candles} trades={[]} />);

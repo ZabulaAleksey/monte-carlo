@@ -326,6 +326,35 @@ def test_swap_is_a_daily_percentage_of_lot_notional() -> None:
     assert trade.net_profit == Decimal("-2.2")
 
 
+def test_positive_swap_increases_net_profit() -> None:
+    manager = PositionManager()
+    simulator = OrderSimulator(
+        NotionalCommissionModel(Decimal("0"), Decimal("100000")),
+        PointSlippageModel(Decimal("0"), 5),
+        Decimal("0.01"),
+        Decimal("100000"),
+    )
+    simulator.open_position(
+        manager,
+        RiskManager(None, None),
+        PositionSide.BUY,
+        Decimal("0.1"),
+        START,
+        Decimal("1.1"),
+    )
+
+    trade = simulator.close_position(
+        manager,
+        1,
+        START + timedelta(days=2),
+        Decimal("1.1"),
+        ExitReason.SIGNAL,
+    )
+
+    assert trade.swap == Decimal("2.2")
+    assert trade.net_profit == Decimal("2.2")
+
+
 @pytest.mark.asyncio
 async def test_stop_loss_closes_position_with_stop_first_policy() -> None:
     candles = [

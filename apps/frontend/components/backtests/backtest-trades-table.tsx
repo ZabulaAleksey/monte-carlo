@@ -61,6 +61,7 @@ export function BacktestTradesTable({
             <tbody>
               {visibleTrades.map((trade) => {
                 const closed = new Date(trade.closed_at).getTime() < cutoff;
+                const costImpact = Number(trade.swap) - Number(trade.commission);
                 return (
                 <tr className={closed ? undefined : "replay-open-trade"} key={trade.sequence}>
                   <td className="mono">{trade.sequence}</td>
@@ -74,7 +75,9 @@ export function BacktestTradesTable({
                   <td className="mono">{trade.open_price}</td>
                   <td className="mono">{closed ? trade.close_price : "-"}</td>
                   <td>{closed ? exitReason(trade.exit_reason) : "-"}</td>
-                  <td className="mono">{closed ? formatMoney(Number(trade.commission) - Number(trade.swap), intlLocale) : "-"}</td>
+                  <td className={closed ? (costImpact >= 0 ? "positive mono" : "negative mono") : "mono"}>
+                    {closed ? formatMoney(costImpact, intlLocale) : "-"}
+                  </td>
                   <td className={closed ? (Number(trade.net_profit) >= 0 ? "positive mono" : "negative mono") : "mono"}>
                     {closed ? formatMoney(trade.net_profit, intlLocale) : "-"}
                   </td>
