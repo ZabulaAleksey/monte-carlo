@@ -194,7 +194,9 @@ Horizontal follow keeps pixel offsets outside React state and moves the price
 axis through a stable SVG transform. React state changes only when the visible
 candle-index range changes. Vertical price bounds use frame timestamps for
 time-based interpolation, with faster expansion than contraction, and price-axis
-ticks retain stable keys while their values and positions change.
+ticks retain stable keys while their values and positions change. The repeating
+background grid is rendered by a separate composited DOM layer underneath a
+transparent SVG instead of being the SVG background.
 
 ### Reason
 
@@ -209,6 +211,8 @@ unnecessary reconciliation and remounts during animation.
 - Returning from a suspended tab advances only one candle on the next due frame.
 - Existing candle nodes and price-axis tick nodes remain mounted while viewport
   and scale animation progresses.
+- Repainting dynamic SVG geometry does not repaint or briefly clear the static
+  grid surface below it.
 - Pause cancels the replay clock; Stop preserves the current rendered frame.
 
 ## 2026-08-20 — Состояние MT5 определяется по фактической активности

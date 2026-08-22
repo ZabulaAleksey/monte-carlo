@@ -398,17 +398,22 @@ export function CandlestickTradeChart({
         <span>{t("replay.candles", { count: visible.length })}</span>
         <span>{t("replay.markers")} / {t("replay.guides")}</span>
       </div>
-      <svg
-        aria-label={t("replay.chartAria", { count: visibleTradeCount })}
-        className="candlestick-chart"
-        data-scale-end={Math.min(viewportRange.end, visible.length - 1)}
-        data-scale-max={maximum}
-        data-scale-min={minimum}
-        data-scale-start={viewportRange.start}
-        role="img"
+      <div
+        className="execution-chart-surface"
         style={{ minWidth: `${width}px` }}
-        viewBox={`0 0 ${width} ${HEIGHT}`}
       >
+        <div aria-hidden="true" className="execution-chart-grid" />
+        <svg
+          aria-label={t("replay.chartAria", { count: visibleTradeCount })}
+          className="candlestick-chart"
+          data-scale-end={Math.min(viewportRange.end, visible.length - 1)}
+          data-scale-max={maximum}
+          data-scale-min={minimum}
+          data-scale-start={viewportRange.start}
+          role="img"
+          style={{ minWidth: `${width}px` }}
+          viewBox={`0 0 ${width} ${HEIGHT}`}
+        >
         <g className="price-axis" ref={priceAxisRef}>
           {priceTicks.map((price, index) => (
             <g key={index}>
@@ -544,7 +549,8 @@ export function CandlestickTradeChart({
             </g>
           );
         })}
-      </svg>
+        </svg>
+      </div>
     </div>
   );
 }

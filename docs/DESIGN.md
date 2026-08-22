@@ -29,7 +29,9 @@ count and actual dates; it never appears only below the fold.
   from frame timestamps inside a paint-contained chart frame. Expansion is
   faster than contraction, keeping new extrema legible without making the chart
   breathe. Price-axis nodes keep stable keys and move horizontally through one
-  SVG transform, so labels are updated rather than remounted.
+  SVG transform, so labels are updated rather than remounted. The repeating
+  background grid is a separate composited DOM layer below a transparent SVG;
+  candle and scale updates therefore do not repaint or replace the grid surface.
 - The replay clock is driven by `requestAnimationFrame`. Each painted frame
   reveals at most one candle; playback speed changes only the interval. A delayed
   or backgrounded tab resumes from the current frame without a catch-up batch.

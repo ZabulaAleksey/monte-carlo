@@ -337,8 +337,11 @@ describe("CandlestickTradeChart", () => {
       />,
     );
     const chart = container.querySelector(".candlestick-chart") as SVGSVGElement;
+    const staticGrid = container.querySelector(".execution-chart-grid");
     const firstPriceTick = container.querySelector(".price-axis text");
     const initialMaximum = Number(chart.dataset.scaleMax);
+
+    expect(staticGrid).toHaveAttribute("aria-hidden", "true");
 
     rerender(
       <CandlestickTradeChart
@@ -355,6 +358,9 @@ describe("CandlestickTradeChart", () => {
     expect(Number(chart.dataset.scaleMax)).toBeLessThan(1002);
     expect(
       container.querySelector(".price-axis text")?.isSameNode(firstPriceTick),
+    ).toBe(true);
+    expect(
+      container.querySelector(".execution-chart-grid")?.isSameNode(staticGrid),
     ).toBe(true);
 
     act(() => {
