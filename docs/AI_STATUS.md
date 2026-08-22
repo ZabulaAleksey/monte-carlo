@@ -1,8 +1,10 @@
 # AI development status
 
-## Current stage
+## Latest completed stage
 
-Stage 3 — Strategy engine and backtesting.
+Stage 3 — Strategy engine and backtesting. Implemented, validated by the
+available automated checks and committed locally. The current branch has not
+been confirmed as pushed, merged or released.
 
 ## Implemented
 
@@ -127,6 +129,11 @@ Stage 3 — Strategy engine and backtesting.
 
 ## Known constraints
 
+- Remaining execution-map flicker is tracked as `TD-UI-001`; the current
+  viewport-SVG implementation reduces repaint scope but is not accepted as a
+  complete visual fix.
+- Backtest profit/loss mathematics still requires an independent MT5 golden-data
+  audit and is tracked as `TD-BT-001`.
 - A single run currently reads and returns at most 20,000 candles/equity points.
 - Replay animation is client-side after the completed result and candles are
   loaded.
@@ -143,11 +150,9 @@ Stage 3 — Strategy engine and backtesting.
 
 ## Next reasonable checks
 
-- Validate marker density on runs with many simultaneous positions.
-- Profile rendering near the 20,000-candle frontend limit and design paginated
-  delivery for larger data sets.
-- Design broker/account/symbol cost profiles from synchronized MT5 deals,
-  including long/short swap and rollover rules.
-- Add MT5 tick-size/tick-value and profit-currency conversion for instruments
-  whose P&L cannot be represented by contract size alone.
-- Continue Stage 3 commits with the stage title in the commit subject.
+- Approve the scope and number of the next implementation stage; no numbered
+  Stage 4 is currently defined.
+- Close `TD-BT-001` before relying on backtest output for financial decisions.
+- Close `TD-UI-001` before adding further replay-chart complexity.
+- Then continue with the nearest planned roadmap block: strategy adapters,
+  historical broker cost profiles and larger-data delivery.

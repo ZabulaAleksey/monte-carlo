@@ -19,9 +19,8 @@
 
 ## Current
 
-- Validate Stage 3 behavior on larger historical ranges and denser concurrent
-  trade sets.
-- Refine chart readability without changing deterministic results.
+- Stage 3 is closed. No numbered implementation stage after Stage 3 has been
+  approved yet.
 
 ## Planned
 
@@ -31,6 +30,16 @@
   long/short rollover handling.
 - Larger-data delivery and rendering optimizations when the 20,000-candle UI
   limit becomes restrictive.
+
+## Technical debt carried from Stage 3
+
+- Eliminate the remaining execution-map flicker or replace its rendering
+  architecture if retained SVG cannot provide stable frames.
+- Independently validate backtest profit/loss mathematics against MT5 golden
+  trades, including lot/tick/contract rules, currency conversion, commission,
+  swap, slippage and realized/unrealized portfolio values.
+
+Detailed acceptance criteria are maintained in `docs/AI_PLAN.md`.
 
 ## Later / optional
 
