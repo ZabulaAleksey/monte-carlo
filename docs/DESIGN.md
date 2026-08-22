@@ -27,6 +27,9 @@ count and actual dates; it never appears only below the fold.
   the full run width from the first frame; replay only reveals candles, so
   existing candle coordinates do not shift or flash. Price bounds interpolate
   inside a paint-contained chart frame, keeping the surrounding panel stable.
+- Each replay clock tick reveals exactly one candle. Playback speed changes only
+  the delay between ticks; dataset length and high-speed modes never batch or
+  replace previously revealed candles.
 - Supported speeds are 0.5x, 1x, 2x, 4x, 5x, 10x, 20x, 50x and 100x.
 - Entry markers are triangles; exit markers are circles with a nearby signed
   P&L value.

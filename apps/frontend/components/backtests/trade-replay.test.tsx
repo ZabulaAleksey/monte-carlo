@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TradeReplay } from "./trade-replay";
 import type {
@@ -64,6 +64,10 @@ const metrics: BacktestMetricsRecord = {
 
 describe("TradeReplay", () => {
   beforeEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   it("follows the chart, exposes fast speeds and reveals trades on the replay clock", () => {
     const candles = [
@@ -154,6 +158,25 @@ describe("TradeReplay", () => {
 
     rerender(<TradeReplay key="next-run" candles={candles} trades={trades} />);
     expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+  });
+
+  it("reveals exactly one candle per replay tick even at 100x speed", async () => {
+    vi.useFakeTimers();
+    const candles = Array.from({ length: 500 }, (_, index) =>
+      candle(
+        `candle-${index}`,
+        new Date(Date.UTC(2026, 0, 1, index)).toISOString(),
+      ),
+    );
+    render(<TradeReplay candles={candles} speed={100} trades={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+
+    expect(screen.getByText("Candle 1 of 500")).toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(12));
+    expect(screen.getByText("Candle 2 of 500")).toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(12));
+    expect(screen.getByText("Candle 3 of 500")).toBeInTheDocument();
   });
 
   it("enables vertical ledger scrolling only after the tenth visible order", () => {

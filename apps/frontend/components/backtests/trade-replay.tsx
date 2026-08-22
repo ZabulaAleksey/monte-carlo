@@ -73,12 +73,9 @@ export function TradeReplay({
     if (!playing || sorted.length === 0 || index >= sorted.length - 1) {
       return undefined;
     }
-    const datasetStep = Math.max(1, Math.ceil(sorted.length / 240));
-    const speedStep = speed > 10 ? Math.ceil(speed / 10) : 1;
-    const step = datasetStep * speedStep;
     const timer = window.setTimeout(() => {
-      setIndex((current) => Math.min(current + step, sorted.length - 1));
-    }, Math.max(20, 220 / Math.min(speed, 10)));
+      setIndex((current) => Math.min(current + 1, sorted.length - 1));
+    }, Math.max(12, 220 / Math.max(speed, 0.5)));
     return () => window.clearTimeout(timer);
   }, [index, playing, sorted.length, speed]);
 
