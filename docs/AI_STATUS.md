@@ -1,10 +1,15 @@
 # AI development status
 
-## Latest completed stage
+## Последний завершённый блок
 
-Stage 3 — Strategy engine and backtesting. Implemented, validated by the
-available automated checks and committed locally. The current branch has not
-been confirmed as pushed, merged or released.
+Доменный движок стратегий и CPU-бэктест реализован, проверен доступными
+автоматическими тестами и закоммичен локально. В прежней рабочей нумерации этот
+блок назывался «Этап 3», а в канонической дорожной карте 1–28 он относится
+преимущественно к этапу 6.
+
+Этапы 3–5 канонического roadmap частично покрыты текущим кодом, но ещё не
+прошли отдельную evidence-проверку по всем критериям. Этап 7 не начат. Push,
+merge и release текущей ветки не подтверждены.
 
 ## Implemented
 
@@ -134,6 +139,8 @@ been confirmed as pushed, merged or released.
   complete visual fix.
 - Backtest profit/loss mathematics still requires an independent MT5 golden-data
   audit and is tracked as `TD-BT-001`.
+- Canonical stages 3–5 require a reconciliation audit before their status can
+  be promoted from partially implemented to validated.
 - A single run currently reads and returns at most 20,000 candles/equity points.
 - Replay animation is client-side after the completed result and candles are
   loaded.
@@ -150,9 +157,9 @@ been confirmed as pushed, merged or released.
 
 ## Next reasonable checks
 
-- Approve the scope and number of the next implementation stage; no numbered
-  Stage 4 is currently defined.
+- Complete the reconciliation gate for canonical stages 3–6.
 - Close `TD-BT-001` before relying on backtest output for financial decisions.
 - Close `TD-UI-001` before adding further replay-chart complexity.
-- Then continue with the nearest planned roadmap block: strategy adapters,
-  historical broker cost profiles and larger-data delivery.
+- Prepare the Stage 7 SPEC and CPU Monte Carlo benchmark contract.
+- Keep optional stages 14–28 deferred until the original stages 1–13 and a
+  separate user decision allow them.

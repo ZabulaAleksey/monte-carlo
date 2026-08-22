@@ -1,49 +1,46 @@
-# Roadmap
+# Дорожная карта
 
-## Completed
+Каноническое подробное описание этапов находится в
+[`MONTE_CARLO_ROADMAP_13_TO_28.md`](MONTE_CARLO_ROADMAP_13_TO_28.md).
+Этот файл хранит только порядок, статус и правила перехода между этапами.
 
-### Stage 3 — Strategy engine and backtesting
+## Политика этапов
 
-- Historical data provider and deterministic sequential engine.
-- Strategy interface and moving-average demonstration strategy.
-- Commission, swap, slippage, stop loss and take profit simulation.
-- Persisted runs, trades, equity curve and metrics.
-- Backtest API and localized research workspace.
-- Interactive execution replay and bulk management of saved research.
-- Reusable source-confirmed candle ranges and external tester API.
-- Synchronized candle/equity/drawdown replay with labeled time and price axes.
-- Partial-range fallback with explicit data-quality evidence and a larger
-  20,000-candle ceiling.
-- API documentation, read-only PostgreSQL workspace, service guide and
-  standalone offline recovery page.
+- Этапы 1–13 образуют исходную обязательную дорожную карту продукта.
+- Этапы 9.6 и 10.5 являются дополнительными подэтапами и выполняются только
+  после отдельного подтверждения.
+- Этапы 14–28 являются опциональным расширением data-platform. До завершения
+  этапов 1–13 они не входят в ближайший план и не запускаются автоматически.
+- Каждый этап требует отдельного SPEC/implementation prompt, проверки
+  зависимостей и явного запроса пользователя.
 
-## Current
+## Подтверждённое состояние
 
-- Stage 3 is closed. No numbered implementation stage after Stage 3 has been
-  approved yet.
+- Этап 1 — реализован.
+- Этап 2 — реализован.
+- Этапы 3–5 — часть предусмотренной ими функциональности существует, но
+  формальная проверка по каноническому roadmap не завершена.
+- Этап 6 — доменный CPU-бэктест реализован в работах, исторически называвшихся
+  «Этап 3. Движок стратегий и бэктестинг». Реализация закрыта с техническим
+  долгом, указанным в `AI_PLAN.md`.
+- Этап 7 — следующий продуктовый этап после reconciliation gate; не начат.
+- Этапы 8–13 — не начаты.
+- Этапы 14–28 — опциональны и отложены.
 
-## Planned
+## Reconciliation gate перед этапом 7
 
-- Additional strategy adapters and strategy-specific parameter schemas.
-- Historical broker cost profiles derived from synchronized MT5 deals, with
-  account/symbol/date scope, commission normalization by volume and separate
-  long/short rollover handling.
-- Larger-data delivery and rendering optimizations when the 20,000-candle UI
-  limit becomes restrictive.
+До начала эталонного Monte Carlo на CPU необходимо:
 
-## Technical debt carried from Stage 3
+1. Проверить, какие критерии этапов 3–5 уже покрыты фактическим кодом.
+2. Закрыть или явно ограничить `TD-BT-001` по математике P&L.
+3. Подготовить SPEC этапа 7 и зафиксировать эталонные входные данные, seed,
+   provenance и benchmark.
 
-- Eliminate the remaining execution-map flicker or replace its rendering
-  architecture if retained SVG cannot provide stable frames.
-- Independently validate backtest profit/loss mathematics against MT5 golden
-  trades, including lot/tick/contract rules, currency conversion, commission,
-  swap, slippage and realized/unrealized portfolio values.
+## Технический долг этапа 6
 
-Detailed acceptance criteria are maintained in `docs/AI_PLAN.md`.
+- `TD-UI-001` — устранить оставшееся мигание карты исполнения либо заменить
+  её rendering-архитектуру.
+- `TD-BT-001` — независимо сверить математику прибыли/убытка с golden trades
+  MT5, включая валютную конвертацию и брокерские издержки.
 
-## Later / optional
-
-- Monte Carlo simulation.
-- Genetic optimization.
-
-These optional items are outside the current Stage 3 scope.
+Подробные критерии закрытия находятся в [`AI_PLAN.md`](AI_PLAN.md).
