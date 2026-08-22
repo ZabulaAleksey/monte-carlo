@@ -65,7 +65,7 @@ export function CandlestickTradeChart({
     [sorted, visibleCandleCount],
   );
   const frameRef = useRef<HTMLDivElement>(null);
-  const priceAxisRef = useRef<SVGGElement>(null);
+  const plotLayerRef = useRef<SVGGElement>(null);
   const scrollAnimationFrameRef = useRef<number | null>(null);
   const scrollTargetRef = useRef(0);
   const [viewportRange, setViewportRange] = useState<ViewportRange>({
@@ -79,16 +79,16 @@ export function CandlestickTradeChart({
     ? PADDING + step * (visible.length - 1) + step / 2
     : 0;
 
-  const positionPriceAxis = useCallback((frame: HTMLDivElement): void => {
-    priceAxisRef.current?.setAttribute(
+  const positionPlotLayer = useCallback((frame: HTMLDivElement): void => {
+    plotLayerRef.current?.setAttribute(
       "transform",
-      `translate(${frame.scrollLeft} 0)`,
+      `translate(${-frame.scrollLeft} 0)`,
     );
   }, []);
 
   const updateViewportRange = useCallback((): void => {
     const frame = frameRef.current;
-    if (frame) positionPriceAxis(frame);
+    if (frame) positionPlotLayer(frame);
     if (!frame || visible.length === 0 || step <= 0 || frame.clientWidth <= 0) {
       setViewportRange({
         start: 0,
@@ -116,7 +116,7 @@ export function CandlestickTradeChart({
         ? current
         : { start, end, width: viewportWidth },
     );
-  }, [positionPriceAxis, step, visible.length]);
+  }, [positionPlotLayer, step, visible.length]);
 
   const scrollToLatest = useCallback((): boolean => {
     const frame = frameRef.current;
@@ -384,7 +384,8 @@ export function CandlestickTradeChart({
     (_, index) => maximum - (range * index) / 4,
   );
   const axisStart = 0;
-  const axisEnd = Math.min(width, viewportRange.width);
+  const viewportWidth = Math.max(1, viewportRange.width);
+  const axisEnd = viewportWidth;
   const normalizedDigits = Math.min(Math.max(priceDigits, 0), 6);
   const bufferedStart = Math.max(0, viewportRange.start - VIEWPORT_BUFFER_CANDLES);
   const bufferedEnd = Math.min(
@@ -398,23 +399,23 @@ export function CandlestickTradeChart({
         <span>{t("replay.candles", { count: visible.length })}</span>
         <span>{t("replay.markers")} / {t("replay.guides")}</span>
       </div>
-      <div
-        className="execution-chart-surface"
-        style={{ minWidth: `${width}px` }}
-      >
-        <div aria-hidden="true" className="execution-chart-grid" />
-        <svg
-          aria-label={t("replay.chartAria", { count: visibleTradeCount })}
-          className="candlestick-chart"
-          data-scale-end={Math.min(viewportRange.end, visible.length - 1)}
-          data-scale-max={maximum}
-          data-scale-min={minimum}
-          data-scale-start={viewportRange.start}
-          role="img"
-          style={{ minWidth: `${width}px` }}
-          viewBox={`0 0 ${width} ${HEIGHT}`}
+      <div className="execution-chart-track" style={{ minWidth: `${width}px` }}>
+        <div
+          className="execution-chart-surface"
+          style={{ width: `${viewportWidth}px` }}
         >
-        <g className="price-axis" ref={priceAxisRef}>
+          <div aria-hidden="true" className="execution-chart-grid" />
+          <svg
+            aria-label={t("replay.chartAria", { count: visibleTradeCount })}
+            className="candlestick-chart"
+            data-scale-end={Math.min(viewportRange.end, visible.length - 1)}
+            data-scale-max={maximum}
+            data-scale-min={minimum}
+            data-scale-start={viewportRange.start}
+            role="img"
+            viewBox={`0 0 ${viewportWidth} ${HEIGHT}`}
+          >
+        <g className="price-axis">
           {priceTicks.map((price, index) => (
             <g key={index}>
               <line
@@ -429,6 +430,7 @@ export function CandlestickTradeChart({
             </g>
           ))}
         </g>
+        <g className="execution-chart-plot" ref={plotLayerRef}>
         {periods.filter((period) => (
           period.candleIndex >= bufferedStart && period.candleIndex <= bufferedEnd
         )).map((period) => {
@@ -549,7 +551,9 @@ export function CandlestickTradeChart({
             </g>
           );
         })}
-        </svg>
+        </g>
+          </svg>
+        </div>
       </div>
     </div>
   );

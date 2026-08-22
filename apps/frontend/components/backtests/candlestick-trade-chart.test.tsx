@@ -142,13 +142,16 @@ describe("CandlestickTradeChart", () => {
     );
     const frame = container.querySelector(".chart-frame") as HTMLDivElement;
     const chart = container.querySelector(".candlestick-chart") as SVGSVGElement;
+    const track = container.querySelector(".execution-chart-track") as HTMLDivElement;
+    const plot = container.querySelector(".execution-chart-plot");
 
     expect(container.querySelectorAll(".candle").length).toBeLessThanOrEqual(700);
     await waitFor(() => {
       expect(container.querySelectorAll(".candle").length).toBeLessThan(100);
+      expect(chart.getAttribute("viewBox")).toBe("0 0 300 320");
     });
-    expect(chart.style.minWidth).toBe(`${fullWidth}px`);
-    expect(chart.getAttribute("viewBox")).toBe(`0 0 ${fullWidth} 320`);
+    expect(track.style.minWidth).toBe(`${fullWidth}px`);
+    expect(chart.style.minWidth).not.toBe(`${fullWidth}px`);
     expect(container.querySelector('[data-candle-index="0"]')).toBeInTheDocument();
     expect(container.querySelector('[data-candle-index="1000"]')).not.toBeInTheDocument();
 
@@ -158,6 +161,9 @@ describe("CandlestickTradeChart", () => {
     await waitFor(() => {
       expect(container.querySelector('[data-candle-index="19999"]')).toBeInTheDocument();
     });
+    expect(container.querySelector(".candlestick-chart")).toBe(chart);
+    expect(container.querySelector(".execution-chart-plot")).toBe(plot);
+    expect(plot).toHaveAttribute("transform", `translate(${-frame.scrollLeft} 0)`);
     expect(container.querySelectorAll(".candle").length).toBeLessThan(100);
     expect(container.querySelector('[data-candle-index="0"]')).not.toBeInTheDocument();
 
@@ -262,13 +268,15 @@ describe("CandlestickTradeChart", () => {
     );
     const frame = container.querySelector(".chart-frame") as HTMLDivElement;
     const priceAxis = container.querySelector(".price-axis");
+    const plot = container.querySelector(".execution-chart-plot");
     expect(frame.scrollLeft).toBe(0);
 
     act(() => frames.shift()?.(0));
 
     expect(frame.scrollLeft).toBeGreaterThan(0);
     expect(frame.scrollLeft).toBeLessThan(444);
-    expect(priceAxis).toHaveAttribute("transform", `translate(${frame.scrollLeft} 0)`);
+    expect(priceAxis).not.toHaveAttribute("transform");
+    expect(plot).toHaveAttribute("transform", `translate(${-frame.scrollLeft} 0)`);
 
     act(() => {
       for (let index = 0; index < 80 && frames.length > 0; index += 1) {
@@ -277,6 +285,7 @@ describe("CandlestickTradeChart", () => {
     });
     expect(frame.scrollLeft).toBeCloseTo(444, 0);
     expect(container.querySelector(".price-axis")).toBe(priceAxis);
+    expect(container.querySelector(".execution-chart-plot")).toBe(plot);
 
     vi.unstubAllGlobals();
     delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
@@ -295,6 +304,8 @@ describe("CandlestickTradeChart", () => {
       />,
     );
     const chart = container.querySelector(".candlestick-chart") as SVGSVGElement;
+    const plot = container.querySelector(".execution-chart-plot");
+    const firstCandle = container.querySelector('[data-candle-index="0"]');
     const firstWick = container.querySelector('[data-candle-index="0"] line');
     const initialViewBox = chart.getAttribute("viewBox");
     const initialX = firstWick?.getAttribute("x1");
@@ -310,6 +321,9 @@ describe("CandlestickTradeChart", () => {
     );
 
     expect(container.querySelectorAll(".candle")).toHaveLength(2);
+    expect(container.querySelector(".candlestick-chart")).toBe(chart);
+    expect(container.querySelector(".execution-chart-plot")).toBe(plot);
+    expect(container.querySelector('[data-candle-index="0"]')).toBe(firstCandle);
     expect(chart.getAttribute("viewBox")).toBe(initialViewBox);
     expect(container.querySelector('[data-candle-index="0"] line')).toHaveAttribute(
       "x1",

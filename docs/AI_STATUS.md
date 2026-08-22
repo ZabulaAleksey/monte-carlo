@@ -10,10 +10,11 @@ Stage 3 — Strategy engine and backtesting.
   candle/trade mapping. Dense runs no longer repeat a linear scan through up to
   20,000 candles for every marker or after viewport-only scroll updates; the
   exact boundary behavior for protective exits remains unchanged.
-- Execution-map SVG rendering keeps the complete horizontal range but mounts
-  only the current buffered viewport. The initial and zero-width states remain
-  bounded, while crossing trade connections and SL/TP lines stay visible when
-  their endpoint markers are outside the viewport.
+- Execution-map navigation keeps the complete horizontal range in a lightweight
+  scroll track, while the persistent SVG surface is limited to the visible
+  viewport and moves one buffered plot group imperatively. The initial and
+  zero-width states remain bounded, while crossing trade connections and SL/TP
+  lines stay visible when their endpoint markers are outside the viewport.
 - Virtual execution keeps a stable 360 px panel height while its trade ledger
   scrolls internally with a sticky table header, including empty and animated
   replay states.

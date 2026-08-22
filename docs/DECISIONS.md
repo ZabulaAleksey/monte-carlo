@@ -213,6 +213,10 @@ unnecessary reconciliation and remounts during animation.
   and scale animation progresses.
 - Repainting dynamic SVG geometry does not repaint or briefly clear the static
   grid surface below it.
+- Full-history width belongs to a lightweight scroll track. The rendered SVG is
+  fixed to the visible viewport, and one persistent plot group follows scroll
+  position through an imperative transform, avoiding rasterization of a
+  potentially hundred-thousand-pixel SVG surface.
 - Pause cancels the replay clock; Stop preserves the current rendered frame.
 
 ## 2026-08-20 — Состояние MT5 определяется по фактической активности

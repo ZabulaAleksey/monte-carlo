@@ -215,9 +215,11 @@ body.chart-fullscreen-open { overflow: hidden; }
 .execution-chart-frame { contain: layout paint; isolation: isolate; }
 .chart-caption { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; color: var(--muted); font-family: var(--font-mono); font-size: 9px; flex-wrap: wrap; }
 .equity-chart { width: 100%; min-width: 560px; height: auto; display: block; border: 1px solid var(--line); border-radius: 10px; background: repeating-linear-gradient(to bottom, #f8faf7 0, #f8faf7 62px, #e9eee9 63px); }
-.execution-chart-surface { position: relative; width: 100%; min-width: 560px; overflow: hidden; isolation: isolate; border: 1px solid var(--line); border-radius: 10px; background: #f8faf7; }
+.execution-chart-track { position: relative; width: 100%; }
+.execution-chart-surface { position: sticky; left: 0; width: 100%; min-width: 0; overflow: hidden; isolation: isolate; border: 1px solid var(--line); border-radius: 10px; background: #f8faf7; }
 .execution-chart-grid { position: absolute; z-index: 0; inset: 0; pointer-events: none; contain: strict; backface-visibility: hidden; transform: translateZ(0); background: repeating-linear-gradient(to bottom, #f8faf7 0, #f8faf7 62px, #e9eee9 63px); }
-.candlestick-chart { position: relative; z-index: 1; width: 100%; min-width: 560px; height: auto; display: block; border: 0; border-radius: inherit; background: transparent; contain: paint; }
+.candlestick-chart { position: relative; z-index: 1; width: 100%; min-width: 0; height: auto; display: block; border: 0; border-radius: inherit; background: transparent; contain: paint; }
+.execution-chart-plot { will-change: transform; }
 .balance-line { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .equity-area { fill: url("#equity-fill"); stroke: none; }
 .liquidation-line { fill: none; stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; stroke-linecap: round; stroke-linejoin: round; }
