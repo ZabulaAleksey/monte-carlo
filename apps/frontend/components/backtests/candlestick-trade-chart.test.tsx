@@ -261,12 +261,14 @@ describe("CandlestickTradeChart", () => {
       />,
     );
     const frame = container.querySelector(".chart-frame") as HTMLDivElement;
+    const priceAxis = container.querySelector(".price-axis");
     expect(frame.scrollLeft).toBe(0);
 
     act(() => frames.shift()?.(0));
 
     expect(frame.scrollLeft).toBeGreaterThan(0);
     expect(frame.scrollLeft).toBeLessThan(444);
+    expect(priceAxis).toHaveAttribute("transform", `translate(${frame.scrollLeft} 0)`);
 
     act(() => {
       for (let index = 0; index < 80 && frames.length > 0; index += 1) {
@@ -274,6 +276,7 @@ describe("CandlestickTradeChart", () => {
       }
     });
     expect(frame.scrollLeft).toBeCloseTo(444, 0);
+    expect(container.querySelector(".price-axis")).toBe(priceAxis);
 
     vi.unstubAllGlobals();
     delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
@@ -334,6 +337,7 @@ describe("CandlestickTradeChart", () => {
       />,
     );
     const chart = container.querySelector(".candlestick-chart") as SVGSVGElement;
+    const firstPriceTick = container.querySelector(".price-axis text");
     const initialMaximum = Number(chart.dataset.scaleMax);
 
     rerender(
@@ -349,10 +353,13 @@ describe("CandlestickTradeChart", () => {
     act(() => frames.shift()?.(0));
     expect(Number(chart.dataset.scaleMax)).toBeGreaterThan(initialMaximum);
     expect(Number(chart.dataset.scaleMax)).toBeLessThan(1002);
+    expect(
+      container.querySelector(".price-axis text")?.isSameNode(firstPriceTick),
+    ).toBe(true);
 
     act(() => {
       for (let index = 0; index < 100 && frames.length > 0; index += 1) {
-        frames.shift()?.(index + 1);
+        frames.shift()?.((index + 1) * (1000 / 60));
       }
     });
     expect(Number(chart.dataset.scaleMax)).toBeCloseTo(1002, 0);

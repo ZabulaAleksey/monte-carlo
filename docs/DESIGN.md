@@ -26,10 +26,15 @@ count and actual dates; it never appears only below the fold.
   position continuously between replay frames instead of jumping. The SVG uses
   the full run width from the first frame; replay only reveals candles, so
   existing candle coordinates do not shift or flash. Price bounds interpolate
-  inside a paint-contained chart frame, keeping the surrounding panel stable.
-- Each replay clock tick reveals exactly one candle. Playback speed changes only
-  the delay between ticks; dataset length and high-speed modes never batch or
-  replace previously revealed candles.
+  from frame timestamps inside a paint-contained chart frame. Expansion is
+  faster than contraction, keeping new extrema legible without making the chart
+  breathe. Price-axis nodes keep stable keys and move horizontally through one
+  SVG transform, so labels are updated rather than remounted.
+- The replay clock is driven by `requestAnimationFrame`. Each painted frame
+  reveals at most one candle; playback speed changes only the interval. A delayed
+  or backgrounded tab resumes from the current frame without a catch-up batch.
+  The interval is `max(1000 / 60, 1667 / speed)` milliseconds, preserving the
+  relative speed scale while keeping 100x close to one candle per 60 Hz frame.
 - Supported speeds are 0.5x, 1x, 2x, 4x, 5x, 10x, 20x, 50x and 100x.
 - Entry markers are triangles; exit markers are circles with a nearby signed
   P&L value.

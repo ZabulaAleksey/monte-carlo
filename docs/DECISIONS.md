@@ -179,6 +179,38 @@ trade information and make pause, stop and speed controls inconsistent.
   visible early.
 - Replay-specific chart and ledger behavior is tested together.
 
+## 2026-08-22 — Frame-synchronized replay and stable chart layers
+
+Status: accepted for Stage 3.
+
+### Decision
+
+Animated backtest replay uses one `requestAnimationFrame` clock. A frame may
+reveal at most one candle, and a delayed browser tab never catches up through a
+loop or a multi-candle state update. Speed changes the reveal interval using
+`max(1000 / 60, 1667 / speed)` milliseconds.
+
+Horizontal follow keeps pixel offsets outside React state and moves the price
+axis through a stable SVG transform. React state changes only when the visible
+candle-index range changes. Vertical price bounds use frame timestamps for
+time-based interpolation, with faster expansion than contraction, and price-axis
+ticks retain stable keys while their values and positions change.
+
+### Reason
+
+Timer callbacks faster than the display refresh can be painted together even
+when state increments are individually correct. Storing every scroll pixel in
+React state and keying axis ticks by their changing numeric value also causes
+unnecessary reconciliation and remounts during animation.
+
+### Consequences
+
+- 100x is bounded by the display refresh and still exposes candles one by one.
+- Returning from a suspended tab advances only one candle on the next due frame.
+- Existing candle nodes and price-axis tick nodes remain mounted while viewport
+  and scale animation progresses.
+- Pause cancels the replay clock; Stop preserves the current rendered frame.
+
 ## 2026-08-20 — Состояние MT5 определяется по фактической активности
 
 Status: accepted for Stage 3.

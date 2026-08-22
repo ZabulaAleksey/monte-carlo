@@ -67,6 +67,7 @@ describe("TradeReplay", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("follows the chart, exposes fast speeds and reveals trades on the replay clock", () => {
@@ -160,8 +161,13 @@ describe("TradeReplay", () => {
     expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
   });
 
-  it("reveals exactly one candle per replay tick even at 100x speed", async () => {
-    vi.useFakeTimers();
+  it("reveals exactly one candle per painted frame without catching up in batches", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
     const candles = Array.from({ length: 500 }, (_, index) =>
       candle(
         `candle-${index}`,
@@ -169,14 +175,16 @@ describe("TradeReplay", () => {
       ),
     );
     render(<TradeReplay candles={candles} speed={100} trades={[]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
 
     expect(screen.getByText("Candle 1 of 500")).toBeInTheDocument();
-    await act(async () => vi.advanceTimersByTimeAsync(12));
+    act(() => frames.shift()?.(0));
+    expect(screen.getByText("Candle 1 of 500")).toBeInTheDocument();
+    act(() => frames.shift()?.(17));
     expect(screen.getByText("Candle 2 of 500")).toBeInTheDocument();
-    await act(async () => vi.advanceTimersByTimeAsync(12));
+    act(() => frames.shift()?.(34));
     expect(screen.getByText("Candle 3 of 500")).toBeInTheDocument();
+    act(() => frames.shift()?.(10_000));
+    expect(screen.getByText("Candle 4 of 500")).toBeInTheDocument();
   });
 
   it("enables vertical ledger scrolling only after the tenth visible order", () => {

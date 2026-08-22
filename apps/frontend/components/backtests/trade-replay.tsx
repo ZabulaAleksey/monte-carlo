@@ -37,6 +37,8 @@ interface TradeReplayProps {
 }
 
 const SPEEDS = [0.5, 1, 2, 4, 5, 10, 20, 50, 100] as const;
+const REPLAY_BASE_INTERVAL_MS = 1667;
+const MINIMUM_REPLAY_INTERVAL_MS = 1000 / 60;
 
 const ignoreSpeedChange = (): void => undefined;
 type FullscreenChart = "equity" | "execution";
@@ -62,6 +64,7 @@ export function TradeReplay({
   const executionSectionRef = useRef<HTMLElement>(null);
   const equityFullscreenButtonRef = useRef<HTMLButtonElement>(null);
   const executionFullscreenButtonRef = useRef<HTMLButtonElement>(null);
+  const replayAnimationFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     setIndex(startAtEnd ? Math.max(sorted.length - 1, 0) : 0);
@@ -70,14 +73,31 @@ export function TradeReplay({
   }, [candles, sorted.length, startAtEnd]);
 
   useEffect(() => {
-    if (!playing || sorted.length === 0 || index >= sorted.length - 1) {
+    if (!playing || sorted.length === 0) {
       return undefined;
     }
-    const timer = window.setTimeout(() => {
-      setIndex((current) => Math.min(current + 1, sorted.length - 1));
-    }, Math.max(12, 220 / Math.max(speed, 0.5)));
-    return () => window.clearTimeout(timer);
-  }, [index, playing, sorted.length, speed]);
+    const interval = Math.max(
+      MINIMUM_REPLAY_INTERVAL_MS,
+      REPLAY_BASE_INTERVAL_MS / Math.max(speed, 0.5),
+    );
+    let lastRevealAt: number | null = null;
+    const advance = (timestamp: number): void => {
+      if (lastRevealAt === null) {
+        lastRevealAt = timestamp;
+      } else if (timestamp - lastRevealAt >= interval) {
+        lastRevealAt = timestamp;
+        setIndex((current) => Math.min(current + 1, sorted.length - 1));
+      }
+      replayAnimationFrameRef.current = window.requestAnimationFrame(advance);
+    };
+    replayAnimationFrameRef.current = window.requestAnimationFrame(advance);
+    return () => {
+      if (replayAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(replayAnimationFrameRef.current);
+        replayAnimationFrameRef.current = null;
+      }
+    };
+  }, [playing, sorted.length, speed]);
 
   useEffect(() => {
     if (index >= sorted.length - 1) setPlaying(false);
@@ -301,7 +321,7 @@ export function TradeReplay({
         </label>
         <div className="replay-actions">
           <button
-            disabled={stopped || playing || sorted.length === 0}
+            disabled={stopped || playing || sorted.length === 0 || index >= sorted.length - 1}
             onClick={() => setPlaying(true)}
             type="button"
           >

@@ -31,7 +31,6 @@ interface PositionedTradeMarker extends TradeMarker {
 
 interface ViewportRange {
   end: number;
-  offset: number;
   start: number;
   width: number;
 }
@@ -66,12 +65,12 @@ export function CandlestickTradeChart({
     [sorted, visibleCandleCount],
   );
   const frameRef = useRef<HTMLDivElement>(null);
+  const priceAxisRef = useRef<SVGGElement>(null);
   const scrollAnimationFrameRef = useRef<number | null>(null);
   const scrollTargetRef = useRef(0);
   const [viewportRange, setViewportRange] = useState<ViewportRange>({
     start: 0,
     end: INITIAL_VIEWPORT_CANDLES - 1,
-    offset: 0,
     width: MINIMUM_WIDTH,
   });
   const width = Math.max(MINIMUM_WIDTH, sorted.length * 7 + PADDING * 2);
@@ -80,8 +79,16 @@ export function CandlestickTradeChart({
     ? PADDING + step * (visible.length - 1) + step / 2
     : 0;
 
+  const positionPriceAxis = useCallback((frame: HTMLDivElement): void => {
+    priceAxisRef.current?.setAttribute(
+      "transform",
+      `translate(${frame.scrollLeft} 0)`,
+    );
+  }, []);
+
   const updateViewportRange = useCallback((): void => {
     const frame = frameRef.current;
+    if (frame) positionPriceAxis(frame);
     if (!frame || visible.length === 0 || step <= 0 || frame.clientWidth <= 0) {
       setViewportRange({
         start: 0,
@@ -89,7 +96,6 @@ export function CandlestickTradeChart({
           Math.max(visible.length - 1, 0),
           INITIAL_VIEWPORT_CANDLES - 1,
         ),
-        offset: 0,
         width: frame?.clientWidth ?? MINIMUM_WIDTH,
       });
       return;
@@ -102,17 +108,15 @@ export function CandlestickTradeChart({
       visible.length - 1,
       Math.ceil((frame.scrollLeft + frame.clientWidth - PADDING) / step),
     );
-    const offset = frame.scrollLeft;
     const viewportWidth = frame.clientWidth;
     setViewportRange((current) =>
       current.start === start &&
       current.end === end &&
-      current.offset === offset &&
       current.width === viewportWidth
         ? current
-        : { start, end, offset, width: viewportWidth },
+        : { start, end, width: viewportWidth },
     );
-  }, [step, visible.length]);
+  }, [positionPriceAxis, step, visible.length]);
 
   const scrollToLatest = useCallback((): boolean => {
     const frame = frameRef.current;
@@ -226,6 +230,7 @@ export function CandlestickTradeChart({
     minimum: targetMinimum,
   });
   const scaleAnimationFrameRef = useRef<number | null>(null);
+  const scaleAnimationTimestampRef = useRef<number | null>(null);
   const [displayedScale, setDisplayedScale] = useState<PriceScale>(() => ({
     maximum: targetMaximum,
     minimum: targetMinimum,
@@ -240,6 +245,7 @@ export function CandlestickTradeChart({
         window.cancelAnimationFrame(scaleAnimationFrameRef.current);
         scaleAnimationFrameRef.current = null;
       }
+      scaleAnimationTimestampRef.current = null;
       displayedScaleRef.current = target;
       setDisplayedScale(target);
       return;
@@ -251,12 +257,21 @@ export function CandlestickTradeChart({
     const tolerance = Math.max(Math.abs(target.maximum - target.minimum) * 0.0005, 1e-8);
     if (distance <= tolerance || scaleAnimationFrameRef.current !== null) return;
 
-    const animate = (): void => {
+    const animate = (timestamp: number): void => {
       const current = displayedScaleRef.current;
       const latestTarget = scaleTargetRef.current;
+      const previousTimestamp = scaleAnimationTimestampRef.current;
+      const elapsed = previousTimestamp === null
+        ? 1000 / 60
+        : Math.min(Math.max(timestamp - previousTimestamp, 1), 64);
+      scaleAnimationTimestampRef.current = timestamp;
+      const expanding = latestTarget.maximum > current.maximum ||
+        latestTarget.minimum < current.minimum;
+      const duration = expanding ? 90 : 220;
+      const progress = 1 - Math.exp(-elapsed / duration);
       const next = {
-        maximum: current.maximum + (latestTarget.maximum - current.maximum) * 0.18,
-        minimum: current.minimum + (latestTarget.minimum - current.minimum) * 0.18,
+        maximum: current.maximum + (latestTarget.maximum - current.maximum) * progress,
+        minimum: current.minimum + (latestTarget.minimum - current.minimum) * progress,
       };
       const remaining = Math.max(
         Math.abs(latestTarget.maximum - next.maximum),
@@ -270,6 +285,7 @@ export function CandlestickTradeChart({
       const value = settled ? latestTarget : next;
       displayedScaleRef.current = value;
       setDisplayedScale(value);
+      if (settled) scaleAnimationTimestampRef.current = null;
       scaleAnimationFrameRef.current = settled
         ? null
         : window.requestAnimationFrame(animate);
@@ -281,6 +297,7 @@ export function CandlestickTradeChart({
     if (scaleAnimationFrameRef.current !== null) {
       window.cancelAnimationFrame(scaleAnimationFrameRef.current);
     }
+    scaleAnimationTimestampRef.current = null;
   }, []);
 
   const minimum = smoothScale ? displayedScale.minimum : targetMinimum;
@@ -366,8 +383,8 @@ export function CandlestickTradeChart({
     { length: 5 },
     (_, index) => maximum - (range * index) / 4,
   );
-  const axisStart = Math.max(0, viewportRange.offset);
-  const axisEnd = Math.min(width, axisStart + viewportRange.width);
+  const axisStart = 0;
+  const axisEnd = Math.min(width, viewportRange.width);
   const normalizedDigits = Math.min(Math.max(priceDigits, 0), 6);
   const bufferedStart = Math.max(0, viewportRange.start - VIEWPORT_BUFFER_CANDLES);
   const bufferedEnd = Math.min(
@@ -392,9 +409,9 @@ export function CandlestickTradeChart({
         style={{ minWidth: `${width}px` }}
         viewBox={`0 0 ${width} ${HEIGHT}`}
       >
-        <g className="price-axis">
-          {priceTicks.map((price) => (
-            <g key={price}>
+        <g className="price-axis" ref={priceAxisRef}>
+          {priceTicks.map((price, index) => (
+            <g key={index}>
               <line
                 x1={axisStart}
                 x2={axisEnd}
