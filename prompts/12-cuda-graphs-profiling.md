@@ -1,6 +1,5 @@
-# Этап 12. Профилирование и CUDA Graphs
+# Этап 12 — profiling и CUDA Graphs
 
-Реализуй этап 12 из `docs/project-context.md` только после профилирования,
-которое подтверждает пользу CUDA Graphs. Сохрани обычные CUDA, OpenCL и CPU пути,
-измерь передачу данных и полное wall-clock время, добавь fallback и тесты.
-Остановись после Definition of Done этапа.
+Выполни этап 12 из `docs/MONTE_CARLO_ROADMAP_13_TO_28.md` только на основании
+измеренного профиля этапа 11. Сохрани воспроизводимые benchmark fixtures и
+корректный CPU fallback.

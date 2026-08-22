@@ -1,57 +1,80 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import DashboardPage from "./page";
-
-vi.mock("@/components/candlestick-chart", () => ({
-  CandlestickChart: ({ label }: { label: string }) => (
-    <div role="img" aria-label={`${label} Japanese candlestick chart`} />
-  ),
-}));
 
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     getAccounts: vi.fn(),
     getCandles: vi.fn(),
-    getMt5Status: vi.fn(),
+    getQuotes: vi.fn(),
     getSymbols: vi.fn(),
     getTrades: vi.fn(),
+    getHistoricalDataRequest: vi.fn(),
+    requestHistoricalData: vi.fn(),
   },
 }));
 
+vi.mock("@/hooks/use-mt5-status", () => ({
+  useMt5Status: vi.fn(),
+}));
+
+import { useMt5Status } from "@/hooks/use-mt5-status";
 import { apiClient } from "@/lib/api/client";
-import { MARKET_SELECTION_STORAGE_KEY } from "@/hooks/use-persisted-market-selection";
+import { I18nProvider } from "@/lib/i18n";
 
 describe("DashboardPage", () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
-    window.localStorage.clear();
     vi.mocked(apiClient.getAccounts).mockResolvedValue([]);
     vi.mocked(apiClient.getCandles).mockResolvedValue([]);
-    vi.mocked(apiClient.getMt5Status).mockResolvedValue({
-      configured: true,
-      connected: true,
-      stale: false,
-      stale_after_seconds: 90,
-      terminal: {
-        terminal_id: "terminal-test",
-        terminal_name: "MetaTrader 5",
-        terminal_build: 5000,
-        last_heartbeat_at: "2026-08-02T12:00:00Z",
-        terminal_time: "2026-08-02T12:00:00Z",
-        last_sync_at: "2026-08-02T12:00:00Z",
+    vi.mocked(useMt5Status).mockReturnValue({
+      error: null,
+      status: {
+        configured: true,
+        connected: true,
+        stale: false,
+        stale_after_seconds: 90,
+        terminal: {
+          terminal_id: "terminal-test",
+          terminal_name: "MetaTrader 5",
+          terminal_build: 5000,
+          last_heartbeat_at: "2026-08-02T12:00:00Z",
+          terminal_time: "2026-08-02T12:00:00Z",
+          last_sync_at: "2026-08-02T12:00:00Z",
+        },
       },
     });
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([]);
     vi.mocked(apiClient.getSymbols).mockResolvedValue([]);
     vi.mocked(apiClient.getTrades).mockResolvedValue([]);
+    window.localStorage.clear();
   });
 
   it("loads the dashboard shell and data", async () => {
     render(<DashboardPage />);
 
     expect(screen.getByRole("heading", { name: "Trading performance, in focus." })).toBeInTheDocument();
-    expect(screen.queryByText("Demo data")).not.toBeInTheDocument();
     expect(await screen.findByText("Portfolio balance")).toBeInTheDocument();
     expect(screen.getByText("No account data")).toBeInTheDocument();
+    expect(screen.queryByText("Demo data")).not.toBeInTheDocument();
+  });
+
+  it("translates the complete dashboard surface from the stored locale", async () => {
+    window.localStorage.setItem("montecarlo.locale.v1", "be");
+
+    render(
+      <I18nProvider>
+        <DashboardPage />
+      </I18nProvider>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Гандлёвыя вынікі ў фокусе." }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Баланс партфеля")).toBeInTheDocument();
+    expect(screen.getByText("Няма даных рахунку")).toBeInTheDocument();
   });
 
   it("prefers the MT5 account over demo data and identifies the live source", async () => {
@@ -74,7 +97,7 @@ describe("DashboardPage", () => {
       },
     ]);
     vi.mocked(apiClient.getSymbols).mockResolvedValue([
-      { id: "xauusd", name: "XAUUSD", description: "Gold", digits: 2, is_active: true },
+      { id: "xauusd", name: "XAUUSD", description: "Gold", digits: 2, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100" },
     ]);
     vi.mocked(apiClient.getCandles).mockResolvedValue([
       {
@@ -90,18 +113,32 @@ describe("DashboardPage", () => {
         source: "mt5",
       },
     ]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([
+      {
+        symbol_id: "xauusd",
+        terminal_id: "terminal-test",
+        bid: "4054.80",
+        ask: "4055.20",
+        observed_at: "2026-08-01T12:30:00Z",
+        received_at: "2026-08-01T12:30:01Z",
+        source: "mt5",
+      },
+    ]);
 
     render(<DashboardPage />);
 
     expect(await screen.findByText("$10,000.00")).toBeInTheDocument();
     expect(screen.queryByText("$35,000.00")).not.toBeInTheDocument();
-    expect(screen.getByText(/MT5 account · online · 10011992327/)).toBeInTheDocument();
+    expect(screen.getByText("10011992327")).toBeInTheDocument();
     expect(screen.getByText("XAUUSD · H1")).toBeInTheDocument();
-    expect(screen.getByText("4055.00")).toBeInTheDocument();
-    expect(screen.getByText("MT5 candles")).toBeInTheDocument();
+    expect(screen.getByText("4054.80")).toBeInTheDocument();
+    expect(screen.getByText("4055.20")).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: /Japanese candlestick chart for XAUUSD/ }),
+    ).toBeInTheDocument();
   });
 
-  it("restores the selected symbol and timeframe from localStorage", async () => {
+  it("restores and saves the selected market series", async () => {
     vi.mocked(apiClient.getAccounts).mockResolvedValue([
       {
         id: "mt5-account",
@@ -113,48 +150,85 @@ describe("DashboardPage", () => {
       },
     ]);
     vi.mocked(apiClient.getSymbols).mockResolvedValue([
-      { id: "xauusd", name: "XAUUSD", description: "Gold", digits: 2, is_active: true },
-      { id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true },
+      { id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100000" },
+      { id: "gbpjpy", name: "GBPJPY", description: "Pound / Yen", digits: 3, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100000" },
     ]);
     vi.mocked(apiClient.getCandles).mockResolvedValue([
       {
-        id: "xau-h1",
-        symbol_id: "xauusd",
+        id: "eur-candle",
+        symbol_id: "eurusd",
         timeframe: "H1",
-        open_time: "2026-08-04T12:00:00Z",
-        open: "2400",
-        high: "2410",
-        low: "2390",
-        close: "2405",
+        open_time: "2026-08-01T12:00:00Z",
+        open: "1.08000",
+        high: "1.09000",
+        low: "1.07000",
+        close: "1.08500",
         volume: "100",
         source: "mt5",
       },
       {
-        id: "eur-m15",
-        symbol_id: "eurusd",
-        timeframe: "M15",
-        open_time: "2026-08-04T11:45:00Z",
-        open: "1.15000",
-        high: "1.15100",
-        low: "1.14900",
-        close: "1.15050",
-        volume: "200",
+        id: "gbp-candle",
+        symbol_id: "gbpjpy",
+        timeframe: "H1",
+        open_time: "2026-08-01T12:00:00Z",
+        open: "198.100",
+        high: "198.300",
+        low: "198.000",
+        close: "198.250",
+        volume: "100",
         source: "mt5",
       },
     ]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([
+      {
+        symbol_id: "eurusd",
+        terminal_id: "terminal-test",
+        bid: "1.08490",
+        ask: "1.08510",
+        observed_at: "2026-08-01T12:30:00Z",
+        received_at: "2026-08-01T12:30:01Z",
+        source: "mt5",
+      },
+      {
+        symbol_id: "gbpjpy",
+        terminal_id: "terminal-test",
+        bid: "198.240",
+        ask: "198.260",
+        observed_at: "2026-08-01T12:30:00Z",
+        received_at: "2026-08-01T12:30:01Z",
+        source: "mt5",
+      },
+    ]);
+    window.localStorage.setItem(
+      "montecarlo.dashboard.market-series.v1",
+      "eurusd:H1",
+    );
 
-    const firstRender = render(<DashboardPage />);
-    const selector = await screen.findByRole("combobox", { name: "Market pulse instrument" });
-    fireEvent.change(selector, { target: { value: "eurusd:M15" } });
-
-    expect(window.localStorage.getItem(MARKET_SELECTION_STORAGE_KEY)).toBe("eurusd:M15");
-    expect(selector).toHaveValue("eurusd:M15");
-
-    firstRender.unmount();
-    render(<DashboardPage />);
-    const restoredSelector = await screen.findByRole("combobox", {
+    const first = render(<DashboardPage />);
+    const instrumentSelect = await screen.findByRole("combobox", {
       name: "Market pulse instrument",
     });
-    await waitFor(() => expect(restoredSelector).toHaveValue("eurusd:M15"));
+    const timeframeSelect = screen.getByRole("combobox", {
+      name: "Market pulse timeframe",
+    });
+    expect(instrumentSelect).toHaveValue("eurusd");
+    expect(timeframeSelect).toHaveValue("H1");
+    fireEvent.change(instrumentSelect, { target: { value: "gbpjpy" } });
+    expect(window.localStorage.getItem("montecarlo.dashboard.market-series.v1")).toBe(
+      "gbpjpy:H1",
+    );
+    fireEvent.change(timeframeSelect, { target: { value: "M5" } });
+    expect(window.localStorage.getItem("montecarlo.dashboard.market-series.v1")).toBe(
+      "gbpjpy:M5",
+    );
+    first.unmount();
+
+    render(<DashboardPage />);
+    expect(
+      await screen.findByRole("combobox", { name: "Market pulse instrument" }),
+    ).toHaveValue("gbpjpy");
+    expect(
+      screen.getByRole("combobox", { name: "Market pulse timeframe" }),
+    ).toHaveValue("M5");
   });
 });

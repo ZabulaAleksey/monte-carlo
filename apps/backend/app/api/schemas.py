@@ -22,6 +22,16 @@ class SymbolCreate(BaseModel):
     description: str = Field(default="", max_length=255)
     digits: int = Field(default=5, ge=0, le=12)
     is_active: bool = True
+    volume_min: Decimal = Field(default=Decimal("0.01"), gt=0, le=99)
+    volume_step: Decimal = Field(default=Decimal("0.01"), gt=0, le=99)
+    volume_max: Decimal = Field(default=Decimal("99"), gt=0, le=99)
+    contract_size: Decimal = Field(default=Decimal("1"), gt=0)
+
+    @model_validator(mode="after")
+    def validate_volume_range(self) -> "SymbolCreate":
+        if self.volume_min > self.volume_max:
+            raise ValueError("volume_min must not exceed volume_max")
+        return self
 
 
 class SymbolResponse(SymbolCreate):
@@ -46,6 +56,17 @@ class CandleResponse(CandleCreate):
     source: CandleSource
 
 
+class QuoteResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    symbol_id: UUID
+    terminal_id: str
+    bid: Decimal
+    ask: Decimal
+    observed_at: datetime
+    received_at: datetime
+    source: CandleSource
+
+
 class AccountCreate(BaseModel):
     external_id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=128)
@@ -57,6 +78,25 @@ class AccountResponse(AccountCreate):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     created_at: datetime
+
+
+class PositionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    account_id: UUID
+    symbol_id: UUID
+    external_id: str
+    side: TradeSide
+    volume: Decimal
+    open_price: Decimal
+    current_price: Decimal
+    stop_loss: Decimal | None
+    take_profit: Decimal | None
+    profit: Decimal
+    swap: Decimal
+    opened_at: datetime
+    observed_at: datetime
+    status: TradeStatus = TradeStatus.OPEN
 
 
 class TradeCreate(BaseModel):

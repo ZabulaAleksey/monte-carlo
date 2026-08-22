@@ -1,0 +1,515 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from uuid import UUID, uuid4
+
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.domain.backtesting.drawdown import (
+    unrealized_drawdown_absolute,
+    unrealized_drawdown_pct,
+)
+from app.domain.backtesting.models import (
+    MAX_BACKTEST_CANDLES,
+    BacktestMetrics,
+    BacktestResult,
+    BacktestRunSummary,
+    BacktestSettings,
+    EquityPoint,
+    ExitReason,
+    HistoricalDataCoverage,
+    HistoricalDataInterval,
+    PositionSide,
+    StoredBacktestResult,
+    VirtualTrade,
+)
+from app.domain.entities import Candle
+from app.domain.enums import CandleSource
+from app.infrastructure.database.models import (
+    BacktestEquityPointModel,
+    BacktestRunModel,
+    BacktestTradeModel,
+    CandleModel,
+    HistoricalDataCoverageModel,
+)
+
+
+def _utc(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+class SqlAlchemyHistoricalDataProvider:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_candles(
+        self,
+        symbol_id: UUID,
+        timeframe: str,
+        start_at: datetime,
+        end_at: datetime,
+    ) -> list[Candle]:
+        result = await self._session.scalars(
+            select(CandleModel)
+            .where(
+                CandleModel.symbol_id == symbol_id,
+                CandleModel.timeframe == timeframe.upper(),
+                CandleModel.open_time >= start_at,
+                CandleModel.open_time <= end_at,
+            )
+            .order_by(CandleModel.open_time.asc())
+            .limit(MAX_BACKTEST_CANDLES + 1)
+        )
+        return [
+            Candle(
+                item.id,
+                item.symbol_id,
+                item.timeframe,
+                _utc(item.open_time),
+                item.open,
+                item.high,
+                item.low,
+                item.close,
+                item.volume,
+                CandleSource(item.source),
+            )
+            for item in result.all()
+        ]
+
+    async def get_coverage(
+        self,
+        symbol_id: UUID,
+        timeframe: str,
+        start_at: datetime,
+        end_at: datetime,
+    ) -> HistoricalDataCoverage:
+        normalized = timeframe.upper()
+        rows = (
+            await self._session.scalars(
+                select(HistoricalDataCoverageModel)
+                .where(
+                    HistoricalDataCoverageModel.symbol_id == symbol_id,
+                    HistoricalDataCoverageModel.timeframe == normalized,
+                    HistoricalDataCoverageModel.covered_end >= start_at,
+                    HistoricalDataCoverageModel.covered_start <= end_at,
+                )
+                .order_by(HistoricalDataCoverageModel.covered_start.asc())
+            )
+        ).all()
+        intervals = self._merge_intervals(
+            [
+                HistoricalDataInterval(_utc(row.covered_start), _utc(row.covered_end))
+                for row in rows
+            ],
+            self._timeframe_duration(normalized),
+        )
+        missing = self._missing_intervals(intervals, start_at, end_at)
+        candle_count = int(
+            await self._session.scalar(
+                select(func.count())
+                .select_from(CandleModel)
+                .where(
+                    CandleModel.symbol_id == symbol_id,
+                    CandleModel.timeframe == normalized,
+                    CandleModel.open_time >= start_at,
+                    CandleModel.open_time <= end_at,
+                )
+            )
+            or 0
+        )
+        return HistoricalDataCoverage(
+            symbol_id=symbol_id,
+            timeframe=normalized,
+            requested_start=start_at,
+            requested_end=end_at,
+            candle_count=candle_count,
+            complete=not missing and bool(intervals),
+            cached_intervals=intervals,
+            missing_intervals=missing,
+        )
+
+    async def record_coverage(
+        self,
+        symbol_id: UUID,
+        timeframe: str,
+        start_at: datetime,
+        end_at: datetime,
+        source: str,
+    ) -> HistoricalDataCoverage:
+        if start_at > end_at:
+            raise ValueError("Coverage start cannot exceed end")
+        normalized = timeframe.upper()
+        tolerance = self._timeframe_duration(normalized)
+        overlapping = (
+            await self._session.scalars(
+                select(HistoricalDataCoverageModel).where(
+                    HistoricalDataCoverageModel.symbol_id == symbol_id,
+                    HistoricalDataCoverageModel.timeframe == normalized,
+                    HistoricalDataCoverageModel.covered_end >= start_at - tolerance,
+                    HistoricalDataCoverageModel.covered_start <= end_at + tolerance,
+                )
+            )
+        ).all()
+        merged_start = min(
+            [start_at, *(_utc(item.covered_start) for item in overlapping)]
+        )
+        merged_end = max([end_at, *(_utc(item.covered_end) for item in overlapping)])
+        if overlapping:
+            await self._session.execute(
+                delete(HistoricalDataCoverageModel).where(
+                    HistoricalDataCoverageModel.id.in_(
+                        [item.id for item in overlapping]
+                    )
+                )
+            )
+        self._session.add(
+            HistoricalDataCoverageModel(
+                id=uuid4(),
+                symbol_id=symbol_id,
+                timeframe=normalized,
+                covered_start=merged_start,
+                covered_end=merged_end,
+                source=source,
+                updated_at=datetime.now(UTC),
+            )
+        )
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
+        return await self.get_coverage(symbol_id, normalized, start_at, end_at)
+
+    @staticmethod
+    def _merge_intervals(
+        intervals: list[HistoricalDataInterval],
+        tolerance: timedelta,
+    ) -> tuple[HistoricalDataInterval, ...]:
+        merged: list[HistoricalDataInterval] = []
+        for interval in intervals:
+            if (
+                not merged
+                or interval.start_at > merged[-1].end_at + tolerance
+            ):
+                merged.append(interval)
+                continue
+            previous = merged[-1]
+            merged[-1] = HistoricalDataInterval(
+                previous.start_at, max(previous.end_at, interval.end_at)
+            )
+        return tuple(merged)
+
+    @staticmethod
+    def _missing_intervals(
+        intervals: tuple[HistoricalDataInterval, ...],
+        start_at: datetime,
+        end_at: datetime,
+    ) -> tuple[HistoricalDataInterval, ...]:
+        missing: list[HistoricalDataInterval] = []
+        cursor = start_at
+        for interval in intervals:
+            if interval.end_at < cursor:
+                continue
+            if interval.start_at > cursor:
+                missing.append(
+                    HistoricalDataInterval(cursor, min(interval.start_at, end_at))
+                )
+            cursor = max(cursor, interval.end_at)
+            if cursor >= end_at:
+                break
+        if cursor < end_at:
+            missing.append(HistoricalDataInterval(cursor, end_at))
+        return tuple(missing)
+
+    @staticmethod
+    def _timeframe_duration(timeframe: str) -> timedelta:
+        if len(timeframe) < 2:
+            return timedelta(0)
+        try:
+            amount = int(timeframe[1:])
+        except ValueError:
+            return timedelta(0)
+        units = {
+            "M": timedelta(minutes=amount),
+            "H": timedelta(hours=amount),
+            "D": timedelta(days=amount),
+            "W": timedelta(weeks=amount),
+        }
+        return units.get(timeframe[0], timedelta(0))
+
+
+class SqlAlchemyBacktestRunRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, result: BacktestResult) -> StoredBacktestResult:
+        run_id = uuid4()
+        created_at = datetime.now(UTC)
+        model = BacktestRunModel(
+            id=run_id,
+            symbol_id=result.symbol_id,
+            strategy_name=result.strategy_name,
+            strategy_version=result.strategy_version,
+            timeframe=result.timeframe,
+            requested_start=result.requested_start,
+            requested_end=result.requested_end,
+            data_start=result.data_start,
+            data_end=result.data_end,
+            candle_count=result.candle_count,
+            initial_capital=result.settings.initial_capital,
+            final_balance=result.metrics.final_balance,
+            settings=self._settings_json(result.settings),
+            parameters=dict(result.parameters),
+            metrics=self._metrics_json(result.metrics),
+            data_complete=result.data_complete,
+            warnings=list(result.warnings),
+            status="completed",
+            created_at=created_at,
+        )
+        model.trades = [
+            BacktestTradeModel(
+                run_id=run_id,
+                sequence=trade.sequence,
+                side=trade.side.value,
+                volume=trade.volume,
+                opened_at=trade.opened_at,
+                closed_at=trade.closed_at,
+                open_price=trade.open_price,
+                close_price=trade.close_price,
+                stop_loss=trade.stop_loss,
+                take_profit=trade.take_profit,
+                exit_reason=trade.exit_reason.value,
+                gross_profit=trade.gross_profit,
+                commission=trade.commission,
+                swap=trade.swap,
+                net_profit=trade.net_profit,
+            )
+            for trade in result.trades
+        ]
+        model.equity_points = [
+            BacktestEquityPointModel(
+                run_id=run_id,
+                sequence=point.sequence,
+                timestamp=point.timestamp,
+                balance=point.balance,
+                equity=point.equity,
+                drawdown_absolute=point.drawdown_absolute,
+                drawdown_pct=point.drawdown_pct,
+            )
+            for point in result.equity_curve
+        ]
+        self._session.add(model)
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
+        self._session.expire_all()
+        stored = await self.get(run_id)
+        if stored is None:
+            raise RuntimeError("Persisted backtest run could not be reloaded")
+        return stored
+
+    async def list(self, limit: int = 100) -> list[BacktestRunSummary]:
+        rows = await self._session.scalars(
+            select(BacktestRunModel)
+            .order_by(BacktestRunModel.created_at.desc())
+            .limit(limit)
+        )
+        return [
+            BacktestRunSummary(
+                id=row.id,
+                created_at=_utc(row.created_at),
+                symbol_id=row.symbol_id,
+                timeframe=row.timeframe,
+                strategy_name=row.strategy_name,
+                strategy_version=row.strategy_version,
+                data_start=_utc(row.data_start),
+                data_end=_utc(row.data_end),
+                total_trades=int(str(row.metrics["total_trades"])),
+                final_balance=row.final_balance,
+                return_pct=Decimal(str(row.metrics["return_pct"])),
+            )
+            for row in rows.all()
+        ]
+
+    async def get(self, run_id: UUID) -> StoredBacktestResult | None:
+        model = await self._session.scalar(
+            select(BacktestRunModel)
+            .where(BacktestRunModel.id == run_id)
+            .options(
+                selectinload(BacktestRunModel.trades),
+                selectinload(BacktestRunModel.equity_points),
+            )
+        )
+        if model is None:
+            return None
+        return StoredBacktestResult(model.id, _utc(model.created_at), self._result(model))
+
+    async def trades(self, run_id: UUID) -> tuple[VirtualTrade, ...] | None:
+        run_exists = await self._session.scalar(
+            select(BacktestRunModel.id).where(BacktestRunModel.id == run_id)
+        )
+        if run_exists is None:
+            return None
+        rows = await self._session.scalars(
+            select(BacktestTradeModel)
+            .where(BacktestTradeModel.run_id == run_id)
+            .order_by(BacktestTradeModel.sequence.asc())
+        )
+        return tuple(self._trade(item) for item in rows.all())
+
+    async def delete(self, run_id: UUID) -> bool:
+        model = await self._session.get(BacktestRunModel, run_id)
+        if model is None:
+            return False
+        await self._session.delete(model)
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
+        return True
+
+    def _result(self, model: BacktestRunModel) -> BacktestResult:
+        settings = BacktestSettings(
+            initial_capital=Decimal(str(model.settings["initial_capital"])),
+            position_size=Decimal(str(model.settings["position_size"])),
+            contract_size=Decimal(str(model.settings.get("contract_size", "1"))),
+            stop_loss_pct=self._optional_decimal(model.settings.get("stop_loss_pct")),
+            take_profit_pct=self._optional_decimal(model.settings.get("take_profit_pct")),
+            price_digits=int(str(model.settings.get("price_digits", 5))),
+            commission_pct_per_fill=Decimal(
+                str(
+                    model.settings.get(
+                        "commission_pct_per_fill",
+                        "0",
+                    )
+                )
+            ),
+            swap_pct_per_lot_per_day=Decimal(
+                str(model.settings.get("swap_pct_per_lot_per_day", "0"))
+            ),
+            slippage_points=Decimal(
+                str(model.settings.get("slippage_points", "0"))
+            ),
+        )
+        equity_curve = tuple(
+            EquityPoint(
+                sequence=item.sequence,
+                timestamp=_utc(item.timestamp),
+                balance=item.balance,
+                equity=item.equity,
+                drawdown_absolute=unrealized_drawdown_absolute(
+                    item.balance, item.equity
+                ),
+                drawdown_pct=unrealized_drawdown_pct(item.balance, item.equity),
+            )
+            for item in model.equity_points
+        )
+        metrics = BacktestMetrics(
+            initial_capital=Decimal(str(model.metrics["initial_capital"])),
+            final_balance=Decimal(str(model.metrics["final_balance"])),
+            final_equity=Decimal(str(model.metrics["final_equity"])),
+            total_net_profit=Decimal(str(model.metrics["total_net_profit"])),
+            return_pct=Decimal(str(model.metrics["return_pct"])),
+            max_drawdown_absolute=max(
+                (point.drawdown_absolute for point in equity_curve),
+                default=Decimal("0"),
+            ),
+            max_drawdown_pct=max(
+                (point.drawdown_pct for point in equity_curve),
+                default=Decimal("0"),
+            ),
+            total_trades=int(str(model.metrics["total_trades"])),
+            winning_trades=int(str(model.metrics["winning_trades"])),
+            losing_trades=int(str(model.metrics["losing_trades"])),
+            win_rate_pct=Decimal(str(model.metrics["win_rate_pct"])),
+            profit_factor=self._optional_decimal(model.metrics.get("profit_factor")),
+            total_commission=Decimal(str(model.metrics["total_commission"])),
+            total_swap=Decimal(str(model.metrics["total_swap"])),
+        )
+        trades = tuple(self._trade(item) for item in model.trades)
+        return BacktestResult(
+            symbol_id=model.symbol_id,
+            timeframe=model.timeframe,
+            requested_start=_utc(model.requested_start),
+            requested_end=_utc(model.requested_end),
+            data_start=_utc(model.data_start),
+            data_end=_utc(model.data_end),
+            candle_count=model.candle_count,
+            strategy_name=model.strategy_name,
+            strategy_version=model.strategy_version,
+            parameters=dict(model.parameters),
+            settings=settings,
+            trades=trades,
+            equity_curve=equity_curve,
+            metrics=metrics,
+            data_complete=model.data_complete,
+            warnings=tuple(model.warnings),
+        )
+
+    @staticmethod
+    def _trade(item: BacktestTradeModel) -> VirtualTrade:
+        return VirtualTrade(
+            sequence=item.sequence,
+            side=PositionSide(item.side),
+            volume=item.volume,
+            opened_at=_utc(item.opened_at),
+            closed_at=_utc(item.closed_at),
+            open_price=item.open_price,
+            close_price=item.close_price,
+            stop_loss=item.stop_loss,
+            take_profit=item.take_profit,
+            exit_reason=ExitReason(item.exit_reason),
+            gross_profit=item.gross_profit,
+            commission=item.commission,
+            swap=item.swap,
+            net_profit=item.net_profit,
+        )
+
+    @staticmethod
+    def _settings_json(settings: BacktestSettings) -> dict[str, object]:
+        return {
+            "initial_capital": str(settings.initial_capital),
+            "position_size": str(settings.position_size),
+            "contract_size": str(settings.contract_size),
+            "stop_loss_pct": (
+                str(settings.stop_loss_pct) if settings.stop_loss_pct is not None else None
+            ),
+            "take_profit_pct": (
+                str(settings.take_profit_pct) if settings.take_profit_pct is not None else None
+            ),
+            "price_digits": settings.price_digits,
+            "commission_pct_per_fill": str(settings.commission_pct_per_fill),
+            "swap_pct_per_lot_per_day": str(settings.swap_pct_per_lot_per_day),
+            "slippage_points": str(settings.slippage_points),
+        }
+
+    @staticmethod
+    def _metrics_json(metrics: BacktestMetrics) -> dict[str, object]:
+        return {
+            "initial_capital": str(metrics.initial_capital),
+            "final_balance": str(metrics.final_balance),
+            "final_equity": str(metrics.final_equity),
+            "total_net_profit": str(metrics.total_net_profit),
+            "return_pct": str(metrics.return_pct),
+            "max_drawdown_absolute": str(metrics.max_drawdown_absolute),
+            "max_drawdown_pct": str(metrics.max_drawdown_pct),
+            "total_trades": metrics.total_trades,
+            "winning_trades": metrics.winning_trades,
+            "losing_trades": metrics.losing_trades,
+            "win_rate_pct": str(metrics.win_rate_pct),
+            "profit_factor": (
+                str(metrics.profit_factor) if metrics.profit_factor is not None else None
+            ),
+            "total_commission": str(metrics.total_commission),
+            "total_swap": str(metrics.total_swap),
+        }
+
+    @staticmethod
+    def _optional_decimal(value: object) -> Decimal | None:
+        return Decimal(str(value)) if value is not None else None

@@ -1,7 +1,5 @@
-# Этап 9. RabbitMQ и Celery workers
+# Этап 9 — RabbitMQ и Celery workers
 
-Реализуй этап 9 из `docs/project-context.md` с учётом
-`docs/observability-and-workflows.md`. Перенеси тяжёлые задания из синхронного
-FastAPI-пути в RabbitMQ/Celery, сохрани тонкий API и добавь retry,
-идемпотентность, status, progress, cancel и timeout. Добавь тесты отказов и
-остановись после Definition of Done этапа.
+Выполни основной этап 9 из `docs/MONTE_CARLO_ROADMAP_13_TO_28.md` после
+проверки профиля нагрузки и границ job contract. Сохрани идемпотентность,
+наблюдаемость и возможность локального CPU-выполнения.

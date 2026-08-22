@@ -1,0 +1,560 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import type { CandleRecord, VirtualTradeRecord } from "@/lib/api/types";
+import type { TradeMarker } from "@/lib/backtests";
+import {
+  buildPeriodSeparators,
+  formatMoney,
+  mapTradesToCandles,
+  sortCandles,
+} from "@/lib/backtests";
+import { useI18n } from "@/lib/i18n";
+
+interface CandlestickTradeChartProps {
+  candles: CandleRecord[];
+  followLatest?: boolean;
+  priceDigits?: number;
+  smoothFollow?: boolean;
+  smoothScale?: boolean;
+  trades: VirtualTradeRecord[];
+  visibleCandleCount?: number;
+  visibleUntil?: string;
+}
+
+interface PositionedTradeMarker extends TradeMarker {
+  labelY: number;
+  markerX: number;
+  markerY: number;
+}
+
+interface ViewportRange {
+  end: number;
+  start: number;
+  width: number;
+}
+
+interface PriceScale {
+  maximum: number;
+  minimum: number;
+}
+
+const MINIMUM_WIDTH = 900;
+const HEIGHT = 320;
+const PADDING = 30;
+const VIEWPORT_BUFFER_CANDLES = 30;
+const INITIAL_VIEWPORT_CANDLES = 640;
+
+export function CandlestickTradeChart({
+  candles,
+  followLatest = false,
+  priceDigits = 5,
+  smoothFollow = false,
+  smoothScale = false,
+  trades,
+  visibleCandleCount,
+  visibleUntil,
+}: CandlestickTradeChartProps): React.JSX.Element {
+  const { intlLocale, t } = useI18n();
+  const sorted = useMemo(() => sortCandles(candles), [candles]);
+  const visible = useMemo(
+    () => visibleCandleCount === undefined
+      ? sorted
+      : sorted.slice(0, Math.max(0, Math.min(visibleCandleCount, sorted.length))),
+    [sorted, visibleCandleCount],
+  );
+  const frameRef = useRef<HTMLDivElement>(null);
+  const plotLayerRef = useRef<SVGGElement>(null);
+  const scrollAnimationFrameRef = useRef<number | null>(null);
+  const scrollTargetRef = useRef(0);
+  const [viewportRange, setViewportRange] = useState<ViewportRange>({
+    start: 0,
+    end: INITIAL_VIEWPORT_CANDLES - 1,
+    width: MINIMUM_WIDTH,
+  });
+  const width = Math.max(MINIMUM_WIDTH, sorted.length * 7 + PADDING * 2);
+  const step = sorted.length > 0 ? (width - PADDING * 2) / sorted.length : 0;
+  const latestCandleX = visible.length > 0
+    ? PADDING + step * (visible.length - 1) + step / 2
+    : 0;
+
+  const positionPlotLayer = useCallback((frame: HTMLDivElement): void => {
+    plotLayerRef.current?.setAttribute(
+      "transform",
+      `translate(${-frame.scrollLeft} 0)`,
+    );
+  }, []);
+
+  const updateViewportRange = useCallback((): void => {
+    const frame = frameRef.current;
+    if (frame) positionPlotLayer(frame);
+    if (!frame || visible.length === 0 || step <= 0 || frame.clientWidth <= 0) {
+      setViewportRange({
+        start: 0,
+        end: Math.min(
+          Math.max(visible.length - 1, 0),
+          INITIAL_VIEWPORT_CANDLES - 1,
+        ),
+        width: frame?.clientWidth ?? MINIMUM_WIDTH,
+      });
+      return;
+    }
+    const start = Math.max(
+      0,
+      Math.floor((frame.scrollLeft - PADDING) / step),
+    );
+    const end = Math.min(
+      visible.length - 1,
+      Math.ceil((frame.scrollLeft + frame.clientWidth - PADDING) / step),
+    );
+    const viewportWidth = frame.clientWidth;
+    setViewportRange((current) =>
+      current.start === start &&
+      current.end === end &&
+      current.width === viewportWidth
+        ? current
+        : { start, end, width: viewportWidth },
+    );
+  }, [positionPlotLayer, step, visible.length]);
+
+  const scrollToLatest = useCallback((): boolean => {
+    const frame = frameRef.current;
+    if (!followLatest || !frame || frame.clientWidth <= 0) return false;
+    const maximumScroll = Math.max(0, frame.scrollWidth - frame.clientWidth);
+    const target = latestCandleX - frame.clientWidth * 0.72;
+    const boundedTarget = Math.max(0, Math.min(maximumScroll, target));
+    if (!smoothFollow) {
+      frame.scrollLeft = boundedTarget;
+      updateViewportRange();
+      return true;
+    }
+    scrollTargetRef.current = boundedTarget;
+    if (scrollAnimationFrameRef.current === null) {
+      const move = (): void => {
+        const activeFrame = frameRef.current;
+        if (!activeFrame) {
+          scrollAnimationFrameRef.current = null;
+          return;
+        }
+        const distance = scrollTargetRef.current - activeFrame.scrollLeft;
+        if (Math.abs(distance) < 0.5) {
+          activeFrame.scrollLeft = scrollTargetRef.current;
+          updateViewportRange();
+          scrollAnimationFrameRef.current = null;
+          return;
+        }
+        activeFrame.scrollLeft += distance * 0.22;
+        updateViewportRange();
+        scrollAnimationFrameRef.current = window.requestAnimationFrame(move);
+      };
+      scrollAnimationFrameRef.current = window.requestAnimationFrame(move);
+    }
+    return true;
+  }, [followLatest, latestCandleX, smoothFollow, updateViewportRange]);
+
+  useEffect(() => () => {
+    if (scrollAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollAnimationFrameRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (followLatest || scrollAnimationFrameRef.current === null) return;
+    window.cancelAnimationFrame(scrollAnimationFrameRef.current);
+    scrollAnimationFrameRef.current = null;
+  }, [followLatest]);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return undefined;
+    updateViewportRange();
+    frame.addEventListener("scroll", updateViewportRange, { passive: true });
+    const observer = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => {
+          if (!scrollToLatest()) updateViewportRange();
+        });
+    observer?.observe(frame);
+    return () => {
+      frame.removeEventListener("scroll", updateViewportRange);
+      observer?.disconnect();
+    };
+  }, [scrollToLatest, updateViewportRange]);
+
+  useEffect(() => {
+    scrollToLatest();
+  }, [scrollToLatest]);
+
+  const markers = useMemo(
+    () => mapTradesToCandles(visible, trades, visibleUntil),
+    [trades, visible, visibleUntil],
+  );
+  const rawTradeRanges = useMemo(() => {
+    const ranges = new Map<
+    number,
+    Partial<Record<TradeMarker["kind"], TradeMarker>>
+  >();
+    markers.forEach((marker) => {
+      const pair = ranges.get(marker.tradeSequence) ?? {};
+      pair[marker.kind] = marker;
+      ranges.set(marker.tradeSequence, pair);
+    });
+    return ranges;
+  }, [markers]);
+  const scaleCandles = visible.slice(
+    viewportRange.start,
+    Math.min(viewportRange.end + 1, visible.length),
+  );
+  const scaleSource = scaleCandles.length > 0 ? scaleCandles : visible;
+  const riskLevels = trades.flatMap((trade) => {
+    const range = rawTradeRanges.get(trade.sequence);
+    if (
+      !range?.entry ||
+      range.entry.candleIndex > viewportRange.end ||
+      (range.exit?.candleIndex ?? visible.length - 1) < viewportRange.start
+    ) {
+      return [];
+    }
+    return [trade.stop_loss, trade.take_profit]
+      .filter((value): value is string => value !== null)
+      .map(Number)
+      .filter(Number.isFinite);
+  });
+  const lows = [...scaleSource.map((item) => Number(item.low)), ...riskLevels];
+  const highs = [...scaleSource.map((item) => Number(item.high)), ...riskLevels];
+  const targetMinimum = lows.length > 0 ? Math.min(...lows) : 0;
+  const targetMaximum = highs.length > 0 ? Math.max(...highs) : 1;
+  const scaleTargetRef = useRef<PriceScale>({
+    maximum: targetMaximum,
+    minimum: targetMinimum,
+  });
+  const scaleAnimationFrameRef = useRef<number | null>(null);
+  const scaleAnimationTimestampRef = useRef<number | null>(null);
+  const [displayedScale, setDisplayedScale] = useState<PriceScale>(() => ({
+    maximum: targetMaximum,
+    minimum: targetMinimum,
+  }));
+  const displayedScaleRef = useRef(displayedScale);
+
+  useEffect(() => {
+    const target = { maximum: targetMaximum, minimum: targetMinimum };
+    scaleTargetRef.current = target;
+    if (!smoothScale) {
+      if (scaleAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(scaleAnimationFrameRef.current);
+        scaleAnimationFrameRef.current = null;
+      }
+      scaleAnimationTimestampRef.current = null;
+      displayedScaleRef.current = target;
+      setDisplayedScale(target);
+      return;
+    }
+    const distance = Math.max(
+      Math.abs(target.maximum - displayedScaleRef.current.maximum),
+      Math.abs(target.minimum - displayedScaleRef.current.minimum),
+    );
+    const tolerance = Math.max(Math.abs(target.maximum - target.minimum) * 0.0005, 1e-8);
+    if (distance <= tolerance || scaleAnimationFrameRef.current !== null) return;
+
+    const animate = (timestamp: number): void => {
+      const current = displayedScaleRef.current;
+      const latestTarget = scaleTargetRef.current;
+      const previousTimestamp = scaleAnimationTimestampRef.current;
+      const elapsed = previousTimestamp === null
+        ? 1000 / 60
+        : Math.min(Math.max(timestamp - previousTimestamp, 1), 64);
+      scaleAnimationTimestampRef.current = timestamp;
+      const expanding = latestTarget.maximum > current.maximum ||
+        latestTarget.minimum < current.minimum;
+      const duration = expanding ? 90 : 220;
+      const progress = 1 - Math.exp(-elapsed / duration);
+      const next = {
+        maximum: current.maximum + (latestTarget.maximum - current.maximum) * progress,
+        minimum: current.minimum + (latestTarget.minimum - current.minimum) * progress,
+      };
+      const remaining = Math.max(
+        Math.abs(latestTarget.maximum - next.maximum),
+        Math.abs(latestTarget.minimum - next.minimum),
+      );
+      const latestTolerance = Math.max(
+        Math.abs(latestTarget.maximum - latestTarget.minimum) * 0.0005,
+        1e-8,
+      );
+      const settled = remaining <= latestTolerance;
+      const value = settled ? latestTarget : next;
+      displayedScaleRef.current = value;
+      setDisplayedScale(value);
+      if (settled) scaleAnimationTimestampRef.current = null;
+      scaleAnimationFrameRef.current = settled
+        ? null
+        : window.requestAnimationFrame(animate);
+    };
+    scaleAnimationFrameRef.current = window.requestAnimationFrame(animate);
+  }, [smoothScale, targetMaximum, targetMinimum]);
+
+  useEffect(() => () => {
+    if (scaleAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(scaleAnimationFrameRef.current);
+    }
+    scaleAnimationTimestampRef.current = null;
+  }, []);
+
+  const minimum = smoothScale ? displayedScale.minimum : targetMinimum;
+  const maximum = smoothScale ? displayedScale.maximum : targetMaximum;
+  const range = maximum - minimum || 1;
+  const plotHeight = HEIGHT - PADDING * 2;
+  const candleWidth = Math.max(Math.min(step * 0.55, 9), 2);
+  const y = (price: number): number =>
+    PADDING + ((maximum - price) / range) * plotHeight;
+  const x = (index: number): number => PADDING + step * index + step / 2;
+  const periods = useMemo(
+    () => buildPeriodSeparators(visible, intlLocale),
+    [intlLocale, visible],
+  );
+  if (visible.length === 0) {
+    return <div className="chart-empty">{t("replay.empty")}</div>;
+  }
+  const markerRanks = new Map<string, number>();
+  const positionedMarkers: PositionedTradeMarker[] = markers.map((marker) => {
+    const rankKey = `${marker.kind}-${marker.candleIndex}`;
+    const rank = markerRanks.get(rankKey) ?? 0;
+    markerRanks.set(rankKey, rank + 1);
+    const item = visible[marker.candleIndex];
+    const horizontalOffset = rank === 0
+      ? 0
+      : (rank % 2 === 0 ? 1 : -1) * Math.ceil(rank / 2) * 7;
+    const markerX = x(marker.candleIndex) + horizontalOffset;
+    const baseY = marker.kind === "entry"
+      ? y(Number(item?.low ?? minimum)) + 13
+      : y(Number(item?.high ?? maximum)) - 13;
+    const markerY = Math.max(10, Math.min(HEIGHT - 10, baseY));
+    return {
+      ...marker,
+      labelY: Math.max(12, markerY - rank * 11),
+      markerX,
+      markerY,
+    };
+  });
+  const tradePositions = new Map<
+    number,
+    Partial<Record<TradeMarker["kind"], PositionedTradeMarker>>
+  >();
+  positionedMarkers.forEach((marker) => {
+    const pair = tradePositions.get(marker.tradeSequence) ?? {};
+    pair[marker.kind] = marker;
+    tradePositions.set(marker.tradeSequence, pair);
+  });
+  const connections: Array<{
+    entry: PositionedTradeMarker;
+    exit: PositionedTradeMarker;
+    sequence: number;
+  }> = [];
+  tradePositions.forEach((pair, sequence) => {
+    if (pair.entry && pair.exit) {
+      connections.push({ entry: pair.entry, exit: pair.exit, sequence });
+    }
+  });
+  const riskSegments = trades.flatMap((trade) => {
+    const pair = tradePositions.get(trade.sequence);
+    if (!pair?.entry) return [];
+    const endX = pair.exit?.markerX ?? x(visible.length - 1);
+    return [
+      trade.stop_loss === null ? null : {
+        kind: "stop-loss",
+        label: "SL",
+        price: Number(trade.stop_loss),
+        sequence: trade.sequence,
+        startX: pair.entry.markerX,
+        endX,
+      },
+      trade.take_profit === null ? null : {
+        kind: "take-profit",
+        label: "TP",
+        price: Number(trade.take_profit),
+        sequence: trade.sequence,
+        startX: pair.entry.markerX,
+        endX,
+      },
+    ].filter((item): item is NonNullable<typeof item> => item !== null);
+  });
+  const visibleTradeCount = new Set(markers.map((marker) => marker.tradeSequence)).size;
+  const priceTicks = Array.from(
+    { length: 5 },
+    (_, index) => maximum - (range * index) / 4,
+  );
+  const axisStart = 0;
+  const viewportWidth = Math.max(1, viewportRange.width);
+  const axisEnd = viewportWidth;
+  const normalizedDigits = Math.min(Math.max(priceDigits, 0), 6);
+  const bufferedStart = Math.max(0, viewportRange.start - VIEWPORT_BUFFER_CANDLES);
+  const bufferedEnd = Math.min(
+    visible.length - 1,
+    viewportRange.end + VIEWPORT_BUFFER_CANDLES,
+  );
+
+  return (
+    <div className="chart-frame execution-chart-frame" ref={frameRef}>
+      <div className="chart-caption">
+        <span>{t("replay.candles", { count: visible.length })}</span>
+        <span>{t("replay.markers")} / {t("replay.guides")}</span>
+      </div>
+      <div className="execution-chart-track" style={{ minWidth: `${width}px` }}>
+        <div
+          className="execution-chart-surface"
+          style={{ width: `${viewportWidth}px` }}
+        >
+          <div aria-hidden="true" className="execution-chart-grid" />
+          <svg
+            aria-label={t("replay.chartAria", { count: visibleTradeCount })}
+            className="candlestick-chart"
+            data-scale-end={Math.min(viewportRange.end, visible.length - 1)}
+            data-scale-max={maximum}
+            data-scale-min={minimum}
+            data-scale-start={viewportRange.start}
+            role="img"
+            viewBox={`0 0 ${viewportWidth} ${HEIGHT}`}
+          >
+        <g className="price-axis">
+          {priceTicks.map((price, index) => (
+            <g key={index}>
+              <line
+                x1={axisStart}
+                x2={axisEnd}
+                y1={y(price)}
+                y2={y(price)}
+              />
+              <text x={axisStart + 7} y={y(price) - 4}>
+                {price.toFixed(normalizedDigits)}
+              </text>
+            </g>
+          ))}
+        </g>
+        <g className="execution-chart-plot" ref={plotLayerRef}>
+        {periods.filter((period) => (
+          period.candleIndex >= bufferedStart && period.candleIndex <= bufferedEnd
+        )).map((period) => {
+          const periodX = x(period.candleIndex) - step / 2;
+          return (
+            <g className="period-separator" key={`${period.candleIndex}-${period.label}`}>
+              <line x1={periodX} x2={periodX} y1="18" y2={HEIGHT - 12} />
+              <text x={periodX + 4} y="14">{period.label}</text>
+            </g>
+          );
+        })}
+        {visible.slice(bufferedStart, bufferedEnd + 1).map((item, relativeIndex) => {
+          const index = bufferedStart + relativeIndex;
+          const open = Number(item.open);
+          const close = Number(item.close);
+          const top = y(Math.max(open, close));
+          const bodyHeight = Math.max(Math.abs(y(open) - y(close)), 1.5);
+          const direction = close >= open ? "up" : "down";
+          return (
+            <g
+              className={`candle ${direction}`}
+              data-candle-index={index}
+              key={item.id}
+            >
+              <title>
+                {t("dashboard.candleTooltip", {
+                  time: new Date(item.open_time).toLocaleString(intlLocale),
+                  open: item.open,
+                  high: item.high,
+                  low: item.low,
+                  close: item.close,
+                })}
+              </title>
+              <line x1={x(index)} x2={x(index)} y1={y(Number(item.high))} y2={y(Number(item.low))} />
+              <rect
+                height={bodyHeight}
+                width={candleWidth}
+                x={x(index) - candleWidth / 2}
+                y={top}
+              />
+            </g>
+          );
+        })}
+        {connections.filter(({ entry, exit }) => (
+          Math.max(entry.candleIndex, exit.candleIndex) >= bufferedStart &&
+          Math.min(entry.candleIndex, exit.candleIndex) <= bufferedEnd
+        )).map(({ entry, exit, sequence }) => (
+          <g className={`trade-connection ${entry.side}`} key={`${sequence}-connection`}>
+            <title>#{sequence}</title>
+            <line
+              data-trade-sequence={sequence}
+              x1={entry.markerX}
+              x2={exit.markerX}
+              y1={entry.markerY}
+              y2={exit.markerY}
+            />
+          </g>
+        ))}
+        {riskSegments.filter((level) => {
+          const startIndex = tradePositions.get(level.sequence)?.entry?.candleIndex ?? 0;
+          const endIndex = tradePositions.get(level.sequence)?.exit?.candleIndex ?? visible.length - 1;
+          return Math.max(startIndex, endIndex) >= bufferedStart &&
+            Math.min(startIndex, endIndex) <= bufferedEnd;
+        }).map((level) => (
+          <g
+            className={`trade-risk-level ${level.kind}`}
+            key={`${level.sequence}-${level.kind}`}
+          >
+            <line
+              aria-label={`#${level.sequence} ${level.label} ${level.price.toFixed(normalizedDigits)}`}
+              x1={level.startX}
+              x2={level.endX}
+              y1={y(level.price)}
+              y2={y(level.price)}
+            />
+            <text x={level.startX + 4} y={y(level.price) - 3}>
+              {level.label} {level.price.toFixed(normalizedDigits)}
+            </text>
+          </g>
+        ))}
+        {positionedMarkers.filter((marker) => (
+          marker.candleIndex >= bufferedStart && marker.candleIndex <= bufferedEnd
+        )).map((marker) => {
+          const isEntry = marker.kind === "entry";
+          const className = `trade-marker ${marker.side} ${marker.kind}`;
+          const side = marker.side === "buy" ? t("common.buy") : t("common.sell");
+          return isEntry ? (
+            <polygon
+              aria-label={t("replay.entryAria", {
+                sequence: marker.tradeSequence,
+                side,
+              })}
+              className={className}
+              key={`${marker.tradeSequence}-entry`}
+              points={`${marker.markerX},${marker.markerY - 6} ${marker.markerX - 6},${marker.markerY + 5} ${marker.markerX + 6},${marker.markerY + 5}`}
+            />
+          ) : (
+            <g key={`${marker.tradeSequence}-exit`}>
+              <circle
+                aria-label={t("replay.exitPnlAria", {
+                  sequence: marker.tradeSequence,
+                  value: `${Number(marker.netProfit) >= 0 ? "+" : "-"}${formatMoney(Math.abs(Number(marker.netProfit)), intlLocale)}`,
+                })}
+                className={className}
+                cx={marker.markerX}
+                cy={marker.markerY}
+                r="5"
+              />
+              <text
+                aria-hidden="true"
+                className={`trade-exit-pnl ${Number(marker.netProfit) >= 0 ? "positive" : "negative"}`}
+                textAnchor={marker.markerX > width - 90 ? "end" : "start"}
+                x={marker.markerX > width - 90 ? marker.markerX - 8 : marker.markerX + 8}
+                y={marker.labelY + 3}
+              >
+                {Number(marker.netProfit) >= 0 ? "+" : "-"}{formatMoney(Math.abs(Number(marker.netProfit)), intlLocale)}
+              </text>
+            </g>
+          );
+        })}
+        </g>
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}

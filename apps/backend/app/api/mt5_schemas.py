@@ -39,8 +39,9 @@ class Mt5AccountRequest(Mt5RequestBase):
     external_id: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=128)
     currency: str = Field(min_length=3, max_length=8)
-    balance: Decimal = Field(ge=0)
-    equity: Decimal = Field(ge=0)
+    # MT5 can report signed account values after an overdraft or liquidation.
+    balance: Decimal
+    equity: Decimal
     margin: Decimal = Field(ge=0)
     free_margin: Decimal
     leverage: int = Field(ge=1, le=10000)
@@ -53,6 +54,16 @@ class Mt5SymbolItem(BaseModel):
     description: str = Field(default="", max_length=255)
     digits: int = Field(ge=0, le=12)
     is_active: bool = True
+    volume_min: Decimal = Field(default=Decimal("0.01"), gt=0, le=99)
+    volume_step: Decimal = Field(default=Decimal("0.01"), gt=0, le=99)
+    volume_max: Decimal = Field(default=Decimal("99"), gt=0)
+    contract_size: Decimal = Field(default=Decimal("1"), gt=0)
+
+    @model_validator(mode="after")
+    def validate_volume_range(self) -> Mt5SymbolItem:
+        if self.volume_min > min(self.volume_max, Decimal("99")):
+            raise ValueError("volume_min must not exceed the platform volume maximum")
+        return self
 
 
 class Mt5SymbolsRequest(Mt5RequestBase):
@@ -87,6 +98,68 @@ class Mt5CandleItem(BaseModel):
 
 class Mt5CandlesRequest(Mt5RequestBase):
     candles: list[Mt5CandleItem] = Field(min_length=1, max_length=1000)
+
+
+class Mt5CandleCoverageRequest(Mt5RequestBase):
+    symbol: str = Field(min_length=1, max_length=32)
+    timeframe: str = Field(min_length=1, max_length=16)
+    covered_start: datetime
+    covered_end: datetime
+    expected_candles: int = Field(ge=1)
+
+    @field_validator("covered_start", "covered_end")
+    @classmethod
+    def validate_coverage_times(cls, value: datetime) -> datetime:
+        return _validate_timestamp(value)
+
+    @model_validator(mode="after")
+    def validate_coverage_range(self) -> Mt5CandleCoverageRequest:
+        if self.covered_start > self.covered_end:
+            raise ValueError("covered_start cannot exceed covered_end")
+        return self
+
+
+class Mt5HistoricalDataRequestComplete(Mt5RequestBase):
+    candle_count: int = Field(ge=1, le=1_000_000)
+    covered_start: datetime
+    covered_end: datetime
+
+    @field_validator("covered_start", "covered_end")
+    @classmethod
+    def validate_covered_times(cls, value: datetime) -> datetime:
+        return _validate_timestamp(value)
+
+    @model_validator(mode="after")
+    def validate_covered_range(self) -> Mt5HistoricalDataRequestComplete:
+        if self.covered_start > self.covered_end:
+            raise ValueError("covered_start cannot exceed covered_end")
+        return self
+
+
+class Mt5HistoricalDataRequestFail(Mt5RequestBase):
+    error: str = Field(min_length=1, max_length=1000)
+
+
+class Mt5QuoteItem(BaseModel):
+    symbol: str = Field(min_length=1, max_length=32)
+    bid: Decimal = Field(gt=0)
+    ask: Decimal = Field(gt=0)
+    observed_at: datetime
+
+    @field_validator("observed_at")
+    @classmethod
+    def validate_observed_at(cls, value: datetime) -> datetime:
+        return _validate_timestamp(value)
+
+    @model_validator(mode="after")
+    def validate_spread(self) -> Mt5QuoteItem:
+        if self.ask < self.bid:
+            raise ValueError("Quote ask cannot be below bid")
+        return self
+
+
+class Mt5QuotesRequest(Mt5RequestBase):
+    quotes: list[Mt5QuoteItem] = Field(min_length=1, max_length=2000)
 
 
 class Mt5PositionItem(BaseModel):
@@ -152,7 +225,7 @@ class Mt5TradeItem(BaseModel):
 
 class Mt5TradesRequest(Mt5RequestBase):
     account_external_id: str = Field(min_length=1, max_length=64)
-    trades: list[Mt5TradeItem] = Field(min_length=1, max_length=1000)
+    trades: list[Mt5TradeItem] = Field(max_length=1000)
 
 
 class SyncResultResponse(BaseModel):
@@ -166,6 +239,7 @@ class TerminalStatusResponse(BaseModel):
     terminal_id: str
     terminal_name: str
     terminal_build: int
+    account_external_id: str | None
     last_heartbeat_at: datetime | None
     terminal_time: datetime | None
     last_sync_at: datetime | None

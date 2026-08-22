@@ -8,10 +8,12 @@ from uuid import UUID, uuid4
 from app.application.ports import (
     AccountRepository,
     CandleRepository,
+    PositionRepository,
+    QuoteRepository,
     SymbolRepository,
     TradeRepository,
 )
-from app.domain.entities import Account, Candle, Symbol, Trade
+from app.domain.entities import Account, Candle, MarketQuote, OpenPosition, Symbol, Trade
 from app.domain.enums import CandleSource, TradeSide, TradeStatus
 from app.domain.exceptions import ConflictError, DomainError, NotFoundError
 
@@ -29,15 +31,44 @@ class SymbolService:
             raise NotFoundError("Symbol not found")
         return symbol
 
-    async def create(self, name: str, description: str, digits: int, is_active: bool) -> Symbol:
+    async def create(
+        self,
+        name: str,
+        description: str,
+        digits: int,
+        is_active: bool,
+        volume_min: Decimal = Decimal("0.01"),
+        volume_step: Decimal = Decimal("0.01"),
+        volume_max: Decimal = Decimal("99"),
+        contract_size: Decimal = Decimal("1"),
+    ) -> Symbol:
         normalized_name = name.strip().upper()
         if await self._repository.get_by_name(normalized_name) is not None:
             raise ConflictError(f"Symbol {normalized_name} already exists")
-        symbol = Symbol(uuid4(), normalized_name, description.strip(), digits, is_active)
+        symbol = Symbol(
+            uuid4(),
+            normalized_name,
+            description.strip(),
+            digits,
+            is_active,
+            volume_min,
+            volume_step,
+            min(volume_max, Decimal("99")),
+            contract_size,
+        )
         return await self._repository.add(symbol)
 
     async def update(
-        self, symbol_id: UUID, name: str, description: str, digits: int, is_active: bool
+        self,
+        symbol_id: UUID,
+        name: str,
+        description: str,
+        digits: int,
+        is_active: bool,
+        volume_min: Decimal = Decimal("0.01"),
+        volume_step: Decimal = Decimal("0.01"),
+        volume_max: Decimal = Decimal("99"),
+        contract_size: Decimal = Decimal("1"),
     ) -> Symbol:
         existing = await self.get(symbol_id)
         normalized_name = name.strip().upper()
@@ -51,6 +82,10 @@ class SymbolService:
                 description=description.strip(),
                 digits=digits,
                 is_active=is_active,
+                volume_min=volume_min,
+                volume_step=volume_step,
+                volume_max=min(volume_max, Decimal("99")),
+                contract_size=contract_size,
             )
         )
 
@@ -64,8 +99,18 @@ class CandleService:
         self._repository = repository
         self._symbols = symbols
 
-    async def list(self, symbol_id: UUID | None, limit: int) -> list[Candle]:
-        return await self._repository.list(symbol_id, limit)
+    async def list(
+        self,
+        symbol_id: UUID | None,
+        limit: int,
+        timeframe: str | None = None,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        source: CandleSource | None = None,
+    ) -> list[Candle]:
+        return await self._repository.list(
+            symbol_id, limit, timeframe, start_at, end_at, source
+        )
 
     async def save(
         self,
@@ -98,6 +143,14 @@ class CandleService:
         return await self._repository.add(candle)
 
 
+class QuoteService:
+    def __init__(self, repository: QuoteRepository) -> None:
+        self._repository = repository
+
+    async def list(self, symbol_id: UUID | None) -> list[MarketQuote]:
+        return await self._repository.list(symbol_id)
+
+
 class AccountService:
     def __init__(self, repository: AccountRepository) -> None:
         self._repository = repository
@@ -118,6 +171,14 @@ class AccountService:
                 datetime.now(UTC),
             )
         )
+
+
+class PositionService:
+    def __init__(self, repository: PositionRepository) -> None:
+        self._repository = repository
+
+    async def list(self, account_id: UUID | None) -> list[OpenPosition]:
+        return await self._repository.list(account_id)
 
 
 class TradeService:

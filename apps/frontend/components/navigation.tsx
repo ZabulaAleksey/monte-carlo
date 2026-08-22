@@ -1,7 +1,10 @@
 "use client";
 
 import {
+  BookOpen,
   ChartCandlestick,
+  Code2,
+  Database,
   FlaskConical,
   LayoutDashboard,
   Settings,
@@ -10,33 +13,40 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { usePollingQuery } from "@/hooks/use-polling-query";
-import { deriveDataEnvironment } from "@/lib/data-environment";
-import { loadEnvironmentData } from "@/lib/page-data";
+import { LanguageFlag } from "@/components/language-flag";
+import { useMt5Status } from "@/hooks/use-mt5-status";
+import { supportedLocales, useI18n } from "@/lib/i18n";
+import { buildMt5ConnectionViewModel } from "@/lib/mt5-connection";
 
 const links = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/market-data", label: "Market Data", icon: ChartCandlestick },
-  { href: "/trades", label: "Trades", icon: TableProperties },
-  { href: "/strategies", label: "Strategies", icon: FlaskConical },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/", label: "nav.dashboard" as const, icon: LayoutDashboard },
+  { href: "/market-data", label: "nav.marketData" as const, icon: ChartCandlestick },
+  { href: "/trades", label: "nav.trades" as const, icon: TableProperties },
+  { href: "/strategies", label: "nav.strategies" as const, icon: FlaskConical },
+  { href: "/api-docs", label: "nav.api" as const, icon: Code2 },
+  { href: "/database", label: "nav.database" as const, icon: Database },
+  { href: "/guide", label: "nav.guide" as const, icon: BookOpen },
+  { href: "/settings", label: "nav.settings" as const, icon: Settings },
 ] as const;
 
 export function Navigation(): React.JSX.Element {
   const pathname = usePathname();
-  const { data, error } = usePollingQuery(loadEnvironmentData);
-  const environment = data ? deriveDataEnvironment(data.accounts, data.mt5) : null;
-  const environmentClass = error && !data
-    ? "unavailable"
-    : environment?.online
-      ? "online"
-      : environment?.kind ?? "loading";
-  const environmentTitle = error && !data
-    ? "Environment unavailable"
-    : environment?.title ?? "Checking environment";
-  const environmentDescription = error && !data
-    ? error
-    : environment?.description ?? "Loading data source";
+  const { locale, setLocale, t } = useI18n();
+  const { error, status } = useMt5Status();
+  const connection = buildMt5ConnectionViewModel(status, error);
+  const environmentState = connection.online ? "online" : connection.state === "checking" ? "checking" : "offline";
+  const environmentLabel = connection.online
+    ? t("status.online")
+    : connection.state === "checking"
+      ? t("status.checking")
+      : t("status.demo");
+  const environmentDetail = connection.online
+    ? t("status.feedOnline")
+    : connection.state === "backend-unavailable"
+      ? t("status.unavailable")
+      : connection.configured
+        ? t("status.feedOffline")
+        : t("status.sampleFeed");
 
   return (
     <aside className="sidebar">
@@ -44,25 +54,44 @@ export function Navigation(): React.JSX.Element {
         <span className="brand-mark">MC</span>
         <div>
           <strong>MonteCarlo</strong>
-          <small>Trading intelligence</small>
+          <small>{t("brand.tagline")}</small>
         </div>
       </div>
-      <nav aria-label="Main navigation">
+      <nav aria-label={t("navigation.main")}>
         {links.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === href : pathname.startsWith(href);
           return (
             <Link className={active ? "nav-link active" : "nav-link"} href={href} key={href}>
               <Icon aria-hidden="true" size={18} strokeWidth={1.8} />
-              {label}
+              {t(label)}
             </Link>
           );
         })}
       </nav>
-      <div className={`sidebar-status ${environmentClass}`}>
+      <div className="language-switcher" aria-label={t("language.label")} role="group">
+        {supportedLocales.map((item) => (
+          <button
+            aria-label={item.name}
+            aria-pressed={locale === item.code}
+            className={locale === item.code ? "active" : undefined}
+            key={item.code}
+            onClick={() => setLocale(item.code)}
+            title={item.name}
+            type="button"
+          >
+            <LanguageFlag locale={item.code} />
+          </button>
+        ))}
+      </div>
+      <div
+        aria-live="polite"
+        className={`sidebar-status ${environmentState}`}
+        role="status"
+      >
         <span className="status-dot" />
         <div>
-          <strong>{environmentTitle}</strong>
-          <small>{environmentDescription}</small>
+          <strong>{environmentLabel}</strong>
+          <small>{environmentDetail}</small>
         </div>
       </div>
     </aside>

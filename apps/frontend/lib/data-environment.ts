@@ -1,58 +1,42 @@
-import type {
-  AccountRecord,
-  CandleRecord,
-  Mt5Status,
-  TradeRecord,
-} from "./api/types";
-import { isDemoAccount } from "./dashboard";
+import type { AccountRecord } from "@/lib/api/types";
 
-export type EnvironmentKind = "demo" | "mt5";
+export type DataEnvironment = "mt5" | "demo" | "empty";
 
-export interface DataEnvironment {
-  accountIds: string[];
-  description: string;
-  kind: EnvironmentKind;
-  online: boolean;
-  title: string;
+export function isDemoAccount(account: AccountRecord): boolean {
+  return account.external_id.toUpperCase().startsWith("DEMO-");
 }
 
-export function deriveDataEnvironment(
+function newestFirst(accounts: AccountRecord[]): AccountRecord[] {
+  return [...accounts].sort(
+    (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
+  );
+}
+
+export function selectPortfolioAccount(
   accounts: AccountRecord[],
-  mt5: Mt5Status,
+  preferredExternalId?: string | null,
+): AccountRecord | null {
+  const ordered = newestFirst(accounts);
+  const preferred = preferredExternalId
+    ? ordered.find((account) => account.external_id === preferredExternalId)
+    : null;
+  if (preferred) return preferred;
+  return ordered.find((account) => !isDemoAccount(account)) ?? ordered[0] ?? null;
+}
+
+export function selectEnvironmentAccount(
+  accounts: AccountRecord[],
+  connected: boolean,
+): AccountRecord | null {
+  const ordered = newestFirst(accounts);
+  return connected
+    ? ordered.find((account) => !isDemoAccount(account)) ?? null
+    : ordered.find(isDemoAccount) ?? null;
+}
+
+export function resolveAccountEnvironment(
+  account: AccountRecord | null,
 ): DataEnvironment {
-  const mt5Accounts = accounts.filter((account) => !isDemoAccount(account));
-  const isMt5 = mt5.connected || mt5Accounts.length > 0;
-
-  if (isMt5) {
-    return {
-      accountIds: mt5Accounts.map((account) => account.id),
-      description: mt5.connected ? "Live terminal feed" : "Cached terminal data",
-      kind: "mt5",
-      online: mt5.connected,
-      title: "MT5 environment",
-    };
-  }
-
-  return {
-    accountIds: accounts.filter(isDemoAccount).map((account) => account.id),
-    description: "Sample market feed",
-    kind: "demo",
-    online: false,
-    title: "Demo environment",
-  };
-}
-
-export function filterTradesForEnvironment(
-  trades: TradeRecord[],
-  environment: DataEnvironment,
-): TradeRecord[] {
-  const accountIds = new Set(environment.accountIds);
-  return trades.filter((trade) => accountIds.has(trade.account_id));
-}
-
-export function filterCandlesForEnvironment(
-  candles: CandleRecord[],
-  environment: DataEnvironment,
-): CandleRecord[] {
-  return candles.filter((candle) => candle.source === environment.kind);
+  if (!account) return "empty";
+  return isDemoAccount(account) ? "demo" : "mt5";
 }

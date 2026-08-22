@@ -1,68 +1,120 @@
-# Мост MetaTrader 5
+# MetaTrader 5 bridge
 
-## Граница безопасности
+## Security boundary
 
-Мост работает в одном направлении: MetaTrader отправляет наблюдения в FastAPI.
-Backend не предоставляет команды размещения или изменения ордеров и закрытия
-позиций. Каждый запрос записи должен содержать `X-MT5-API-Key`; ожидаемое значение
-загружается из `MT5_API_KEY` как Pydantic `SecretStr` и сравнивается за постоянное время.
+The bridge is read-only but data orchestration is two-way: MetaTrader sends
+observations to FastAPI, while the terminal polls for exact historical-data
+requests created by the site or tester API. The backend does not expose
+order-placement, order-modification, or position-closing commands. Every MT5
+request must include `X-MT5-API-Key`; the expected value
+is loaded from `MT5_API_KEY` as a Pydantic `SecretStr` and compared with a
+constant-time comparison.
 
-Используй уникальное случайное значение длиной не менее 32 символов. Никогда не
-помещай его в систему контроля версий, журналы MQL, снимки экрана или переменные
-`NEXT_PUBLIC_*`. Публичный endpoint состояния показывает временные метки
-подключения, но никогда не раскрывает данные аутентификации.
+Use a unique random value of at least 32 characters. Never put it in source
+control, MQL logs, screenshots, or `NEXT_PUBLIC_*` variables. The public status
+endpoint reveals connection timestamps but never authentication material.
 
 ## Endpoints
 
-| Метод | Путь | Назначение |
+| Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/api/v1/mt5/heartbeat` | Записать активность терминала и build |
-| `POST` | `/api/v1/mt5/account` | Выполнить upsert метрик счёта |
-| `POST` | `/api/v1/mt5/symbols` | Выполнить upsert каталога символов |
-| `POST` | `/api/v1/mt5/candles/batch` | Выполнить upsert до 1000 свечей |
-| `POST` | `/api/v1/mt5/positions` | Заменить снимок открытых позиций счёта |
-| `POST` | `/api/v1/mt5/trades/batch` | Выполнить upsert до 1000 записей истории |
-| `GET` | `/api/v1/mt5/status` | Прочитать состояние подключения для frontend |
+| `POST` | `/api/v1/mt5/heartbeat` | Record terminal liveness and build |
+| `POST` | `/api/v1/mt5/account` | Upsert account metrics |
+| POST | /api/v1/mt5/symbols | Upsert symbols with lot limits and contract size |
+| `POST` | `/api/v1/mt5/candles/batch` | Upsert up to 1,000 candles |
+| `POST` | `/api/v1/mt5/candles/coverage` | Confirm a fully stored candle range |
+| `POST` | `/api/v1/mt5/quotes` | Upsert the latest Bid/Ask per symbol |
+| `GET` | `/api/v1/mt5/history/requests/next` | Atomically claim the next requested range |
+| `POST` | `/api/v1/mt5/history/requests/{id}/complete` | Confirm uploaded request candles |
+| `POST` | `/api/v1/mt5/history/requests/{id}/fail` | Report unavailable broker history |
+| `POST` | `/api/v1/mt5/positions` | Replace an account's open-position snapshot |
+| `POST` | `/api/v1/mt5/trades/batch` | Upsert up to 1,000 history records |
+| `GET` | `/api/v1/mt5/status` | Read connection state for the frontend |
+| `GET` | `/api/v1/positions` | Read current open positions, optionally by account |
 
-Все временные метки должны учитывать часовой пояс и не могут опережать текущее
-время более чем на пять минут. Поля цен должны быть положительными, объём —
-неотрицательным для свечей и положительным для позиций и сделок, а диапазоны
-OHLC должны быть внутренне согласованы.
+All timestamps must be timezone-aware and no more than five minutes in the
+future. Price fields must be positive, volume must be non-negative for candles
+and positive for positions and trades, and OHLC ranges must be internally
+consistent.
 
-## Идемпотентность
+## Idempotency
 
-- Символы используют нормализованное имя в верхнем регистре.
-- Свечи используют `(symbol_id, timeframe, open_time)`.
-- Успешный upsert свечи MT5 устанавливает `source=mt5`, в том числе при замене
-  совпадающей свечи, ранее отмеченной как демонстрационные данные.
-- Сделки используют `(account_id, external_id)`.
-- Позиции используют `(account_id, external_id)` и считаются полным текущим
-  снимком. Позиции, отсутствующие в последующем снимке, удаляются.
-- Терминалы и счета используют внешние идентификаторы.
+- Symbols use their normalized uppercase name.
+- Candles use `(symbol_id, timeframe, open_time)`.
+- Quotes keep one latest Bid/Ask record per symbol. An observation older than
+  the stored quote is ignored.
+- Quote batches contain only symbols whose `time_msc` changed. By default the
+  EA subscribes to all broker symbols and samples changed ticks every 500 ms.
+  The catalog and quote cursors inspect at most 500 symbols per timer pass;
+  these background requests have a bounded timeout and no retry loop.
+  Instruments reported by MT5 as Forex use a separate fast changed-tick batch,
+  so cached Dashboard currency pairs do not wait for a full catalog pass.
+  The chart symbol and the latest historical-request symbol use a separate
+  priority quote path, so their Bid/Ask does not wait for a full catalog pass.
+  Raw tick history is deliberately not persisted: PostgreSQL stores one bounded
+  latest snapshot per symbol.
+- A successful MT5 candle upsert sets `source=mt5`, including when it replaces
+  a matching candle that was previously marked as demo data.
+- Periodic candle synchronization covers `CandleLookbackDays` only for the
+  chart symbol and is split into batches no larger than 1,000 records.
+  Subsequent synchronization is incremental. Quote-only broker symbols never
+  widen this periodic backfill; the durable historical request queue serves
+  every other symbol/timeframe pair.
+- After all batches, the EA reports the actual first copied time, requested end
+  and copied count. The backend verifies that at least this many MT5 candles
+  were stored before recording coverage. A failed confirmation rewinds the
+  in-memory cursor so the next timer retries the idempotent upload.
+- Site-created historical requests are deduplicated while pending or claimed.
+  PostgreSQL workers use `FOR UPDATE SKIP LOCKED`; a 15-minute lease allows a
+  disconnected terminal's request to be recovered. The same terminal may retry
+  its claimed request while MT5 downloads older bars asynchronously.
+- Closed history accepts only MT5 exit/reversal deals. Entry deals are exposed
+  through the current open-position snapshot instead of being mislabeled as
+  closed trades. Trades use `(account_id, external_id)`.
+- Positions use `(account_id, external_id)` and are treated as a complete
+  current snapshot. Positions omitted from a later snapshot are removed. The
+  EA refreshes profit and swap every `PositionMilliseconds` (500 ms by default).
+- Account state is refreshed independently every `AccountMilliseconds`
+  (one second by default). Closed history is refreshed after
+  `OnTradeTransaction` and retried on transient delivery failures. An empty
+  `trades` batch is a valid synchronized state.
+- Full synchronization sends account, positions and trades before candle
+  backfill and records every attempt time, so an incomplete backfill cannot
+  create a tight retry loop that starves portfolio updates.
+- Terminals and accounts use their external identifiers.
 
-База данных сохраняет ограничения уникальности как последнюю границу безопасности.
-Приложение также находит существующие записи перед единым пакетным коммитом,
-поэтому повтор обновляет записи, а не создаёт дубликаты.
+The database keeps unique constraints as the final safety boundary. The
+application also resolves existing records before a single batch commit so a
+retry updates records instead of creating duplicates.
 
-## Состояние подключения
+## Connection state
 
-При получении heartbeat используется время backend, а время терминала хранится
-отдельно для диагностики. Терминал считается устаревшим, если heartbeat не был
-получен за `MT5_HEARTBEAT_TIMEOUT_SECONDS` (по умолчанию 90 секунд). Загрузка
-данных обновляет `last_sync_at`, а heartbeat — `last_heartbeat_at`.
+Heartbeat receipt uses backend time, while terminal time is stored separately
+for diagnostics. A terminal is considered stale when neither a heartbeat nor a
+successful authenticated data upload has been received within
+`MT5_HEARTBEAT_TIMEOUT_SECONDS` (90 seconds by default). Data uploads update
+`last_sync_at`; heartbeat updates `last_heartbeat_at`.
 
-## Настройка Expert Advisor
+## Expert Advisor setup
 
-См. [`mt5/README.md`](../mt5/README.md). EA отправляет только завершённые свечи,
-состояние счёта, снимки открытых позиций и историю сделок. Он повторяет запросы
-при сетевых ошибках и ответах HTTP 408, 429 и 5xx. Клиентские ошибки не повторяются,
-поскольку требуют исправления конфигурации или payload.
+See [`mt5/README.md`](../mt5/README.md). The EA samples changed Bid/Ask and
+open-position P&L up to every 500 ms by default, plus completed candles,
+account state and exit-deal history. It retries network
+errors, HTTP 408, 429 and 5xx responses. Client errors are not retried because
+they require configuration or payload correction.
 
-Все три настройки подключения присутствуют в корневом `.env.example`,
-`mt5/config.example` и объявлениях входных параметров MQL5: `BridgeBaseUrl`,
-`BridgeTerminalId` и `MT5_API_KEY`. Скопируй файлы-примеры в `.env` и
-`mt5/config.local`; никогда не помещай реальный ключ в отслеживаемые примеры.
+All three connection settings are present in the repository-root
+`.env.example`, `mt5/config.example`, and the MQL5 input declarations:
+`BridgeBaseUrl`, `BridgeTerminalId`, and `MT5_API_KEY`. Copy the example
+files to `.env` and `mt5/config.local`; never put a real key in either
+tracked example file.
 
-Перед подключением к графику добавь origin backend в разрешённые URL WebRequest
-MetaTrader. Функция недоступна в Strategy Tester, поэтому для интеграционного
-тестирования используй демонстрационный терминал.
+Before attaching it to a chart, add the backend origin to MetaTrader's allowed
+WebRequest URLs. The function is unavailable in Strategy Tester, so use a demo
+terminal for integration testing.
+
+After updating the EA, compile and reattach or restart it. The terminal polls
+for requested ranges every `HistoryRequestSeconds`; `CopyRates` may need several
+polls while MetaTrader downloads older broker history. The website waits up to
+60 seconds, then visibly falls back to the confirmed continuous cache while the
+queued request remains available for a later retry.

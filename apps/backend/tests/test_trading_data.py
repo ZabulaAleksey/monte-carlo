@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def create_symbol(client: AsyncClient, name: str = "EURUSD") -> dict[str, object]:
@@ -38,6 +39,10 @@ async def test_symbol_crud(client: AsyncClient) -> None:
 
     fetched = await client.get(f"/api/v1/symbols/{symbol_id}")
     assert fetched.json()["name"] == "EURUSD"
+    assert fetched.json()["volume_min"] == "0.01000000"
+    assert fetched.json()["volume_step"] == "0.01000000"
+    assert fetched.json()["volume_max"] == "99.00000000"
+    assert fetched.json()["contract_size"] == "1.00000000"
 
     updated = await client.put(
         f"/api/v1/symbols/{symbol_id}",
@@ -53,7 +58,7 @@ async def test_symbol_crud(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_save_candle(client: AsyncClient) -> None:
+async def test_save_candle(client: AsyncClient, session: AsyncSession) -> None:
     symbol = await create_symbol(client)
     response = await client.post(
         "/api/v1/candles",
@@ -69,10 +74,12 @@ async def test_save_candle(client: AsyncClient) -> None:
         },
     )
     assert response.status_code == 201
+    session.expunge_all()
     candles = await client.get(f"/api/v1/candles?symbol_id={symbol['id']}")
     assert len(candles.json()) == 1
     assert candles.json()[0]["timeframe"] == "H1"
     assert candles.json()[0]["source"] == "api"
+    assert candles.json()[0]["open_time"].endswith("Z")
 
 
 @pytest.mark.asyncio

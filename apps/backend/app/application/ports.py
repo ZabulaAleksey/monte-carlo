@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.domain.entities import Account, Candle, Symbol, Trade
+from app.domain.entities import Account, Candle, MarketQuote, OpenPosition, Symbol, Trade
+from app.domain.enums import CandleSource
 
 
 class SymbolRepository(Protocol):
@@ -16,8 +18,20 @@ class SymbolRepository(Protocol):
 
 
 class CandleRepository(Protocol):
-    async def list(self, symbol_id: UUID | None = None, limit: int = 200) -> list[Candle]: ...
+    async def list(
+        self,
+        symbol_id: UUID | None = None,
+        limit: int = 200,
+        timeframe: str | None = None,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        source: CandleSource | None = None,
+    ) -> list[Candle]: ...
     async def add(self, candle: Candle) -> Candle: ...
+
+
+class QuoteRepository(Protocol):
+    async def list(self, symbol_id: UUID | None = None) -> list[MarketQuote]: ...
 
 
 class AccountRepository(Protocol):
@@ -25,6 +39,10 @@ class AccountRepository(Protocol):
     async def get(self, account_id: UUID) -> Account | None: ...
     async def get_by_external_id(self, external_id: str) -> Account | None: ...
     async def add(self, account: Account) -> Account: ...
+
+
+class PositionRepository(Protocol):
+    async def list(self, account_id: UUID | None = None) -> list[OpenPosition]: ...
 
 
 class TradeRepository(Protocol):

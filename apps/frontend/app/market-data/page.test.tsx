@@ -1,30 +1,159 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import MarketDataPage from "./page";
 
-vi.mock("@/lib/page-data", () => ({ loadMarketDataPageData: vi.fn() }));
+vi.mock("@/hooks/use-mt5-status", () => ({
+  useMt5Status: vi.fn(),
+}));
 
-import { loadMarketDataPageData } from "@/lib/page-data";
+vi.mock("@/lib/api/client", () => ({
+  apiClient: {
+    getCandles: vi.fn(),
+    getQuotes: vi.fn(),
+    getSymbols: vi.fn(),
+  },
+}));
+
+import { useMt5Status } from "@/hooks/use-mt5-status";
+import { apiClient } from "@/lib/api/client";
+
+const onlineStatus = {
+  configured: true,
+  connected: true,
+  stale: false,
+  stale_after_seconds: 90,
+  terminal: null,
+};
 
 describe("MarketDataPage", () => {
   beforeEach(() => {
-    vi.mocked(loadMarketDataPageData).mockResolvedValue({
-      accounts: [{ id: "live", external_id: "1001", name: "Live", currency: "USD", balance: "10000", created_at: "2026-08-04T10:00:00Z" }],
-      mt5: { configured: true, connected: true, stale: false, stale_after_seconds: 90, terminal: null },
-      symbols: [{ id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true }],
-      candles: [
-        { id: "demo", symbol_id: "eurusd", timeframe: "H1", open_time: "2026-08-04T09:00:00Z", open: "9.0", high: "9.2", low: "8.9", close: "9.1", volume: "100", source: "demo" },
-        { id: "mt5", symbol_id: "eurusd", timeframe: "H1", open_time: "2026-08-04T10:00:00Z", open: "1.1", high: "1.2", low: "1.0", close: "1.15", volume: "200", source: "mt5" },
-      ],
-    });
+    cleanup();
+    vi.clearAllMocks();
+    vi.mocked(useMt5Status).mockReturnValue({ error: null, status: onlineStatus });
+    vi.mocked(apiClient.getSymbols).mockResolvedValue([
+      { id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100000" },
+    ]);
+    vi.mocked(apiClient.getCandles).mockResolvedValue([
+      {
+        id: "mt5-candle",
+        symbol_id: "eurusd",
+        timeframe: "H1",
+        open_time: "2026-08-10T10:00:00Z",
+        open: "1.10000",
+        high: "1.11000",
+        low: "1.09000",
+        close: "1.10555",
+        volume: "100",
+        source: "mt5",
+      },
+      {
+        id: "demo-candle",
+        symbol_id: "eurusd",
+        timeframe: "H1",
+        open_time: "2026-08-10T09:00:00Z",
+        open: "1.00000",
+        high: "1.01000",
+        low: "0.99000",
+        close: "1.00555",
+        volume: "100",
+        source: "demo",
+      },
+    ]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([
+      {
+        symbol_id: "eurusd",
+        terminal_id: "terminal-1",
+        bid: "1.10550",
+        ask: "1.10570",
+        observed_at: "2026-08-10T10:05:00Z",
+        received_at: "2026-08-10T10:05:00Z",
+        source: "mt5",
+      },
+    ]);
   });
 
-  it("shows only MT5 candles in an MT5 environment", async () => {
+  it("requests and renders only MT5 candles while connected", async () => {
     render(<MarketDataPage />);
 
-    expect(await screen.findByText("1.15")).toBeInTheDocument();
-    expect(screen.queryByText("9.1")).not.toBeInTheDocument();
-    expect(screen.getByText("MT5 candles")).toBeInTheDocument();
+    expect(await screen.findByText("1.10555")).toBeInTheDocument();
+    expect(screen.queryByText("1.00555")).not.toBeInTheDocument();
+    expect(await screen.findByText("1.10550")).toBeInTheDocument();
+    expect(screen.getByText("All broker instruments")).toBeInTheDocument();
+    expect(screen.getByText("MT5 online")).toBeInTheDocument();
+    expect(apiClient.getCandles).toHaveBeenCalledWith({ limit: 100, source: "mt5" });
+  });
+
+  it("uses demo candles while MT5 is offline", async () => {
+    vi.mocked(useMt5Status).mockReturnValue({
+      error: null,
+      status: { ...onlineStatus, connected: false, stale: true },
+    });
+    vi.mocked(apiClient.getCandles).mockResolvedValue([
+      {
+        id: "demo-candle",
+        symbol_id: "eurusd",
+        timeframe: "H1",
+        open_time: "2026-08-10T09:00:00Z",
+        open: "1.00000",
+        high: "1.01000",
+        low: "0.99000",
+        close: "1.00555",
+        volume: "100",
+        source: "demo",
+      },
+    ]);
+    vi.mocked(apiClient.getQuotes).mockResolvedValue([]);
+
+    render(<MarketDataPage />);
+
+    expect(await screen.findByText("1.00555")).toBeInTheDocument();
+    expect(screen.getByText("Demo fallback")).toBeInTheDocument();
+    expect(apiClient.getCandles).toHaveBeenCalledWith({ limit: 100, source: "demo" });
+  });
+
+  it("keeps the selected quote sorting during realtime refreshes", async () => {
+    vi.mocked(apiClient.getSymbols).mockResolvedValue([
+      { id: "eurusd", name: "EURUSD", description: "Euro", digits: 5, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100000" },
+      { id: "gbpusd", name: "GBPUSD", description: "Pound", digits: 5, is_active: true, volume_min: "0.01", volume_step: "0.01", volume_max: "99", contract_size: "100000" },
+    ]);
+    const quote = (
+      symbol_id: string,
+      bid: string,
+      ask: string,
+    ) => ({
+      symbol_id,
+      terminal_id: "terminal-1",
+      bid,
+      ask,
+      observed_at: "2026-08-10T10:05:00Z",
+      received_at: "2026-08-10T10:05:00Z",
+      source: "mt5" as const,
+    });
+    vi.mocked(apiClient.getQuotes)
+      .mockResolvedValueOnce([
+        quote("eurusd", "1.10000", "1.10020"),
+        quote("gbpusd", "2.10000", "2.10020"),
+      ])
+      .mockResolvedValue([
+        quote("eurusd", "3.10000", "3.10020"),
+        quote("gbpusd", "1.10000", "1.10020"),
+    ]);
+
+    render(<MarketDataPage />);
+    const askButton = await screen.findByRole("button", { name: /Ask/ });
+    const table = askButton.closest("table") as HTMLTableElement;
+    fireEvent.click(askButton);
+    fireEvent.click(askButton);
+    expect(askButton.closest("th")).toHaveAttribute("aria-sort", "descending");
+
+    await waitFor(() => expect(apiClient.getQuotes).toHaveBeenCalledTimes(2), {
+      timeout: 2_000,
+    });
+    await waitFor(() => {
+      const firstDataRow = within(table).getAllByRole("row")[1];
+      expect(within(firstDataRow!).getByText("EURUSD")).toBeInTheDocument();
+    });
+    expect(askButton.closest("th")).toHaveAttribute("aria-sort", "descending");
   });
 });

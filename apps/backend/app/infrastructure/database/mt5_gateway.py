@@ -2,17 +2,20 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import delete, select, tuple_
+from sqlalchemy import case, delete, func, select, tuple_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.mt5 import (
     AccountSyncCommand,
+    CandleCoverageCommand,
     CandleSyncCommand,
     HeartbeatCommand,
     PositionSyncCommand,
+    QuoteSyncCommand,
     SymbolSyncCommand,
     SyncResult,
     TerminalSnapshot,
@@ -20,9 +23,11 @@ from app.application.mt5 import (
 )
 from app.domain.enums import CandleSource
 from app.domain.exceptions import NotFoundError, SynchronizationError
+from app.infrastructure.database.backtesting import SqlAlchemyHistoricalDataProvider
 from app.infrastructure.database.models import (
     AccountModel,
     CandleModel,
+    MarketQuoteModel,
     Mt5TerminalModel,
     PositionModel,
     SymbolModel,
@@ -136,6 +141,10 @@ class SqlAlchemyMt5SyncGateway:
             model.description = command.description.strip()
             model.digits = command.digits
             model.is_active = command.is_active
+            model.volume_min = command.volume_min
+            model.volume_step = command.volume_step
+            model.volume_max = min(command.volume_max, Decimal("99"))
+            model.contract_size = command.contract_size
         await self._commit("symbols", terminal_id)
         return SyncResult(len(commands), created, updated)
 
@@ -203,6 +212,90 @@ class SqlAlchemyMt5SyncGateway:
             model.volume = command.volume
             model.source = CandleSource.MT5.value
         await self._commit("candles", terminal_id)
+        return SyncResult(len(commands), created, updated)
+
+    async def record_candle_coverage(
+        self, terminal_id: str, command: CandleCoverageCommand
+    ) -> SyncResult:
+        await self._touch_sync(terminal_id)
+        symbol_name = command.symbol.strip().upper()
+        symbol = await self._session.scalar(
+            select(SymbolModel).where(SymbolModel.name == symbol_name)
+        )
+        if symbol is None:
+            raise NotFoundError(f"Unknown symbol: {symbol_name}")
+        stored_count = int(
+            await self._session.scalar(
+                select(func.count())
+                .select_from(CandleModel)
+                .where(
+                    CandleModel.symbol_id == symbol.id,
+                    CandleModel.timeframe == command.timeframe.upper(),
+                    CandleModel.open_time >= command.covered_start,
+                    CandleModel.open_time <= command.covered_end,
+                    CandleModel.source == CandleSource.MT5.value,
+                )
+            )
+            or 0
+        )
+        if stored_count < command.expected_candles:
+            raise SynchronizationError(
+                "Historical candle coverage cannot be confirmed before all "
+                "reported candles are stored"
+            )
+        provider = SqlAlchemyHistoricalDataProvider(self._session)
+        await provider.record_coverage(
+            symbol.id,
+            command.timeframe,
+            command.covered_start,
+            command.covered_end,
+            CandleSource.MT5.value,
+        )
+        await self._commit("candle_coverage", terminal_id)
+        return SyncResult(stored_count, 0, 1)
+
+    async def upsert_quotes(
+        self, terminal_id: str, commands: list[QuoteSyncCommand]
+    ) -> SyncResult:
+        await self._touch_sync(terminal_id)
+        symbol_names = {command.symbol.strip().upper() for command in commands}
+        symbol_result = await self._session.scalars(
+            select(SymbolModel).where(SymbolModel.name.in_(symbol_names))
+        )
+        symbols = {model.name: model for model in symbol_result.all()}
+        missing = symbol_names.difference(symbols)
+        if missing:
+            raise NotFoundError(f"Unknown symbols: {', '.join(sorted(missing))}")
+
+        symbol_ids = {model.id for model in symbols.values()}
+        quote_result = await self._session.scalars(
+            select(MarketQuoteModel).where(MarketQuoteModel.symbol_id.in_(symbol_ids))
+        )
+        existing = {model.symbol_id: model for model in quote_result.all()}
+        now = datetime.now(UTC)
+        created = 0
+        updated = 0
+        for command in commands:
+            symbol_id = symbols[command.symbol.strip().upper()].id
+            model = existing.get(symbol_id)
+            if model is not None and _datetime_key(command.observed_at) < _datetime_key(
+                model.observed_at
+            ):
+                continue
+            if model is None:
+                model = MarketQuoteModel(symbol_id=symbol_id)
+                self._session.add(model)
+                existing[symbol_id] = model
+                created += 1
+            else:
+                updated += 1
+            model.terminal_id = terminal_id
+            model.bid = command.bid
+            model.ask = command.ask
+            model.observed_at = command.observed_at
+            model.received_at = now
+            model.source = CandleSource.MT5.value
+        await self._commit("quotes", terminal_id)
         return SyncResult(len(commands), created, updated)
 
     async def replace_positions(
@@ -331,8 +424,23 @@ class SqlAlchemyMt5SyncGateway:
         if terminal_id is not None:
             query = query.where(Mt5TerminalModel.terminal_id == terminal_id)
         else:
+            latest_activity = case(
+                (
+                    Mt5TerminalModel.last_heartbeat_at.is_(None),
+                    Mt5TerminalModel.last_sync_at,
+                ),
+                (
+                    Mt5TerminalModel.last_sync_at.is_(None),
+                    Mt5TerminalModel.last_heartbeat_at,
+                ),
+                (
+                    Mt5TerminalModel.last_sync_at > Mt5TerminalModel.last_heartbeat_at,
+                    Mt5TerminalModel.last_sync_at,
+                ),
+                else_=Mt5TerminalModel.last_heartbeat_at,
+            )
             query = query.order_by(
-                Mt5TerminalModel.last_heartbeat_at.desc(),
+                latest_activity.desc(),
                 Mt5TerminalModel.created_at.desc(),
             )
         terminal = await self._session.scalar(query.limit(1))

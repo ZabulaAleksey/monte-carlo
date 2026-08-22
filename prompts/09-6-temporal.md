@@ -1,7 +1,6 @@
-# Этап 9.6. Temporal orchestration
+# Этап 9.6 — Temporal
 
-Реализуй опциональный этап 9.6 из `docs/project-context.md` только после
-завершения этапа 9 и отдельного подтверждения необходимости. Добавь durable
-Temporal workflows для цепочки `import → validate → backtest → Monte Carlo →
-optimize → report`, не подменяя без причины исполнение задач RabbitMQ/Celery.
-Добавь тесты восстановления и остановись после Definition of Done этапа.
+Это опциональный подэтап. Выполняй его только по отдельному решению после
+основного этапа 9 и согласно разделу 9.6 в
+`docs/MONTE_CARLO_ROADMAP_13_TO_28.md`. Сначала докажи необходимость workflow
+engine относительно уже работающей очереди.

@@ -1,7 +1,5 @@
-# Этап 11. Ускорители
+# Этап 11 — ComputeBackend и ускорители
 
-Реализуй этап 11 из `docs/project-context.md` с учётом
-`docs/compute-backends.md`: режимы auto/cpu/cuda/opencl, определение возможностей,
-явные допуски эквивалентности, безопасный fallback и provenance. Добавляй только
-доступные и измеримо полезные backend, сравнивай полное end-to-end время и
-остановись после Definition of Done этапа.
+Выполни этап 11 из `docs/MONTE_CARLO_ROADMAP_13_TO_28.md`.
+CPU остаётся эталоном корректности. Зафиксируй capability negotiation,
+детерминированность, fallback и сверку результатов каждого backend.

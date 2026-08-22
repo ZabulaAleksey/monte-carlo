@@ -4,3 +4,10 @@
 BridgeBaseUrl=http://127.0.0.1:8000
 BridgeTerminalId=mt5-terminal-01
 MT5_API_KEY=replace-with-at-least-32-random-characters
+CandleLookbackDays=3650
+QuoteMilliseconds=500
+PositionMilliseconds=500
+AccountMilliseconds=1000
+TradeRetrySeconds=5
+IncludeAllBrokerQuotes=true
+HistoryRequestSeconds=1

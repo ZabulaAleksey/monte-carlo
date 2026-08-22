@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Response, status
@@ -5,6 +6,8 @@ from fastapi import APIRouter, Query, Response, status
 from app.api.dependencies import (
     AccountServiceDependency,
     CandleServiceDependency,
+    PositionServiceDependency,
+    QuoteServiceDependency,
     SymbolServiceDependency,
     TradeServiceDependency,
 )
@@ -14,11 +17,15 @@ from app.api.schemas import (
     CandleCreate,
     CandleResponse,
     InfoResponse,
+    PositionResponse,
+    QuoteResponse,
     SymbolCreate,
     SymbolResponse,
     TradeCreate,
     TradeResponse,
 )
+from app.domain.backtesting.models import MAX_BACKTEST_CANDLES
+from app.domain.enums import CandleSource
 from app.infrastructure.config import get_settings
 
 router = APIRouter()
@@ -68,9 +75,14 @@ async def delete_symbol(symbol_id: UUID, service: SymbolServiceDependency) -> Re
 async def list_candles(
     service: CandleServiceDependency,
     symbol_id: UUID | None = None,
-    limit: int = Query(default=200, ge=1, le=2000),
+    timeframe: str | None = Query(default=None, min_length=1, max_length=16),
+    start_at: datetime | None = None,
+    end_at: datetime | None = None,
+    source: CandleSource | None = None,
+    limit: int = Query(default=200, ge=1, le=MAX_BACKTEST_CANDLES),
 ) -> list[CandleResponse]:
-    return [CandleResponse.model_validate(item) for item in await service.list(symbol_id, limit)]
+    candles = await service.list(symbol_id, limit, timeframe, start_at, end_at, source)
+    return [CandleResponse.model_validate(item) for item in candles]
 
 
 @router.post(
@@ -93,6 +105,14 @@ async def save_candle(payload: CandleCreate, service: CandleServiceDependency) -
     return CandleResponse.model_validate(candle)
 
 
+@router.get("/quotes", response_model=list[QuoteResponse], tags=["market-data"])
+async def list_quotes(
+    service: QuoteServiceDependency,
+    symbol_id: UUID | None = None,
+) -> list[QuoteResponse]:
+    return [QuoteResponse.model_validate(item) for item in await service.list(symbol_id)]
+
+
 @router.get("/accounts", response_model=list[AccountResponse], tags=["accounts"])
 async def list_accounts(service: AccountServiceDependency) -> list[AccountResponse]:
     return [AccountResponse.model_validate(item) for item in await service.list()]
@@ -109,6 +129,14 @@ async def create_account(
 ) -> AccountResponse:
     account = await service.create(**payload.model_dump())
     return AccountResponse.model_validate(account)
+
+
+@router.get("/positions", response_model=list[PositionResponse], tags=["trades"])
+async def list_positions(
+    service: PositionServiceDependency,
+    account_id: UUID | None = None,
+) -> list[PositionResponse]:
+    return [PositionResponse.model_validate(item) for item in await service.list(account_id)]
 
 
 @router.get("/trades", response_model=list[TradeResponse], tags=["trades"])

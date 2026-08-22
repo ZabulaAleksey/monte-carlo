@@ -39,6 +39,10 @@ class SymbolSyncCommand:
     description: str
     digits: int
     is_active: bool
+    volume_min: Decimal
+    volume_step: Decimal
+    volume_max: Decimal
+    contract_size: Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +55,23 @@ class CandleSyncCommand:
     low: Decimal
     close: Decimal
     volume: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class CandleCoverageCommand:
+    symbol: str
+    timeframe: str
+    covered_start: datetime
+    covered_end: datetime
+    expected_candles: int
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteSyncCommand:
+    symbol: str
+    bid: Decimal
+    ask: Decimal
+    observed_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +147,14 @@ class Mt5SyncGateway(Protocol):
         self, terminal_id: str, commands: list[CandleSyncCommand]
     ) -> SyncResult: ...
 
+    async def record_candle_coverage(
+        self, terminal_id: str, command: CandleCoverageCommand
+    ) -> SyncResult: ...
+
+    async def upsert_quotes(
+        self, terminal_id: str, commands: list[QuoteSyncCommand]
+    ) -> SyncResult: ...
+
     async def replace_positions(
         self,
         terminal_id: str,
@@ -166,6 +195,14 @@ class Mt5SyncService:
     async def candles(self, terminal_id: str, commands: list[CandleSyncCommand]) -> SyncResult:
         return await self._gateway.upsert_candles(terminal_id, commands)
 
+    async def candle_coverage(
+        self, terminal_id: str, command: CandleCoverageCommand
+    ) -> SyncResult:
+        return await self._gateway.record_candle_coverage(terminal_id, command)
+
+    async def quotes(self, terminal_id: str, commands: list[QuoteSyncCommand]) -> SyncResult:
+        return await self._gateway.upsert_quotes(terminal_id, commands)
+
     async def positions(
         self,
         terminal_id: str,
@@ -184,7 +221,7 @@ class Mt5SyncService:
 
     async def status(self, terminal_id: str | None) -> ConnectionStatus:
         terminal = await self._gateway.get_terminal_status(terminal_id)
-        if terminal is None or terminal.last_heartbeat_at is None:
+        if terminal is None:
             return ConnectionStatus(
                 configured=self._api_key_configured,
                 connected=False,
@@ -192,10 +229,17 @@ class Mt5SyncService:
                 stale_after_seconds=self._stale_after_seconds,
                 terminal=terminal,
             )
-        heartbeat = terminal.last_heartbeat_at
-        if heartbeat.tzinfo is None:
-            heartbeat = heartbeat.replace(tzinfo=UTC)
-        stale = datetime.now(UTC) - heartbeat > timedelta(seconds=self._stale_after_seconds)
+        activity = max(
+            (
+                value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+                for value in (terminal.last_heartbeat_at, terminal.last_sync_at)
+                if value is not None
+            ),
+            default=None,
+        )
+        stale = activity is None or datetime.now(UTC) - activity > timedelta(
+            seconds=self._stale_after_seconds
+        )
         return ConnectionStatus(
             configured=self._api_key_configured,
             connected=not stale,

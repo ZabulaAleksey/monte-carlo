@@ -10,7 +10,8 @@ from sqlalchemy import func, select
 from app.application.services import AccountService, CandleService, SymbolService, TradeService
 from app.domain.enums import CandleSource, TradeSide, TradeStatus
 from app.infrastructure.config import get_settings
-from app.infrastructure.database.models import CandleModel, TradeModel
+from app.infrastructure.database.backtesting import SqlAlchemyHistoricalDataProvider
+from app.infrastructure.database.models import CandleModel, MarketQuoteModel, TradeModel
 from app.infrastructure.database.repositories import (
     SqlAlchemyAccountRepository,
     SqlAlchemyCandleRepository,
@@ -68,6 +69,49 @@ async def seed() -> None:
                     source=CandleSource.DEMO,
                 )
                 previous = close
+
+        candle_bounds = (
+            await session.execute(
+                select(
+                    func.min(CandleModel.open_time),
+                    func.max(CandleModel.open_time),
+                ).where(
+                    CandleModel.symbol_id == eurusd.id,
+                    CandleModel.timeframe == "H1",
+                )
+            )
+        ).one()
+        if candle_bounds[0] is not None and candle_bounds[1] is not None:
+            await SqlAlchemyHistoricalDataProvider(session).record_coverage(
+                eurusd.id,
+                "H1",
+                candle_bounds[0],
+                candle_bounds[1],
+                CandleSource.DEMO.value,
+            )
+
+        quote = await session.get(MarketQuoteModel, eurusd.id)
+        if quote is None:
+            latest_close = await session.scalar(
+                select(CandleModel.close)
+                .where(CandleModel.symbol_id == eurusd.id)
+                .order_by(CandleModel.open_time.desc())
+                .limit(1)
+            )
+            if latest_close is not None:
+                now = datetime.now(UTC)
+                session.add(
+                    MarketQuoteModel(
+                        symbol_id=eurusd.id,
+                        terminal_id="demo-seed",
+                        bid=latest_close - Decimal("0.00005"),
+                        ask=latest_close + Decimal("0.00005"),
+                        observed_at=now,
+                        received_at=now,
+                        source=CandleSource.DEMO.value,
+                    )
+                )
+                await session.commit()
 
         trade_count = await session.scalar(select(func.count()).select_from(TradeModel))
         if not trade_count:

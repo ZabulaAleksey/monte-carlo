@@ -1,39 +1,75 @@
-# Мост MetaTrader 5
+# MetaTrader 5 bridge
 
-`Experts/MonteCarloBridge.mq5` — Expert Advisor только для чтения. Он отправляет
-в FastAPI снимки счёта, символов, закрытых свечей, открытых позиций и истории
-сделок. Он не импортирует `CTrade`, не вызывает `OrderSend` и не предоставляет
-командные endpoints.
+`Experts/MonteCarloBridge.mq5` is a read-only Expert Advisor. It sends account,
+symbol, live Bid/Ask, closed-candle, open-position and deal-history snapshots
+to FastAPI. It
+does not import `CTrade` or call `OrderSend`. Its only inbound command is a
+request to read and upload an exact candle range; trading actions are impossible.
 
-## Установка
+## Installation
 
-1. Скопируй корневой `.env.example` в корневой `.env`. Замени `MT5_API_KEY=...`
-   в новом файле `.env` случайным значением длиной не менее 32 символов.
-2. Скопируй `mt5/config.example` в `mt5/config.local`. В `config.local` укажи
-   `BridgeBaseUrl`, уникальный `BridgeTerminalId` и тот же `MT5_API_KEY`, который
-   используется в корневом `.env`. Локальный файл игнорируется Git.
-3. Открой MetaEditor из MetaTrader 5.
-4. Скопируй `mt5/Experts/MonteCarloBridge.mq5` в
+1. Copy repository-root `.env.example` to repository-root `.env`. Replace
+   `MT5_API_KEY=...` in that new `.env` file with a random value containing
+   at least 32 characters.
+2. Copy `mt5/config.example` to `mt5/config.local`. In `config.local`, set
+   `BridgeBaseUrl`, a unique `BridgeTerminalId`, and exactly the same
+   `MT5_API_KEY` used in the root `.env`. The local file is ignored by Git.
+3. Open MetaEditor from MetaTrader 5.
+4. Copy `mt5/Experts/MonteCarloBridge.mq5` into
    `MQL5/Experts/MonteCarloBridge/MonteCarloBridge.mq5`.
-5. Скомпилируй скопированный файл и подключи его к одному графику.
-6. В MetaTrader открой **Сервис → Настройки → Советники** и добавь точное значение
-   `BridgeBaseUrl` из `mt5/config.local` в разрешённые URL WebRequest.
-7. На вкладке EA **Входные параметры** скопируй `BridgeBaseUrl`, `BridgeTerminalId`
-   и `MT5_API_KEY` из `mt5/config.local`.
+5. Compile the copied file and attach it to one chart.
+6. In MetaTrader, open **Tools → Options → Expert Advisors** and add the exact
+   `BridgeBaseUrl` value from `mt5/config.local` to the allowed WebRequest
+   URLs.
+7. In the EA **Inputs** tab, copy BridgeBaseUrl, BridgeTerminalId, and
+   MT5_API_KEY from mt5/config.local. `IncludeAllBrokerQuotes=true` exposes all
+   broker instruments, `QuoteMilliseconds=500` controls quote sampling, and
+   `PositionMilliseconds=500` controls open-position P&L snapshots.
+   `AccountMilliseconds=1000` controls account balance/equity snapshots,
+   `TradeRetrySeconds=5` controls closed-deal retry after a trade event, and
+   `HistoryRequestSeconds=1` controls historical request polling.
 
-EA предоставляет все три значения как входные параметры в
-`mt5/Experts/MonteCarloBridge.mq5`. Он намеренно не читает `config.local`:
-игнорируемый файл служит личным контрольным списком для согласования значений
-backend и терминала без добавления секрета в коммит.
+The EA exposes all three values as input parameters in
+`mt5/Experts/MonteCarloBridge.mq5`. It deliberately does not read
+`config.local`: that ignored file is a private checklist for keeping backend
+and terminal values consistent without committing a secret.
 
-Ключ API добавляется только в заголовок запроса `X-MT5-API-Key`. EA никогда не
-выводит заголовки или тела запросов и сам ключ. При временных сетевых ошибках и
-ответах HTTP 408, 429 и 5xx запрос повторяется с небольшой возрастающей задержкой.
+The API key is added only to the `X-MT5-API-Key` request header. The EA never
+prints request headers, bodies, or the key. Temporary network errors, HTTP 408,
+429 and 5xx responses are retried with a short incremental delay.
 
-## Примечания по эксплуатации
+## Operational notes
 
-- Отправляются только завершённые свечи (`CopyRates` начинается с бара 1).
-- При первом запуске отправляется ограниченная история; последующие вызовы отправляют только новые данные.
-- Пакеты сделок и свечей безопасно отправлять повторно, поскольку ключи уникальности backend делают запись идемпотентной.
-- Пустой список позиций имеет смысл и очищает сохранённый снимок открытых позиций этого счёта.
-- MetaTrader не разрешает `WebRequest` в Strategy Tester. Проверяй мост на демонстрационном терминале и явно разрешай URL backend.
+- Only completed candles are sent. Periodic `CandleLookbackDays` backfill is
+  intentionally limited to the chart symbol and uploads bounded batches;
+  other symbol/timeframe pairs are handled by addressable historical requests.
+- Changed Bid/Ask observations are sampled every `QuoteMilliseconds` (500 ms by
+  default) and uploaded in cursor-based batches of at most 500 symbols.
+  Background catalog and quote requests use a bounded timeout without retries,
+  so network failures cannot starve heartbeat, account or trade synchronization.
+  Forex instruments are also sent through a dedicated fast batch, independent
+  of the full broker-catalog round-robin.
+  The chart symbol and the symbol of the latest historical request are sent
+  through independent priority quote slots outside the full catalog cursor.
+- Open positions, including their current price, profit and swap, are uploaded
+  every `PositionMilliseconds` (500 ms by default).
+- Account balance/equity is uploaded independently every
+  `AccountMilliseconds` (one second by default). A trade transaction schedules
+  an immediate closed-history refresh, retried every `TradeRetrySeconds` after
+  a transient failure.
+- Account, positions and closed deals are synchronized before candle backfill.
+  A failed full pass records its attempt time, preventing a tight retry loop
+  from starving the realtime account/trade timers.
+- `/strategies` creates an exact From/To request when coverage is incomplete.
+  The EA claims it, retries `CopyRates` while MT5 synchronizes history, uploads
+  idempotent batches, then completes or fails the request explicitly.
+- Initial startup sends a bounded lookback; later calls send new data only.
+- Only exit/reversal deals enter closed history; entry deals remain represented
+  by the open-position snapshot. Deal and candle batches are safe to resend
+  because backend uniqueness keys make the write idempotent.
+- An empty positions list is meaningful and clears the stored open-position
+  snapshot for that account.
+- MetaTrader does not allow `WebRequest` in Strategy Tester. Test the bridge on
+  a demo terminal and explicitly allow the backend URL.
+- Available depth still depends on the broker history and MetaTrader's
+  **Max bars in chart** setting.

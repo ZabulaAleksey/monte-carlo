@@ -1,11 +1,12 @@
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.database.models import PositionModel
+from app.infrastructure.database.models import AccountModel, PositionModel
 from tests.conftest import MT5_TEST_API_KEY
 
 HEADERS = {"X-MT5-API-Key": MT5_TEST_API_KEY}
@@ -49,11 +50,68 @@ async def sync_account_and_symbol(client: AsyncClient) -> None:
                     "description": "Euro / US Dollar",
                     "digits": 5,
                     "is_active": True,
+                    "volume_min": "0.01",
+                    "volume_step": "0.01",
+                    "volume_max": "100",
+                    "contract_size": "100000",
                 }
             ],
         },
     )
     assert symbols.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_mt5_account_sync_persists_signed_balance_and_equity(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    response = await client.post(
+        "/api/v1/mt5/account",
+        headers=HEADERS,
+        json={
+            "terminal_id": TERMINAL_ID,
+            "sent_at": now_iso(),
+            "external_id": ACCOUNT_ID,
+            "name": "MetaTrader Live",
+            "currency": "USD",
+            "balance": "-176.32",
+            "equity": "-201.45",
+            "margin": "0",
+            "free_margin": "-201.45",
+            "leverage": 100,
+            "company": "MetaQuotes",
+            "server": "Live-Server",
+        },
+    )
+
+    accounts = await client.get("/api/v1/accounts")
+    stored_account = await session.scalar(
+        select(AccountModel).where(AccountModel.external_id == ACCOUNT_ID)
+    )
+
+    assert response.status_code == 200
+    assert accounts.status_code == 200
+    assert stored_account is not None
+    assert stored_account.balance == Decimal("-176.32")
+    assert stored_account.equity == Decimal("-201.45")
+    account = next(item for item in accounts.json() if item["external_id"] == ACCOUNT_ID)
+    assert account["balance"] == "-176.32000000"
+
+@pytest.mark.asyncio
+async def test_symbol_sync_persists_mt5_lot_spec_and_caps_platform_maximum(
+    client: AsyncClient,
+) -> None:
+    await sync_account_and_symbol(client)
+
+    symbols = await client.get("/api/v1/symbols")
+
+    assert symbols.status_code == 200
+    symbol = symbols.json()[0]
+    assert symbol["volume_min"] == "0.01000000"
+    assert symbol["volume_step"] == "0.01000000"
+    assert symbol["volume_max"] == "99.00000000"
+    assert symbol["contract_size"] == "100000.00000000"
 
 
 @pytest.mark.asyncio
@@ -93,6 +151,30 @@ async def test_heartbeat_is_idempotent_and_status_is_public(client: AsyncClient)
     assert status.status_code == 200
     assert status.json()["connected"] is True
     assert status.json()["terminal"]["terminal_id"] == TERMINAL_ID
+
+
+@pytest.mark.asyncio
+async def test_empty_trade_batch_is_a_valid_synchronized_state(client: AsyncClient) -> None:
+    await sync_account_and_symbol(client)
+
+    response = await client.post(
+        "/api/v1/mt5/trades/batch",
+        headers=HEADERS,
+        json={
+            "terminal_id": TERMINAL_ID,
+            "sent_at": now_iso(),
+            "account_external_id": ACCOUNT_ID,
+            "trades": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "received": 0,
+        "created": 0,
+        "updated": 0,
+        "removed": 0,
+    }
 
 
 @pytest.mark.asyncio
@@ -143,6 +225,19 @@ async def test_candle_and_trade_batches_are_idempotent(client: AsyncClient) -> N
     second_candles = await client.post(
         "/api/v1/mt5/candles/batch", headers=HEADERS, json=candle_payload
     )
+    coverage = await client.post(
+        "/api/v1/mt5/candles/coverage",
+        headers=HEADERS,
+        json={
+            "terminal_id": TERMINAL_ID,
+            "sent_at": now_iso(),
+            "symbol": "EURUSD",
+            "timeframe": "H1",
+            "covered_start": opened_at.isoformat(),
+            "covered_end": opened_at.isoformat(),
+            "expected_candles": 1,
+        },
+    )
     first_trades = await client.post(
         "/api/v1/mt5/trades/batch", headers=HEADERS, json=trade_payload
     )
@@ -153,13 +248,104 @@ async def test_candle_and_trade_batches_are_idempotent(client: AsyncClient) -> N
     assert first_candles.json()["created"] == 1
     assert second_candles.json()["created"] == 0
     assert second_candles.json()["updated"] == 1
+    assert coverage.status_code == 200
+    assert coverage.json()["received"] == 1
     assert first_trades.json()["created"] == 1
     assert second_trades.json()["created"] == 0
     assert second_trades.json()["updated"] == 1
     stored_candles = (await client.get("/api/v1/candles")).json()
+    mt5_candles = (await client.get("/api/v1/candles?source=mt5")).json()
+    demo_candles = (await client.get("/api/v1/candles?source=demo")).json()
     assert len(stored_candles) == 1
     assert stored_candles[0]["source"] == "mt5"
+    assert len(mt5_candles) == 1
+    assert demo_candles == []
     assert len((await client.get("/api/v1/trades")).json()) == 1
+    symbol_id = (await client.get("/api/v1/symbols")).json()[0]["id"]
+    cached = await client.get(
+        "/api/v1/backtests/history/coverage",
+        params={
+            "symbol_id": symbol_id,
+            "timeframe": "H1",
+            "start_at": opened_at.isoformat(),
+            "end_at": opened_at.isoformat(),
+        },
+    )
+    assert cached.status_code == 200
+    assert cached.json()["complete"] is True
+
+
+@pytest.mark.asyncio
+async def test_live_quote_is_public_idempotent_and_rejects_older_updates(
+    client: AsyncClient,
+) -> None:
+    await sync_account_and_symbol(client)
+    observed_at = datetime.now(UTC) - timedelta(seconds=2)
+
+    def quote_payload(bid: str, ask: str, timestamp: datetime) -> dict[str, object]:
+        return {
+            "terminal_id": TERMINAL_ID,
+            "sent_at": now_iso(),
+            "quotes": [
+                {
+                    "symbol": "EURUSD",
+                    "bid": bid,
+                    "ask": ask,
+                    "observed_at": timestamp.isoformat(),
+                }
+            ],
+        }
+
+    first = await client.post(
+        "/api/v1/mt5/quotes",
+        headers=HEADERS,
+        json=quote_payload("1.08300", "1.08312", observed_at),
+    )
+    second = await client.post(
+        "/api/v1/mt5/quotes",
+        headers=HEADERS,
+        json=quote_payload("1.08310", "1.08322", observed_at),
+    )
+    older = await client.post(
+        "/api/v1/mt5/quotes",
+        headers=HEADERS,
+        json=quote_payload("1.00000", "1.00010", observed_at - timedelta(seconds=1)),
+    )
+    public = await client.get("/api/v1/quotes")
+
+    assert first.status_code == 200
+    assert first.json()["created"] == 1
+    assert second.json()["updated"] == 1
+    assert older.status_code == 200
+    assert older.json()["created"] == 0
+    assert older.json()["updated"] == 0
+    assert public.status_code == 200
+    assert public.json()[0]["bid"] == "1.08310000"
+    assert public.json()[0]["ask"] == "1.08322000"
+    assert public.json()[0]["source"] == "mt5"
+
+
+@pytest.mark.asyncio
+async def test_live_quote_rejects_inverted_spread(client: AsyncClient) -> None:
+    response = await client.post(
+        "/api/v1/mt5/quotes",
+        headers=HEADERS,
+        json={
+            "terminal_id": TERMINAL_ID,
+            "sent_at": now_iso(),
+            "quotes": [
+                {
+                    "symbol": "EURUSD",
+                    "bid": "1.08320",
+                    "ask": "1.08310",
+                    "observed_at": now_iso(),
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
 
 
 @pytest.mark.asyncio
@@ -192,10 +378,17 @@ async def test_position_snapshot_replaces_stale_positions(
         "observed_at": now_iso(),
     }
     first = await client.post("/api/v1/mt5/positions", headers=HEADERS, json=payload([position]))
+    account_id = (await client.get("/api/v1/accounts")).json()[0]["id"]
+    public = await client.get("/api/v1/positions", params={"account_id": account_id})
     empty = await client.post("/api/v1/mt5/positions", headers=HEADERS, json=payload([]))
     count = await session.scalar(select(func.count()).select_from(PositionModel))
 
     assert first.json()["created"] == 1
+    assert public.status_code == 200
+    assert public.json()[0]["external_id"] == "POSITION-1"
+    assert public.json()[0]["profit"] == "40.00000000"
+    assert public.json()[0]["swap"] == "-0.20000000"
+    assert public.json()[0]["status"] == "open"
     assert empty.json()["removed"] == 1
     assert count == 0
 

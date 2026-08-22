@@ -1,7 +1,6 @@
-# Этап 7. Эталонный Monte Carlo на CPU
+# Этап 7 — эталонный Monte Carlo на CPU
 
-Реализуй этап 7 из `docs/project-context.md` с учётом
-`docs/monte-carlo-methods.md`. Добавь эталонный Monte Carlo engine,
-детерминированные seed, распределения robustness, просадки и риска разорения,
-а также воспроизводимые benchmarks для 10 тысяч, 100 тысяч и 1 миллиона
-сценариев. Остановись после Definition of Done этапа.
+После прямого запроса пользователя и завершения reconciliation gate подготовь
+SPEC и выполни этап 7 из `docs/MONTE_CARLO_ROADMAP_13_TO_28.md`.
+Зафиксируй deterministic seed, provenance, risk-of-ruin, форматы результатов и
+benchmarks 10k/100k/1M. Не переходи к этапу 8 автоматически.

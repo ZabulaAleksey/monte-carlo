@@ -5,7 +5,12 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from app.domain.enums import CandleSource, TradeSide, TradeStatus
+from app.domain.enums import (
+    CandleSource,
+    HistoricalDataRequestState,
+    TradeSide,
+    TradeStatus,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +20,10 @@ class Symbol:
     description: str
     digits: int
     is_active: bool
+    volume_min: Decimal = Decimal("0.01")
+    volume_step: Decimal = Decimal("0.01")
+    volume_max: Decimal = Decimal("99")
+    contract_size: Decimal = Decimal("1")
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +41,34 @@ class Candle:
 
 
 @dataclass(frozen=True, slots=True)
+class MarketQuote:
+    symbol_id: UUID
+    terminal_id: str
+    bid: Decimal
+    ask: Decimal
+    observed_at: datetime
+    received_at: datetime
+    source: CandleSource
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalDataRequest:
+    id: UUID
+    symbol_id: UUID
+    symbol: str
+    timeframe: str
+    requested_start: datetime
+    requested_end: datetime
+    status: HistoricalDataRequestState
+    requested_at: datetime
+    claimed_at: datetime | None
+    completed_at: datetime | None
+    terminal_id: str | None
+    candle_count: int
+    error: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class Account:
     id: UUID
     external_id: str
@@ -39,6 +76,24 @@ class Account:
     currency: str
     balance: Decimal
     created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class OpenPosition:
+    id: UUID
+    account_id: UUID
+    symbol_id: UUID
+    external_id: str
+    side: TradeSide
+    volume: Decimal
+    open_price: Decimal
+    current_price: Decimal
+    stop_loss: Decimal | None
+    take_profit: Decimal | None
+    profit: Decimal
+    swap: Decimal
+    opened_at: datetime
+    observed_at: datetime
 
 
 @dataclass(frozen=True, slots=True)

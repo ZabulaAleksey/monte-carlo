@@ -1,17 +1,39 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.entities import Account, Candle, Symbol, Trade
+from app.domain.entities import Account, Candle, MarketQuote, OpenPosition, Symbol, Trade
 from app.domain.enums import CandleSource, TradeSide, TradeStatus
-from app.infrastructure.database.models import AccountModel, CandleModel, SymbolModel, TradeModel
+from app.infrastructure.database.models import (
+    AccountModel,
+    CandleModel,
+    MarketQuoteModel,
+    PositionModel,
+    SymbolModel,
+    TradeModel,
+)
+
+
+def _utc(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _symbol(model: SymbolModel) -> Symbol:
-    return Symbol(model.id, model.name, model.description, model.digits, model.is_active)
+    return Symbol(
+        model.id,
+        model.name,
+        model.description,
+        model.digits,
+        model.is_active,
+        model.volume_min,
+        model.volume_step,
+        model.volume_max,
+        model.contract_size,
+    )
 
 
 def _candle(model: CandleModel) -> Candle:
@@ -19,7 +41,7 @@ def _candle(model: CandleModel) -> Candle:
         model.id,
         model.symbol_id,
         model.timeframe,
-        model.open_time,
+        _utc(model.open_time),
         model.open,
         model.high,
         model.low,
@@ -29,9 +51,40 @@ def _candle(model: CandleModel) -> Candle:
     )
 
 
+def _quote(model: MarketQuoteModel) -> MarketQuote:
+    return MarketQuote(
+        model.symbol_id,
+        model.terminal_id,
+        model.bid,
+        model.ask,
+        _utc(model.observed_at),
+        _utc(model.received_at),
+        CandleSource(model.source),
+    )
+
+
 def _account(model: AccountModel) -> Account:
     return Account(
         model.id, model.external_id, model.name, model.currency, model.balance, model.created_at
+    )
+
+
+def _position(model: PositionModel) -> OpenPosition:
+    return OpenPosition(
+        model.id,
+        model.account_id,
+        model.symbol_id,
+        model.external_id,
+        TradeSide(model.side),
+        model.volume,
+        model.open_price,
+        model.current_price,
+        model.stop_loss,
+        model.take_profit,
+        model.profit,
+        model.swap,
+        _utc(model.opened_at),
+        _utc(model.observed_at),
     )
 
 
@@ -78,6 +131,10 @@ class SqlAlchemySymbolRepository:
                 description=symbol.description,
                 digits=symbol.digits,
                 is_active=symbol.is_active,
+                volume_min=symbol.volume_min,
+                volume_step=symbol.volume_step,
+                volume_max=symbol.volume_max,
+                contract_size=symbol.contract_size,
             )
         )
         await self._session.commit()
@@ -90,6 +147,10 @@ class SqlAlchemySymbolRepository:
             model.description = symbol.description
             model.digits = symbol.digits
             model.is_active = symbol.is_active
+            model.volume_min = symbol.volume_min
+            model.volume_step = symbol.volume_step
+            model.volume_max = symbol.volume_max
+            model.contract_size = symbol.contract_size
             await self._session.commit()
         return symbol
 
@@ -102,10 +163,26 @@ class SqlAlchemyCandleRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def list(self, symbol_id: UUID | None = None, limit: int = 200) -> list[Candle]:
+    async def list(
+        self,
+        symbol_id: UUID | None = None,
+        limit: int = 200,
+        timeframe: str | None = None,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+        source: CandleSource | None = None,
+    ) -> list[Candle]:
         query = select(CandleModel).order_by(CandleModel.open_time.desc()).limit(limit)
         if symbol_id is not None:
             query = query.where(CandleModel.symbol_id == symbol_id)
+        if timeframe is not None:
+            query = query.where(CandleModel.timeframe == timeframe.upper())
+        if start_at is not None:
+            query = query.where(CandleModel.open_time >= start_at)
+        if end_at is not None:
+            query = query.where(CandleModel.open_time <= end_at)
+        if source is not None:
+            query = query.where(CandleModel.source == source.value)
         result = await self._session.scalars(query)
         return [_candle(item) for item in result.all()]
 
@@ -126,6 +203,18 @@ class SqlAlchemyCandleRepository:
         )
         await self._session.commit()
         return candle
+
+
+class SqlAlchemyQuoteRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list(self, symbol_id: UUID | None = None) -> list[MarketQuote]:
+        query = select(MarketQuoteModel).order_by(MarketQuoteModel.observed_at.desc())
+        if symbol_id is not None:
+            query = query.where(MarketQuoteModel.symbol_id == symbol_id)
+        result = await self._session.scalars(query)
+        return [_quote(item) for item in result.all()]
 
 
 class SqlAlchemyAccountRepository:
@@ -159,6 +248,18 @@ class SqlAlchemyAccountRepository:
         )
         await self._session.commit()
         return account
+
+
+class SqlAlchemyPositionRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list(self, account_id: UUID | None = None) -> list[OpenPosition]:
+        query = select(PositionModel).order_by(PositionModel.observed_at.desc())
+        if account_id is not None:
+            query = query.where(PositionModel.account_id == account_id)
+        result = await self._session.scalars(query)
+        return [_position(item) for item in result.all()]
 
 
 class SqlAlchemyTradeRepository:

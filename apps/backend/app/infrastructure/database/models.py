@@ -4,25 +4,54 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Numeric, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.domain.enums import CandleSource
+from app.domain.enums import CandleSource, HistoricalDataRequestState
 from app.infrastructure.database.base import Base
 
 
 class SymbolModel(Base):
     __tablename__ = "symbols"
+    __table_args__ = (
+        CheckConstraint("volume_min > 0", name="ck_symbols_volume_min_positive"),
+        CheckConstraint("volume_step > 0", name="ck_symbols_volume_step_positive"),
+        CheckConstraint("volume_max >= volume_min", name="ck_symbols_volume_range"),
+        CheckConstraint("contract_size > 0", name="ck_symbols_contract_size_positive"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(32), unique=True)
     description: Mapped[str] = mapped_column(String(255), default="")
     digits: Mapped[int]
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    volume_min: Mapped[Decimal] = mapped_column(Numeric(24, 8), default=Decimal("0.01"))
+    volume_step: Mapped[Decimal] = mapped_column(Numeric(24, 8), default=Decimal("0.01"))
+    volume_max: Mapped[Decimal] = mapped_column(Numeric(24, 8), default=Decimal("99"))
+    contract_size: Mapped[Decimal] = mapped_column(Numeric(24, 8), default=Decimal("1"))
 
     candles: Mapped[list[CandleModel]] = relationship(back_populates="symbol")
     positions: Mapped[list[PositionModel]] = relationship(back_populates="symbol")
     trades: Mapped[list[TradeModel]] = relationship(back_populates="symbol")
+    backtest_runs: Mapped[list[BacktestRunModel]] = relationship(back_populates="symbol")
+    quote: Mapped[MarketQuoteModel | None] = relationship(
+        back_populates="symbol", uselist=False
+    )
+    historical_requests: Mapped[list[HistoricalDataRequestModel]] = relationship(
+        back_populates="symbol"
+    )
 
 
 class CandleModel(Base):
@@ -46,6 +75,119 @@ class CandleModel(Base):
     )
 
     symbol: Mapped[SymbolModel] = relationship(back_populates="candles")
+
+
+class HistoricalDataCoverageModel(Base):
+    __tablename__ = "historical_data_coverage"
+    __table_args__ = (
+        CheckConstraint(
+            "covered_end >= covered_start",
+            name="ck_historical_coverage_valid_range",
+        ),
+        Index(
+            "ix_historical_coverage_lookup",
+            "symbol_id",
+            "timeframe",
+            "covered_start",
+            "covered_end",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    symbol_id: Mapped[UUID] = mapped_column(
+        ForeignKey("symbols.id", ondelete="CASCADE")
+    )
+    timeframe: Mapped[str] = mapped_column(String(16))
+    covered_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    covered_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(16))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class HistoricalDataRequestModel(Base):
+    __tablename__ = "historical_data_requests"
+    __table_args__ = (
+        CheckConstraint(
+            "requested_end > requested_start",
+            name="ck_historical_requests_valid_range",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'claimed', 'completed', 'failed')",
+            name="ck_historical_requests_status",
+        ),
+        CheckConstraint(
+            "candle_count >= 0",
+            name="ck_historical_requests_candle_count",
+        ),
+        Index(
+            "ix_historical_requests_queue",
+            "status",
+            "requested_at",
+        ),
+        Index(
+            "ix_historical_requests_symbol",
+            "symbol_id",
+            "timeframe",
+            "requested_start",
+            "requested_end",
+        ),
+        Index(
+            "uq_historical_requests_active_range",
+            "symbol_id",
+            "timeframe",
+            "requested_start",
+            "requested_end",
+            unique=True,
+            postgresql_where=text("status IN ('pending', 'claimed')"),
+            sqlite_where=text("status IN ('pending', 'claimed')"),
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    symbol_id: Mapped[UUID] = mapped_column(
+        ForeignKey("symbols.id", ondelete="CASCADE")
+    )
+    timeframe: Mapped[str] = mapped_column(String(16))
+    requested_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    requested_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(
+        String(16), default=HistoricalDataRequestState.PENDING.value
+    )
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    terminal_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    candle_count: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
+    symbol: Mapped[SymbolModel] = relationship(back_populates="historical_requests")
+
+
+class MarketQuoteModel(Base):
+    __tablename__ = "market_quotes"
+    __table_args__ = (
+        CheckConstraint("ask >= bid", name="ck_market_quotes_ask_gte_bid"),
+        Index("ix_market_quotes_observed_at", "observed_at"),
+    )
+
+    symbol_id: Mapped[UUID] = mapped_column(
+        ForeignKey("symbols.id", ondelete="CASCADE"), primary_key=True
+    )
+    terminal_id: Mapped[str] = mapped_column(String(128))
+    bid: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    ask: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(16))
+
+    symbol: Mapped[SymbolModel] = relationship(back_populates="quote")
 
 
 class AccountModel(Base):
@@ -136,3 +278,82 @@ class TradeModel(Base):
 
     account: Mapped[AccountModel] = relationship(back_populates="trades")
     symbol: Mapped[SymbolModel] = relationship(back_populates="trades")
+
+
+class BacktestRunModel(Base):
+    __tablename__ = "backtest_runs"
+    __table_args__ = (Index("ix_backtest_runs_created_at", "created_at"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    symbol_id: Mapped[UUID] = mapped_column(ForeignKey("symbols.id", ondelete="RESTRICT"))
+    strategy_name: Mapped[str] = mapped_column(String(64))
+    strategy_version: Mapped[str] = mapped_column(String(32))
+    timeframe: Mapped[str] = mapped_column(String(16))
+    requested_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    requested_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    data_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    data_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    candle_count: Mapped[int] = mapped_column(Integer)
+    initial_capital: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    final_balance: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    settings: Mapped[dict[str, object]] = mapped_column(JSON)
+    parameters: Mapped[dict[str, object]] = mapped_column(JSON)
+    metrics: Mapped[dict[str, object]] = mapped_column(JSON)
+    data_complete: Mapped[bool] = mapped_column(Boolean, default=True)
+    warnings: Mapped[list[str]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(16), default="completed")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    symbol: Mapped[SymbolModel] = relationship(back_populates="backtest_runs")
+    trades: Mapped[list[BacktestTradeModel]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="BacktestTradeModel.sequence",
+    )
+    equity_points: Mapped[list[BacktestEquityPointModel]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="BacktestEquityPointModel.sequence",
+    )
+
+
+class BacktestTradeModel(Base):
+    __tablename__ = "backtest_trades"
+    __table_args__ = (Index("ix_backtest_trades_run_sequence", "run_id", "sequence"),)
+
+    run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("backtest_runs.id", ondelete="CASCADE"), primary_key=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer, primary_key=True)
+    side: Mapped[str] = mapped_column(String(8))
+    volume: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    open_price: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    close_price: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    stop_loss: Mapped[Decimal | None] = mapped_column(Numeric(24, 8), nullable=True)
+    take_profit: Mapped[Decimal | None] = mapped_column(Numeric(24, 8), nullable=True)
+    exit_reason: Mapped[str] = mapped_column(String(24))
+    gross_profit: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    commission: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    swap: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    net_profit: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+
+    run: Mapped[BacktestRunModel] = relationship(back_populates="trades")
+
+
+class BacktestEquityPointModel(Base):
+    __tablename__ = "backtest_equity_points"
+    __table_args__ = (Index("ix_backtest_equity_run_sequence", "run_id", "sequence"),)
+
+    run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("backtest_runs.id", ondelete="CASCADE"), primary_key=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer, primary_key=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    balance: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    equity: Mapped[Decimal] = mapped_column(Numeric(24, 8))
+    drawdown_absolute: Mapped[Decimal] = mapped_column(Numeric(24, 8), default=0)
+    drawdown_pct: Mapped[Decimal] = mapped_column(Numeric(16, 8))
+
+    run: Mapped[BacktestRunModel] = relationship(back_populates="equity_points")

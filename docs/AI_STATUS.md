@@ -1,37 +1,164 @@
-# Текущее состояние проекта
+# AI development status
 
-Актуально на 2026-08-13.
+## Последний завершённый блок
 
-## Этап
+Доменный движок стратегий и CPU-бэктест реализован, проверен доступными
+автоматическими тестами и закоммичен локально. В прежней рабочей нумерации этот
+блок назывался «Этап 3», а в канонической дорожной карте 1–28 он относится
+преимущественно к этапу 6.
 
-Завершена базовая платформа и read-only интеграция MetaTrader 5 (этапы 1–2 из `project-context.md`). Идёт стабилизация сборки и развёртывания перед следующими функциональными этапами.
+Этапы 3–5 канонического roadmap частично покрыты текущим кодом, но ещё не
+прошли отдельную evidence-проверку по всем критериям. Этап 7 не начат.
 
-## Реализовано
+## Implemented
 
-- Next.js frontend с dashboard, рыночными данными, сделками, настройками и состояниями loading/error/empty.
-- FastAPI backend, PostgreSQL, SQLAlchemy/Alembic, демонстрационные данные и health endpoint.
-- Read-only мост MT5 для heartbeat, счёта, символов, свечей, позиций и истории сделок.
-- Docker Compose для PostgreSQL, backend и frontend.
-- Next.js standalone-сборка с tracing root, независимым от имени каталога репозитория.
+- Execution-map trade markers use binary timestamp lookup and memoized
+  candle/trade mapping. Dense runs no longer repeat a linear scan through up to
+  20,000 candles for every marker or after viewport-only scroll updates; the
+  exact boundary behavior for protective exits remains unchanged.
+- Execution-map navigation keeps the complete horizontal range in a lightweight
+  scroll track, while the persistent SVG surface is limited to the visible
+  viewport and moves one buffered plot group imperatively. The initial and
+  zero-width states remain bounded, while crossing trade connections and SL/TP
+  lines stay visible when their endpoint markers are outside the viewport.
+- Virtual execution keeps a stable 360 px panel height while its trade ledger
+  scrolls internally with a sticky table header, including empty and animated
+  replay states.
+- Frontend route files сведены к композиции feature screens; общий polling
+  primitive используется Dashboard, Trades, Market Data, quotes и MT5 status.
+  Account/environment, MT5 presentation state, форматирование и табличные
+  ViewModel вынесены из страниц в чистые модули.
+- Колонки настройки и результата Strategies независимо прокручиваются на
+  desktop, сохраняя обычную прокрутку страницы на узком экране.
+- Backtest drawdown теперь равна максимальному adverse-разрыву между
+  реализованным балансом и стоимостью «при закрытии сейчас»; старые runs
+  нормализуются из сохранённых balance/equity points при чтении.
+- Missing historical intervals are split at UTC year boundaries and requested
+  sequentially before a partial backtest is allowed; the active year is visible
+  in the loading status.
+- The localized From/To calendar has an explicit year selector.
+- Equity and execution-map panels support viewport fullscreen mode with button
+  and Escape dismissal, focus containment and focus restoration.
+- Stop invalidates pending coverage/history responses so a cancelled preload
+  cannot enqueue later work or start a partial backtest.
+- Framework-independent deterministic backtest domain and persistence.
+- Backtest API, saved runs, virtual trades, equity curve and strategy replay.
+- Localized EN/RU/UA/BE frontend.
+- Animated replay with pause/stop, speeds through 100x and optional chart
+  following.
+- Progressive Virtual execution ledger without future close information.
+- Period separators, entry-to-exit links and exit P&L labels.
+- Select-all deletion workflow for Saved research.
+- Run-scoped Virtual execution retrieval with an explicit database filter.
+- Locale-first bootstrap without an intermediate English render.
+- Locale-aware run dates and a $100 starting-capital step.
+- MT5 lot minimum/step/maximum and contract-size synchronization, with a 99-lot
+  platform cap and lot-aware backtest P&L.
+- Configurable monetary swap per lot per crossed calendar day.
+- Initial MT5 candle backfill controlled by `CandleLookbackDays` (3650 days by
+  default), with visible candle-loading state before simulation.
+- Source-confirmed historical coverage cache with range merging, engine-side
+  completeness enforcement and reuse of overlapping date intervals.
+- A stable `/api/v1/tester/backtests` API namespace and documented contracts
+  for external clients.
+- Replay Stop preserves the current frame; speed survives run changes; saved
+  research opens immediately at its final frame.
+- Price charts rescale to the visible viewport; equity charts include a
+  drawdown series and labeled equity/drawdown/time axes.
+- Price charts include quote-value y axes; equity dates include the year and
+  both equity/drawdown animate on the common replay clock.
+- Run From/To dates persist in versioned local storage.
+- Commission and daily swap use signed notional percentages; slippage uses
+  quote points capped at six informative digits.
+- Partial historical fallback with persisted requested/actual ranges, visible
+  warnings and a 20,000-candle engine/UI limit.
+- Absolute drawdown persisted per equity point and rendered on the shared
+  monetary axis.
+- Dedicated API, PostgreSQL and Guide navigation sections, downloadable tester
+  documentation and a standalone multilingual recovery page.
+- Fully localized custom calendar and automatic scrolling to run status/equity.
+- Durable two-way historical-data requests: website/API enqueue exact From/To,
+  MT5 claims with a lease, uploads batches and completes or fails the request.
+- All-broker latest quote snapshots with changed-tick batches and a 500 ms
+  Market Data-only polling hook that is removed on navigation.
+- Equity ordinate now identifies the plotted monetary portfolio-value scale;
+  caption minimum/maximum are calculated from equity rather than the offset
+  drawdown helper series.
+- Public open-position snapshots drive correct `open` status and 500 ms live
+  P&L on Trades. The EA filters entry deals out of closed history.
+- Dashboard Market pulse uses route-local 500 ms quote-only refreshes; all
+  heavier snapshot data keeps its 15-second cadence.
+- Market pulse включает все активные валютные пары с котировкой текущего
+  источника и лениво загружает до 500 свечей только для выбранной quote-only
+  серии; параллельные запросы одной серии дедуплицируются.
+- Backtest portfolio lines now plot realized balance and current liquidation
+  equity directly, meeting whenever an open position is closed.
+- Dashboard разделяет выбор валютной пары и таймфрейма; для каждой активной
+  FX-пары доступны M1/M5/M15/M30/H1/H4/D1 с ленивой загрузкой выбранной серии.
+- Dashboard сопоставляет баланс с `account_external_id` активного терминала,
+  а account/trade метрики обновляет каждые две секунды.
+- Реализованный P&L и доля прибыльных рассчитываются по закрытым сделкам с
+  учётом commission и swap.
+- MT5 считается подключённым по свежему heartbeat или свежей успешной
+  аутентифицированной синхронизации; пустой список закрытых сделок допустим.
+- EA 2.41 ограничивает периодический candle backfill символом chart,
+  приоритизирует account/positions/trades и обходит каталог/котировки порциями
+  по 500 с ограниченным фоновым timeout без retry.
+- Dashboard ставит пустой `symbol/timeframe` в durable historical queue,
+  показывает загрузку и повторно читает кэш после completion.
+- Account/trades инициализируют portfolio cards независимо от загрузки
+  брокерского каталога символов.
+- Backtest form и движок единообразно поддерживают FX-таймфреймы
+  M1/M5/M15/M30/H1/H4/D1; MT5 повторяет `CopyRates` с ограниченным бюджетом,
+  пока терминал синхронизирует выбранную историю.
+- Backtest job не создаётся при нулевом подтверждённом покрытии. При наличии
+  непрерывной подтверждённой части сохраняется partial fallback и видимое
+  предупреждение без ложной подсказки о недоступном backend.
+- Кривая реализованного баланса и стоимость «при закрытии сейчас» имеют
+  отдельные семантические линии; последняя учитывает текущий нереализованный
+  P&L и swap.
+- При стоимости счёта `<= 0` движок закрывает позицию с причиной
+  `bankruptcy`, сохраняет финальную точку и прекращает обработку будущих
+  свечей и сигналов.
+- Карта исполнения показывает SL/TP на протяжении жизни сделки и не раскрывает
+  будущие уровни до свечи входа при replay.
+- Обе таблицы Market Data сортируются по каждому столбцу. Направление сортировки
+  сохраняется между realtime-обновлениями, а фиксированная раскладка удерживает
+  заголовки и значения на месте.
+- Конфигурация запуска бэктеста показывает только активные инструменты, для
+  которых API уже хранит доступную котировку.
 
-## В работе
+- Исправлена синхронизация MT5 account: `balance` и `equity` принимают знаковые значения, поэтому корректные отрицательные значения больше не вызывают HTTP 422.
+- Live runtime подтвердил для счёта `10011992327`: POST `/api/v1/mt5/account` возвращает 200, `balance/equity = -176.32`, `updated_at` актуален; Dashboard опрашивает accounts каждые 2 секунды.
 
-Активной функциональной реализации нет. Ближайший этап выбирается по `ROADMAP.md` и `project-context.md`.
+## Known constraints
 
-## Известные проблемы и технический долг
+- Remaining execution-map flicker is tracked as `TD-UI-001`; the current
+  viewport-SVG implementation reduces repaint scope but is not accepted as a
+  complete visual fix.
+- Backtest profit/loss mathematics still requires an independent MT5 golden-data
+  audit and is tracked as `TD-BT-001`.
+- Canonical stages 3–5 require a reconciliation audit before their status can
+  be promoted from partially implemented to validated.
+- A single run currently reads and returns at most 20,000 candles/equity points.
+- Replay animation is client-side after the completed result and candles are
+  loaded.
+- Live quotes are latest sampled snapshots. Complete raw tick history is not
+  persisted; that would require a partitioned retention design.
+- Классификация FX на Dashboard основана на имени символа и списке валютных
+  кодов, поскольку текущий API символов не передаёт отдельный asset class.
+- Lot P&L currently uses price difference times MT5 contract size. Instruments
+  requiring tick-value or account-currency conversion need a richer profit
+  specification in a later iteration.
+- Backtest commission and swap are explicit run inputs. MT5 deal
+  history stores realized commission/swap, but no historical cost profile is
+  inferred automatically yet.
 
-- `npm ci` сообщает о 9 уязвимостях зависимостей (3 moderate, 5 high, 1 critical); требуется отдельный аудит и контролируемое обновление lockfile.
-- Production build загружает Google Fonts через `next/font`, поэтому среде сборки нужен сетевой доступ или отдельное решение для локального хранения шрифтов.
-- Будущая ветка с движком стратегий и бэктестингом существует отдельно и не считается частью текущей основной линии.
+## Next reasonable checks
 
-## Ограничения
-
-- Интеграция MT5 остаётся строго read-only; backend не должен исполнять торговые приказы.
-- Рыночные и финансовые значения передаются без потери decimal-точности.
-- Секреты и реальные учётные данные не хранятся в Git.
-
-## Следующие разумные действия
-
-1. Проверить реальный Compose-деплой с production-переменными окружения.
-2. Провести отдельный аудит npm-зависимостей и обновить их без `--force`.
-3. Перед реализацией следующего этапа выбрать и актуализировать соответствующую SPEC.
+- Complete the reconciliation gate for canonical stages 3–6.
+- Close `TD-BT-001` before relying on backtest output for financial decisions.
+- Close `TD-UI-001` before adding further replay-chart complexity.
+- Prepare the Stage 7 SPEC and CPU Monte Carlo benchmark contract.
+- Keep optional stages 14–28 deferred until the original stages 1–13 and a
+  separate user decision allow them.
