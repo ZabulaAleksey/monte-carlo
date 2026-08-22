@@ -212,6 +212,7 @@ body.chart-fullscreen-open { overflow: hidden; }
 .result-chart-panel.chart-fullscreen .equity-chart,
 .result-chart-panel.chart-fullscreen .candlestick-chart { min-height: calc(100vh - 180px); }
 .chart-frame { min-width: 0; overflow-x: auto; }
+.execution-chart-frame { contain: layout paint; isolation: isolate; }
 .chart-caption { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; color: var(--muted); font-family: var(--font-mono); font-size: 9px; flex-wrap: wrap; }
 .equity-chart, .candlestick-chart { width: 100%; min-width: 560px; height: auto; display: block; border: 1px solid var(--line); border-radius: 10px; background: repeating-linear-gradient(to bottom, #f8faf7 0, #f8faf7 62px, #e9eee9 63px); }
 .balance-line { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }

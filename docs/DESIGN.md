@@ -25,7 +25,8 @@ count and actual dates; it never appears only below the fold.
   upcoming movement and exit labels have space. Viewport moves toward that
   position continuously between replay frames instead of jumping. The SVG uses
   the full run width from the first frame; replay only reveals candles, so
-  existing candle coordinates do not shift or flash.
+  existing candle coordinates do not shift or flash. Price bounds interpolate
+  inside a paint-contained chart frame, keeping the surrounding panel stable.
 - Supported speeds are 0.5x, 1x, 2x, 4x, 5x, 10x, 20x, 50x and 100x.
 - Entry markers are triangles; exit markers are circles with a nearby signed
   P&L value.

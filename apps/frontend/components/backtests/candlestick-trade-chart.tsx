@@ -17,6 +17,7 @@ interface CandlestickTradeChartProps {
   followLatest?: boolean;
   priceDigits?: number;
   smoothFollow?: boolean;
+  smoothScale?: boolean;
   trades: VirtualTradeRecord[];
   visibleCandleCount?: number;
   visibleUntil?: string;
@@ -35,6 +36,11 @@ interface ViewportRange {
   width: number;
 }
 
+interface PriceScale {
+  maximum: number;
+  minimum: number;
+}
+
 const MINIMUM_WIDTH = 900;
 const HEIGHT = 320;
 const PADDING = 30;
@@ -46,6 +52,7 @@ export function CandlestickTradeChart({
   followLatest = false,
   priceDigits = 5,
   smoothFollow = false,
+  smoothScale = false,
   trades,
   visibleCandleCount,
   visibleUntil,
@@ -212,8 +219,72 @@ export function CandlestickTradeChart({
   });
   const lows = [...scaleSource.map((item) => Number(item.low)), ...riskLevels];
   const highs = [...scaleSource.map((item) => Number(item.high)), ...riskLevels];
-  const minimum = Math.min(...lows);
-  const maximum = Math.max(...highs);
+  const targetMinimum = lows.length > 0 ? Math.min(...lows) : 0;
+  const targetMaximum = highs.length > 0 ? Math.max(...highs) : 1;
+  const scaleTargetRef = useRef<PriceScale>({
+    maximum: targetMaximum,
+    minimum: targetMinimum,
+  });
+  const scaleAnimationFrameRef = useRef<number | null>(null);
+  const [displayedScale, setDisplayedScale] = useState<PriceScale>(() => ({
+    maximum: targetMaximum,
+    minimum: targetMinimum,
+  }));
+  const displayedScaleRef = useRef(displayedScale);
+
+  useEffect(() => {
+    const target = { maximum: targetMaximum, minimum: targetMinimum };
+    scaleTargetRef.current = target;
+    if (!smoothScale) {
+      if (scaleAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(scaleAnimationFrameRef.current);
+        scaleAnimationFrameRef.current = null;
+      }
+      displayedScaleRef.current = target;
+      setDisplayedScale(target);
+      return;
+    }
+    const distance = Math.max(
+      Math.abs(target.maximum - displayedScaleRef.current.maximum),
+      Math.abs(target.minimum - displayedScaleRef.current.minimum),
+    );
+    const tolerance = Math.max(Math.abs(target.maximum - target.minimum) * 0.0005, 1e-8);
+    if (distance <= tolerance || scaleAnimationFrameRef.current !== null) return;
+
+    const animate = (): void => {
+      const current = displayedScaleRef.current;
+      const latestTarget = scaleTargetRef.current;
+      const next = {
+        maximum: current.maximum + (latestTarget.maximum - current.maximum) * 0.18,
+        minimum: current.minimum + (latestTarget.minimum - current.minimum) * 0.18,
+      };
+      const remaining = Math.max(
+        Math.abs(latestTarget.maximum - next.maximum),
+        Math.abs(latestTarget.minimum - next.minimum),
+      );
+      const latestTolerance = Math.max(
+        Math.abs(latestTarget.maximum - latestTarget.minimum) * 0.0005,
+        1e-8,
+      );
+      const settled = remaining <= latestTolerance;
+      const value = settled ? latestTarget : next;
+      displayedScaleRef.current = value;
+      setDisplayedScale(value);
+      scaleAnimationFrameRef.current = settled
+        ? null
+        : window.requestAnimationFrame(animate);
+    };
+    scaleAnimationFrameRef.current = window.requestAnimationFrame(animate);
+  }, [smoothScale, targetMaximum, targetMinimum]);
+
+  useEffect(() => () => {
+    if (scaleAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(scaleAnimationFrameRef.current);
+    }
+  }, []);
+
+  const minimum = smoothScale ? displayedScale.minimum : targetMinimum;
+  const maximum = smoothScale ? displayedScale.maximum : targetMaximum;
   const range = maximum - minimum || 1;
   const plotHeight = HEIGHT - PADDING * 2;
   const candleWidth = Math.max(Math.min(step * 0.55, 9), 2);
@@ -305,7 +376,7 @@ export function CandlestickTradeChart({
   );
 
   return (
-    <div className="chart-frame" ref={frameRef}>
+    <div className="chart-frame execution-chart-frame" ref={frameRef}>
       <div className="chart-caption">
         <span>{t("replay.candles", { count: visible.length })}</span>
         <span>{t("replay.markers")} / {t("replay.guides")}</span>

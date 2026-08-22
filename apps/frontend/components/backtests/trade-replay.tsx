@@ -340,6 +340,7 @@ export function TradeReplay({
         followLatest={followLatest}
         priceDigits={priceDigits}
         smoothFollow
+        smoothScale
         trades={trades}
         visibleCandleCount={visibleCount}
         visibleUntil={visibleBefore}

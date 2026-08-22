@@ -314,6 +314,52 @@ describe("CandlestickTradeChart", () => {
     );
   });
 
+  it("interpolates price boundaries instead of repainting them in one jump", () => {
+    const candles = [
+      candleAtPrice("low", 0, 100),
+      candleAtPrice("high", 1, 1000),
+    ];
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const { container, rerender } = render(
+      <CandlestickTradeChart
+        candles={candles}
+        smoothScale
+        trades={[]}
+        visibleCandleCount={1}
+      />,
+    );
+    const chart = container.querySelector(".candlestick-chart") as SVGSVGElement;
+    const initialMaximum = Number(chart.dataset.scaleMax);
+
+    rerender(
+      <CandlestickTradeChart
+        candles={candles}
+        smoothScale
+        trades={[]}
+        visibleCandleCount={2}
+      />,
+    );
+
+    expect(Number(chart.dataset.scaleMax)).toBe(initialMaximum);
+    act(() => frames.shift()?.(0));
+    expect(Number(chart.dataset.scaleMax)).toBeGreaterThan(initialMaximum);
+    expect(Number(chart.dataset.scaleMax)).toBeLessThan(1002);
+
+    act(() => {
+      for (let index = 0; index < 100 && frames.length > 0; index += 1) {
+        frames.shift()?.(index + 1);
+      }
+    });
+    expect(Number(chart.dataset.scaleMax)).toBeCloseTo(1002, 0);
+
+    vi.unstubAllGlobals();
+  });
+
   it("keeps trade and risk lines that cross the viewport when markers are outside it", async () => {
     Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
       configurable: true,
