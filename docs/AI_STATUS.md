@@ -1,5 +1,11 @@
 # AI development status
 
+## Governance migration — 2026-08-24
+
+- 13 отдельных stage-файлов объединены в `prompts/STAGES.md`; project overlay — PASS.
+- Backend: 63 tests, Ruff и mypy — PASS. Frontend: ESLint, 90 tests и Next.js production build — PASS.
+- Git history/status сохранены после перемещения в `~/codex-workspace/monte-carlo`; push/merge не выполнялись.
+
 ## Последний завершённый блок
 
 Доменный движок стратегий и CPU-бэктест реализован, проверен доступными
