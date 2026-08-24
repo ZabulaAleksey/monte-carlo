@@ -6,7 +6,7 @@
 ## Источники истины
 
 - Контракт системы: `specs/system.spec.md`.
-- Реализованная архитектура: `docs/architecture.md`.
+- Реализованная архитектура: `docs/ARCHITECTURE.md`.
 - Каноническая последовательность этапов: `docs/MONTE_CARLO_ROADMAP_13_TO_28.md`.
 - Краткий статус и следующий шаг: `docs/AI_STATUS.md` и `docs/AI_PLAN.md`.
 - Правила совместимости контекста: `docs/CONTEXT_COMPATIBILITY.md`.
