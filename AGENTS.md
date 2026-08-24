@@ -1,12 +1,12 @@
 # Project instructions
 
-Перед началом работы прочитай `~/codex-workspace/AGENTS.md`. Этот файл содержит
+Перед началом работы прочитай `~/.codex/AGENTS.md`. Этот файл содержит
 только проектные ограничения и маршрутизацию контекста.
 
 ## Источники истины
 
 - Контракт системы: `specs/system.spec.md`.
-- Реализованная архитектура: `docs/architecture.md`.
+- Реализованная архитектура: `docs/ARCHITECTURE.md`.
 - Каноническая последовательность этапов: `docs/MONTE_CARLO_ROADMAP_13_TO_28.md`.
 - Краткий статус и следующий шаг: `docs/AI_STATUS.md` и `docs/AI_PLAN.md`.
 - Правила совместимости контекста: `docs/CONTEXT_COMPATIBILITY.md`.
@@ -36,9 +36,10 @@
 
 ## Проверки
 
-- Frontend: `npm run lint` и `npm test` из `apps/frontend`; при изменении
-  сборки также `npm run build`.
-- Backend: `python -m pytest`, настроенные Ruff и mypy из `apps/backend`.
+- Frontend: `pnpm lint` и `pnpm test` из `apps/frontend`; при изменении
+  сборки также `pnpm build`.
+- Backend: `uv run python -m pytest`, `uv run ruff check .` и `uv run mypy app` из `apps/backend`.
+- Канонические менеджеры: `pnpm@11.23.0` + `pnpm-lock.yaml` для frontend и uv + `uv.lock` для backend. Restore выполняй через `pnpm install --frozen-lockfile` и `uv sync --locked --extra dev`. Общие content/download caches разрешены; `.venv` и `node_modules` disposable. Frontend сохраняет project-local virtual store для Docker stage portability.
 - Принятые unit/integration/component тесты считаются контрактными; новые
   сценарии добавляются отдельной задачей, а не подгоняются в цикле верификации.
 - Если критический E2E зависит от недоступного MT5 pipeline, зафиксируй

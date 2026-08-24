@@ -1,5 +1,9 @@
 # Technical decisions
 
+## ADR-000 — pnpm для frontend и uv для backend
+
+Статус: принято 2026-08-24. Frontend использует `pnpm@11.23.0` и `pnpm-lock.yaml`; backend — uv и `uv.lock`. Общие package caches уменьшают дублирование, а `.venv`/`node_modules` остаются воспроизводимыми локальными projections. Для frontend используется project-local virtual store: Docker переносит `node_modules` между stages, поэтому global virtual links сделали бы образ непереносимым.
+
 ## 2026-08-13 — Изолировать tracing root frontend-приложения
 
 - **Решение:** для Next.js standalone-сборки явно задать
