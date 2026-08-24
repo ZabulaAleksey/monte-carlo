@@ -219,3 +219,12 @@ non-browser clients. See [`backtesting-api.md`](backtesting-api.md).
 API и MetaApi являются runtime-интеграциями продукта, а не инструментами
 контекста Codex. Добавление MCP допустимо только под отдельный подтверждённый
 workflow, которого нельзя надёжно выполнить существующими средствами.
+
+## Контракт зависимостей
+
+- Источник истины (Source of truth): `apps/frontend/package.json` + `pnpm-lock.yaml` + `pnpm-workspace.yaml` для frontend и `apps/backend/pyproject.toml` + `uv.lock` для backend.
+- Канонические менеджеры — `pnpm@11.23.0` и uv; frontend и backend имеют независимые lock-графы.
+- Чистое восстановление (Clean restore): удалить только `apps/frontend/node_modules` и `apps/backend/.venv`, затем выполнить `pnpm install --frozen-lockfile` во frontend и `uv sync --locked --extra dev` в backend.
+- pnpm content store и uv cache общие; frontend сохраняет project-local virtual store, потому что Docker stage копирует `node_modules` между слоями.
+- `node_modules`, `.venv`, `.next` и tool caches disposable; market fixtures, database/runtime state и секреты dependency cleanup не затрагивает.
+- Локальные gates совпадают с container contract: `pnpm test`, `pnpm lint`, `pnpm build`, `uv run python -m pytest`, `uv run ruff check .`, `uv run mypy app`; Docker-сборка требует отдельного доступного daemon.
