@@ -1,0 +1,6 @@
+# Project-local virtual store is required so Docker stages can copy node_modules.
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true

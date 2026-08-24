@@ -1,5 +1,7 @@
 # План дальнейшей разработки
 
+Инфраструктурный срез 2026-08-24: миграция frontend npm → pnpm и backend pip/bootstrap → uv lock/sync, clean restores и полный локальный regression pipeline — `DONE`; Docker image build ожидает доступный daemon.
+
 ## Текущая цель
 
 Подготовить reconciliation gate перед этапом 7 — «Эталонный Monte Carlo на

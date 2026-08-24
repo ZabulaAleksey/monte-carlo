@@ -83,31 +83,28 @@ docker compose down
 
 ```bash
 cd apps/backend
-python -m venv .venv
-# Windows PowerShell: .venv\Scripts\Activate.ps1
-# macOS/Linux: source .venv/bin/activate
-python -m pip install -e ".[dev]"
-pytest
-ruff check .
-mypy app
+uv sync --locked --extra dev
+uv run python -m pytest
+uv run ruff check .
+uv run mypy app
 ```
 
 Для запуска backend вне Docker задайте `DATABASE_URL`, примените миграции
 командой `alembic upgrade head` и выполните:
 
 ```bash
-uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 ### Frontend
 
 ```bash
 cd apps/frontend
-npm ci
-npm run test
-npm run lint
-npm run build
-npm run dev
+pnpm install --frozen-lockfile
+pnpm test
+pnpm lint
+pnpm build
+pnpm dev
 ```
 
 Публичный адрес API задаётся переменной `NEXT_PUBLIC_API_URL`. Реальные секреты

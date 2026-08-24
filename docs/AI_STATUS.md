@@ -6,6 +6,15 @@
 - Backend: 63 tests, Ruff и mypy — PASS. Frontend: ESLint, 90 tests и Next.js production build — PASS.
 - Git history/status сохранены после перемещения в `~/codex-workspace/monte-carlo`; push/merge не выполнялись.
 
+## Dependency manager migration — 2026-08-24
+
+- Frontend: `pnpm@11.23.0`, единственный `apps/frontend/pnpm-lock.yaml`, project-local virtual store для Docker portability; clean restore, 90 tests, ESLint и Next production build — PASS.
+- Backend: uv и единственный `apps/backend/uv.lock`; clean restore, 63 pytest, Ruff и strict mypy — PASS.
+- Общие pnpm/uv caches используются; локальные `node_modules` и `.venv` остаются disposable projections.
+- Frontend build-script allowlist ограничен `esbuild`, `sharp`, `unrs-resolver`.
+- `pnpm audit` фиксирует 11 tooling advisories (1 critical, 5 high, 5 moderate), включая старый Vitest 2 и транзитивные Vite/Sharp/PostCSS; автоматический major/binary upgrade вынесен в отдельный security этап.
+- Dockerfiles переведены на frozen pnpm/uv restores, но Docker daemon локально недоступен, поэтому image build остаётся `UNVERIFIED_BY_LOCAL_DOCKER`.
+
 ## Последний завершённый блок
 
 Доменный движок стратегий и CPU-бэктест реализован, проверен доступными
