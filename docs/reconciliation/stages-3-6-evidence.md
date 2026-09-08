@@ -43,3 +43,35 @@ Canonical source: раздел «Этап 3. Схема рыночных дан�
 | VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
 |---:|---:|---:|---:|---:|
 | 2 | 5 | 2 | 3 | 0 |
+
+## Stage 4 — расширение FastAPI API
+
+Canonical source: раздел «Этап 4. Расширение FastAPI API» в roadmap; security
+и retry rows уточняют прямо требуемые этой reconciliation границы.
+
+| ID | Requirement | Subsystem | Implementation evidence | Test/runtime evidence | Class | Exact gap / dependency | Remediation slice | Before Stage 7 |
+|---|---|---|---|---|---|---|---|---|
+| MC4-R01 | Typed market-data API | FastAPI/schema | Typed symbol/candle/quote/account/position/trade schemas and routes | HTTP create/list/filter/source tests PASS | VERIFIED | — | — | yes |
+| MC4-R02 | API стратегий | FastAPI/backtest application | `GET /api/v1/tester/backtests/strategies` maps domain definitions | `test_backtests_api.py` exercises route and response | VERIFIED | — | — | yes |
+| MC4-R03 | API заданий | Jobs/application | create/status/pause/resume/stop endpoints and `BacktestJobManager` | API/job lifecycle tests PASS | VERIFIED | — | — | yes |
+| MC4-R04 | API результатов | FastAPI/persistence | create/list/get/delete run and run-scoped trades under stable tester namespace | API tests persist, retrieve, isolate and delete runs | VERIFIED | — | — | yes |
+| MC4-R05 | Фильтрация | Query/application ports | Candles filter by symbol/timeframe/time range/source; quotes by symbol; positions/trades by account; run listing only has a limit | HTTP tests cover the implemented filters | PARTIAL | There is no systematic filtering contract across runs/results/jobs; supported filters are endpoint-specific | `MC-REM-API-01` | yes |
+| MC4-R06 | Пагинация | Public API | List endpoints expose bounded `limit` values only | No cursor/offset/page metadata tests | MISSING | `limit` alone is not pagination; define stable ordering and continuation contract | `MC-REM-API-01` | yes |
+| MC4-R07 | Идемпотентность | Mutating APIs | Candle/MT5 upserts and active historical requests deduplicate; DB uniqueness backs selected paths | Duplicate MT5 batches and history requests PASS | PARTIAL | Backtest/job creation and general public mutations have no idempotency-key/replay contract | `MC-REM-API-02` | yes |
+| MC4-R08 | Структурированные ошибки | API boundary | Central handlers return `{error:{code,message,request_id,details?}}` | validation/domain/auth error tests PASS | VERIFIED | — | — | yes |
+| MC4-R09 | Сохранить application/domain/infrastructure layers | Backend architecture | Routes inject application services; domain backtest package has no FastAPI/ORM/MT5 imports; repositories implement ports | API/domain suites exercise reachable layered path | VERIFIED | — | — | yes |
+| MC4-R10 | Auth/security boundary where applicable | MT5 API | All `/api/v1/mt5/*` ingestion/history operations require configured `X-MT5-API-Key`; product remains read-only toward broker | Missing/wrong key and authorized calls tested | VERIFIED | — | — | yes |
+| MC4-R11 | Retry/lease behavior where required | Historical data/MT5 | Durable requests have pending/claimed/completed/failed lifecycle, lease expiry and bounded MQL `CopyRates` retries | API lifecycle and source assertions PASS | PARTIAL | No live terminal/reconnect/lease-expiry integration evidence | `MC-REM-API-03` | yes |
+
+### Stage 4 evidence run
+
+- `uv run --offline python -m pytest tests/test_trading_data.py tests/test_backtests_api.py tests/test_backtest_jobs.py tests/test_historical_data_requests.py tests/test_mt5_bridge.py tests/test_mt5_status.py tests/test_service_api.py tests/test_errors.py -q` — `29 passed`.
+- Tests invoke the ASGI application through HTTPX and therefore prove route →
+  schema → dependency → application/repository behavior in the test database;
+  they do not prove external MT5 reconnect or PostgreSQL deployment behavior.
+
+### Stage 4 totals
+
+| VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
+|---:|---:|---:|---:|---:|
+| 7 | 0 | 3 | 1 | 0 |

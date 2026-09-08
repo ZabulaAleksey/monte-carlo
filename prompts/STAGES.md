@@ -12,7 +12,7 @@ SPEC и `docs/MONTE_CARLO_ROADMAP_13_TO_28.md`; исторические launche
 - Status: in_progress
 - NEXT: MC-RECON-3-6
 - Blockers: none
-- Evidence: Stage 3 classified in `docs/reconciliation/stages-3-6-evidence.md`; Stages 4–6 remain pending
+- Evidence: Stages 3–4 classified in `docs/reconciliation/stages-3-6-evidence.md`; Stages 5–6 remain pending
 - Stage 7: NOT ACTIVE; запрещён до завершения reconciliation и отдельного прямого разрешения диспетчера
 - TD-UI-001: VERIFIED/CLOSED в `0450e94` и `6f71d1a`; повторно не открывать без нового regression evidence
 - TD-BT-001: OPEN; входит в будущий evidence reconciliation и блокирует доверие финансовым результатам
