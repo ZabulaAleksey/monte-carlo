@@ -188,3 +188,41 @@ fixture provenance or tolerance is defined. Therefore `TD-BT-001` remains
 | VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
 |---:|---:|---:|---:|---:|
 | 23 | 1 | 3 | 7 | 0 |
+
+## Reconciliation summary
+
+| Stage | VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
+|---|---:|---:|---:|---:|---:|
+| 3 | 2 | 5 | 2 | 3 | 0 |
+| 4 | 7 | 0 | 3 | 1 | 0 |
+| 5 | 3 | 9 | 0 | 0 | 1 |
+| 6 | 23 | 1 | 3 | 7 | 0 |
+| **Total** | **35** | **15** | **8** | **11** | **1** |
+
+All 70 atomic records have one classification. The reconciliation audit is
+complete, but canonical requirements and mandatory evidence remain unresolved.
+`MC-RECON-3-6` therefore stays active and Stage 7 stays gated.
+
+## Dependency-safe remediation queue
+
+Queue order follows canonical/dependency order. A later independent slice may
+be scheduled separately by the dispatcher, but must not be used to bypass an
+earlier unresolved prerequisite.
+
+| ID | Source requirements | Severity / Stage-7 gate | Exact missing evidence or implementation | Dependency | Recommended branch | Expected acceptance evidence |
+|---|---|---|---|---|---|---|
+| MC-REM-DB-01 | MC3-R01, R03, R07, R10, R11 | high / blocking | Canonical tick and market-event storage/lifecycle, complete provenance/retention and an explicit Timescale-compatible partition contract | none | `fix/stage-3-market-data-contract` | Approved SPEC plus migrations/models/constraints/indexes; deterministic lifecycle/retention/provenance tests; Timescale compatibility rationale |
+| MC-REM-DB-02 | MC3-R02, R04, R05, R08, R09; MC6-R27 | high / blocking | Real PostgreSQL clean migration, schema, numeric/timezone round-trip and index evidence | MC-REM-DB-01 | `verify/stage-3-postgres-migrations` | `alembic upgrade head` on clean PostgreSQL; schema/introspection and round-trip assertions; rollback/reapply evidence where policy requires |
+| MC-REM-API-01 | MC4-R05, R06 | high / blocking | Stable cross-endpoint filtering and real pagination/ordering/continuation contract | MC-REM-DB-01, MC-REM-DB-02 | `fix/stage-4-filter-pagination` | SPEC and API integration tests covering boundaries, stable order, continuation and invalid filters |
+| MC-REM-API-02 | MC4-R07 | high / blocking | Idempotency/replay semantics for backtest/job and remaining public mutations | MC-REM-DB-02 | `fix/stage-4-idempotency-contract` | Concurrent/replayed request integration tests, durable uniqueness and conflict response contract |
+| MC-REM-API-03 | MC4-R11 | medium / blocking | Live MT5 reconnect, retry and lease-expiry recovery evidence | MC-REM-DB-02 and available MT5 runtime | `verify/stage-4-mt5-recovery` | Captured terminal→API→DB retry/reconnect/expired-lease scenario with no duplicate or lost completion |
+| MC-REM-UI-01 | MC5-R01, R02, R04, R05, R09–R13 | medium / blocking | Production-browser baseline across core routes, live backend states, responsive/localized layouts and polling cleanup | Stable Stage 4 API/recovery behavior | `verify/stage-5-browser-baseline` | Reproducible browser run/screenshots or trace for loading/error/empty/live flows, viewport/locale matrix and navigation/reconnect lifecycle |
+| MC-REM-BT-01 | MC6-R03, R04, R05, R09 | high / blocking | Dataset hash/version, engine algorithm version and explicit seed in durable provenance | MC-REM-DB-01, MC-REM-DB-02 | `fix/stage-6-reproducibility-provenance` | Schema/API provenance round-trip and repeated-run identity tests showing dataset, versions, parameters and seed |
+| MC-REM-BT-02 | MC6-R13, R15, R16 | high / blocking | Focused SELL lifecycle, reverse, P&L, SL and TP evidence | none; must precede MT5 comparison | `test/stage-6-sell-semantics` | Deterministic short entry/exit/reversal/protective-exit tests that fail on sign/price-direction errors |
+| MC-REM-BT-03 | MC6-R21, R22, R26, R30–R33 | critical / blocking | Tick size/value, profit currency and account-currency conversion contract and implementation | MC-REM-DB-01, MC-REM-DB-02 | `fix/stage-6-mt5-financial-contract` | Captured symbol/account metadata, conversion-rate provenance and deterministic multi-instrument/cross-currency P&L tests |
+| MC-REM-BT-04 | MC6-R06, R07, R17, R19–R24, R29, R34 | critical / blocking | Independently sourced MT5 golden trades/results, provenance manifest, coverage matrix and explicit monetary/drawdown tolerance | MC-REM-BT-02, MC-REM-BT-03 and available MT5 runtime | `verify/stage-6-mt5-golden` | BUY/SELL golden comparison covering lots, costs, signal/SL/TP, bankruptcy, balance/equity, realized/unrealized P&L and drawdown within approved tolerances |
+| MC-REM-BT-05 | MC6-R10 | medium / blocking | Versioned CPU baseline benchmark before accelerated work | MC-REM-BT-01 and MC-REM-BT-04 | `perf/stage-6-cpu-reference-benchmark` | Reproducible workload/environment manifest, result artifact and documented latency/throughput/memory baseline |
+
+Exact NEXT is `MC-REM-DB-01`. It is the earliest unresolved canonical stage
+contract and has no remediation dependency. This selection does not authorize
+implementation; it identifies the dispatcher’s next dependency-safe slice.

@@ -10,9 +10,9 @@ SPEC и `docs/MONTE_CARLO_ROADMAP_13_TO_28.md`; исторические launche
 ## MC-RECON-3-6 — Reconciliation канонических этапов 3–6
 
 - Status: in_progress
-- NEXT: MC-RECON-3-6
+- NEXT: MC-REM-DB-01
 - Blockers: none
-- Evidence: Stages 3–6 classified in `docs/reconciliation/stages-3-6-evidence.md`; final dependency-safe remediation queue remains pending
+- Evidence: 70 atomic requirements classified in `docs/reconciliation/stages-3-6-evidence.md`; totals are 35 VERIFIED, 15 IMPLEMENTED_UNVERIFIED, 8 PARTIAL, 11 MISSING and 1 NOT_APPLICABLE
 - Stage 7: NOT ACTIVE; запрещён до завершения reconciliation и отдельного прямого разрешения диспетчера
 - TD-UI-001: VERIFIED/CLOSED в `0450e94` и `6f71d1a`; повторно не открывать без нового regression evidence
 - TD-BT-001: OPEN; internal engine evidence не заменяет отсутствующую сверку с golden MT5 и блокирует external financial-correctness claim
@@ -23,16 +23,18 @@ SPEC и `docs/MONTE_CARLO_ROADMAP_13_TO_28.md`; исторические launche
 API/application boundaries, frontend behavior и accepted tests. Не повышать
 статус требования из наличия старого implementation claim без прямого evidence.
 
-### Scope следующего slice
+### Reconciliation outcome
 
-- построить evidence matrix этапов 3–6 без изменения product behavior;
-- классифицировать каждое требование как `VERIFIED`, `IMPLEMENTED_UNVERIFIED`,
-  `PARTIAL`, `MISSING` или `NOT_APPLICABLE`;
-- включить `TD-BT-001`: contract/tick/profit currency, BUY/SELL, commission,
-  swap, slippage, protective exits, bankruptcy, balance/equity/drawdown и
-  golden MT5 fixtures с явным денежным допуском;
-- сохранить source-of-truth порядок требований из roadmap/SPEC и ссылки на
-  конкретные code/test/runtime evidence.
+- Evidence reconciliation этапов 3–6 завершён на уровне каждой atomic row.
+- Неразрешённые implementation/evidence gaps сохраняют stage в `in_progress`.
+- Dependency-safe queue принадлежит ledger; первый NEXT — `MC-REM-DB-01`.
+
+### Scope NEXT `MC-REM-DB-01`
+
+- зафиксировать bounded contracts tick history и market events;
+- определить provenance, retention и Timescale-compatible partition semantics;
+- реализовать только после отдельного решения диспетчера;
+- не начинать Stage 7 и не использовать его как зависимость remediation.
 
 ### Out of scope
 
@@ -41,9 +43,9 @@ API/application boundaries, frontend behavior и accepted tests. Не повыш
 - подготовка или реализация Stage 7;
 - merge, push, deploy и изменение брокерской/MT5 границы.
 
-### Acceptance следующего slice
+### Reconciliation guardrails
 
-- каждое требование этапов 3–6 имеет ровно одну классификацию и проверяемую ссылку
+- каждая строка ledger сохраняет ровно одну классификацию и проверяемую ссылку
   либо точный evidence gap;
 - `TD-BT-001` закрыт только при независимом golden-data evidence, иначе остаётся
   `OPEN` с точной областью недоказанного поведения;
