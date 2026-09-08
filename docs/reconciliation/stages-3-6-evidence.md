@@ -116,3 +116,75 @@ for the broader Stage 5 browser baseline gaps above.
 | VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
 |---:|---:|---:|---:|---:|
 | 3 | 9 | 0 | 0 | 1 |
+
+## Stage 6 — стратегии и эталонный CPU-backtest
+
+Canonical source: раздел «Этап 6. Стратегии и эталонный CPU-backtest» в
+roadmap и системные инварианты SPEC. Rows MC6-R11–R34 атомизируют обязательные
+engine и `TD-BT-001` surfaces из Slice B. `VERIFIED` для внутренних денежных
+rows означает только доказанную текущую формулу движка; external MT5
+financial correctness отдельно оценивается MC6-R30–R34.
+
+| ID | Requirement | Subsystem | Implementation evidence | Test/runtime evidence | Class | Exact gap / dependency | Remediation slice | Before Stage 7 |
+|---|---|---|---|---|---|---|---|---|
+| MC6-R01 | Strategy API | Domain/API | Framework-independent `Strategy` protocol, catalog and typed tester route | Strategy catalog/API tests PASS | VERIFIED | — | — | yes |
+| MC6-R02 | CPU reference implementation | Domain engine | Decimal-based `BacktestEngine`, execution/risk/position/metrics collaborators | Engine suite executes the reachable CPU path | VERIFIED | External financial equivalence is deliberately assessed in MC6-R30–R34 | — | yes |
+| MC6-R03 | Фиксируемый dataset | Data provenance | Result persists symbol, timeframe, requested/actual range and candle count | API persistence assertions PASS | PARTIAL | Dataset content hash/version and immutable transformation identity are absent | `MC-REM-BT-01` | yes |
+| MC6-R04 | Версия алгоритма | Provenance | `strategy_version` is persisted and returned | Persistence/API tests PASS | PARTIAL | Engine/calculation version is not captured | `MC-REM-BT-01` | yes |
+| MC6-R05 | Seed | Reproducibility | No seed field exists in request, result or persisted run | Search of backend/frontend contracts finds no seed implementation | MISSING | Explicit roadmap/SPEC provenance input is absent even though the current engine is non-random | `MC-REM-BT-01` | yes |
+| MC6-R06 | Internal commission semantics | Execution model | Entry and exit percentage-of-notional fills use Decimal and contract size | `test_commission_is_charged_on_entry_and_exit` PASS | VERIFIED | Not an MT5 commission-schedule equivalence claim | `MC-REM-BT-04` | yes |
+| MC6-R07 | Internal slippage semantics | Execution model | Signed quote-point adjustment with six-digit cap | Both slippage tests PASS | VERIFIED | Not an MT5 execution-quality equivalence claim | `MC-REM-BT-04` | yes |
+| MC6-R08 | Защита от look-ahead | Engine/history | Strategy receives a read-only history prefix and signal executes at next candle open | Future-history test and next-open execution test PASS | VERIFIED | — | — | yes |
+| MC6-R09 | Internal reproducibility | Engine | Same ordered candles/settings/strategy follow a deterministic Decimal path | `test_remaining_position_is_closed_and_result_is_reproducible` PASS | VERIFIED | Complete provenance envelope remains partial in MC6-R03–R05 | `MC-REM-BT-01` | yes |
+| MC6-R10 | Benchmark до GPU | Performance evidence | No Stage 6 CPU benchmark harness/result is present | Repository search finds only benchmark requirements | MISSING | Need versioned workload, environment and baseline after correctness contract is fixed | `MC-REM-BT-05` | yes |
+| MC6-R11 | Position lifecycle | Domain/execution | Single-position manager handles open, hold, close, reverse and end-of-data close | Lifecycle/end-of-data tests PASS | VERIFIED | — | — | yes |
+| MC6-R12 | BUY semantics | Domain/execution | BUY opens a long position through the order simulator | next-open, P&L and risk tests exercise BUY | VERIFIED | — | — | yes |
+| MC6-R13 | SELL semantics | Domain/execution | SELL maps to short side, reverse handling and signed P&L code paths | No focused short-position lifecycle/P&L/protective-exit test exists | IMPLEMENTED_UNVERIFIED | Add test-only deterministic short scenarios before relying on SELL parity | `MC-REM-BT-02` | yes |
+| MC6-R14 | Signal exit | Domain/execution | `Signal.CLOSE` closes at next candle open with `ExitReason.SIGNAL` | focused signal-close test PASS | VERIFIED | — | — | yes |
+| MC6-R15 | Stop Loss | Risk/execution | Side-aware level calculation; stop-first intrabar policy is explicit | focused long Stop Loss test PASS | VERIFIED | Short-side proof is coupled to MC6-R13 | `MC-REM-BT-02` | yes |
+| MC6-R16 | Take Profit | Risk/execution | Side-aware level calculation and intrabar trigger | focused long Take Profit test PASS | VERIFIED | Short-side proof is coupled to MC6-R13 | `MC-REM-BT-02` | yes |
+| MC6-R17 | Internal swap semantics | Execution model | Signed daily percentage of entry notional for crossed days | negative and positive swap tests PASS | VERIFIED | No historical MT5 rollover schedule or triple-rollover equivalence | `MC-REM-BT-04` | yes |
+| MC6-R18 | Bankruptcy | Engine | Non-positive equity forces close and stops future strategy calls | focused bankruptcy test PASS | VERIFIED | — | — | yes |
+| MC6-R19 | Balance | Engine/metrics | Entry commission, close proceeds and final balance are updated deterministically | commission, P&L, bankruptcy and persistence assertions PASS | VERIFIED | MT5 monetary parity remains outside this row | `MC-REM-BT-04` | yes |
+| MC6-R20 | Liquidation/current equity | Engine/curve | Open P&L and accrued swap feed per-candle current equity; bankruptcy liquidates | unrealized drawdown and bankruptcy tests PASS | VERIFIED | MT5 monetary parity remains outside this row | `MC-REM-BT-04` | yes |
+| MC6-R21 | Internal realized P&L | Execution/metrics | Closed-trade gross/net profit and aggregate net profit are persisted | contract-size, commission and API persistence tests PASS | VERIFIED | Tick-value/currency conversion and golden parity absent in MC6-R30–R34 | `MC-REM-BT-03`, `MC-REM-BT-04` | yes |
+| MC6-R22 | Internal unrealized P&L | Execution/equity | Side-aware mark-to-close formula feeds equity curve | unrealized loss/equity test PASS | VERIFIED | Tick-value/currency conversion and golden parity absent in MC6-R30–R34 | `MC-REM-BT-03`, `MC-REM-BT-04` | yes |
+| MC6-R23 | Maximum drawdown | Metrics | Max of the stored per-point balance-to-equity gaps and percentages | focused max-drawdown test PASS | VERIFIED | MT5 report-definition parity is not established | `MC-REM-BT-04` | yes |
+| MC6-R24 | Absolute drawdown | Metrics | Per-point absolute balance/equity gap and maximum absolute gap are exposed | focused unrealized/max-drawdown assertions PASS | VERIFIED | MT5 report-definition parity is not established | `MC-REM-BT-04` | yes |
+| MC6-R25 | Lot volume | API/application | Requested lot is checked against symbol min/step/max and platform cap | min/step/cap API and engine tests PASS | VERIFIED | — | — | yes |
+| MC6-R26 | Contract size | Symbol/application/execution | Positive symbol contract size is persisted and injected into P&L/cost models | focused 0.1-lot × 100000 contract-size test PASS | VERIFIED | Instruments needing tick-value conversion remain unproven | `MC-REM-BT-03` | yes |
+| MC6-R27 | Persistence | PostgreSQL repository | Runs, trades, complete equity curve, settings, parameters, ranges and metrics have models/migrations | API persistence/retrieval/delete tests PASS on SQLite | VERIFIED | PostgreSQL apply evidence remains MC3-R09/`MC-REM-DB-02` | `MC-REM-DB-02` | yes |
+| MC6-R28 | API and replay | Backend/frontend | Typed create/list/get/delete/jobs API and persisted-result replay are reachable | API tests PASS; Strategies replay has production Chrome evidence at `6f71d1a` | VERIFIED | — | — | yes |
+| MC6-R29 | Deterministic fixtures | Test/provenance | Synthetic candle/strategy fixtures cover internal formulas | Internal fixtures are deterministic and tests PASS | PARTIAL | No immutable, provenance-recorded MT5 input/output fixture exists | `MC-REM-BT-04` | yes |
+| MC6-R30 | Tick size | Symbol/financial contract | Symbol exposes digits, not MT5 trade tick size | No contract or test found | MISSING | `SYMBOL_TRADE_TICK_SIZE` is absent | `MC-REM-BT-03` | yes |
+| MC6-R31 | Tick value | Symbol/financial contract | P&L uses price delta × lots × contract size only | No tick-value contract or test found | MISSING | MT5 tick-value semantics are absent | `MC-REM-BT-03` | yes |
+| MC6-R32 | Profit currency | Symbol/financial contract | Symbol has no profit-currency field | No currency fixture or test found | MISSING | Cannot state the denomination of calculated P&L | `MC-REM-BT-03` | yes |
+| MC6-R33 | Account-currency conversion | Financial engine | Account model has currency, but engine does not receive or convert through rates | No conversion port/rate/provenance test found | MISSING | Cross-currency P&L is outside the implemented boundary | `MC-REM-BT-03` | yes |
+| MC6-R34 | MT5 golden provenance, coverage and tolerance | External reference | No golden trades/export parser/provenance manifest/tolerance comparator exists | No BUY/SELL/cost/exit/P&L/drawdown golden test found | MISSING | `TD-BT-001` remains OPEN; reference values must come from a real captured MT5 dataset | `MC-REM-BT-04` | yes |
+
+### Stage 6 evidence run
+
+- `uv run --offline python -m pytest tests/test_backtest_engine.py tests/test_backtests_api.py tests/test_backtest_jobs.py -q` — `31 passed`.
+- The suite proves current internal CPU formulas and reachable API persistence on
+  the SQLite test repository. It does not prove PostgreSQL deployment or MT5
+  financial equivalence.
+- Repository search found no `tick_size`, `tick_value`, profit-currency,
+  account-currency conversion, MT5 golden fixture/tolerance, seed,
+  dataset hash, engine version or executable benchmark contract.
+
+### TD-BT-001 evidence boundary
+
+Internal BUY execution, lot/contract-size arithmetic, commission, swap,
+slippage, signal exit, long-side SL/TP, bankruptcy, balance/equity,
+realized/unrealized P&L and drawdown have deterministic tests. SELL is
+implemented but lacks a focused short lifecycle/financial test. None of these
+tests compare against an independently sourced MT5 result. Tick size/value,
+profit currency and account-currency conversion are absent, and no golden
+fixture provenance or tolerance is defined. Therefore `TD-BT-001` remains
+`OPEN` and no external financial-correctness claim is made.
+
+### Stage 6 totals
+
+| VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
+|---:|---:|---:|---:|---:|
+| 23 | 1 | 3 | 7 | 0 |
