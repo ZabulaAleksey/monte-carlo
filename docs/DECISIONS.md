@@ -4,6 +4,40 @@
 
 Статус: принято 2026-08-24. Frontend использует `pnpm@11.23.0` и `pnpm-lock.yaml`; backend — uv и `uv.lock`. Общие package caches уменьшают дублирование, а `.venv`/`node_modules` остаются воспроизводимыми локальными projections. Для frontend используется project-local virtual store: Docker переносит `node_modules` между stages, поэтому global virtual links сделали бы образ непереносимым.
 
+## 2026-09-08 — Один data-reveal clock для replay и ценовой шкалы
+
+Status: accepted for the Stage 6 reliability debt `TD-UI-001`.
+
+### Decision
+
+`TradeReplay` остаётся единственным владельцем data-reveal
+`requestAnimationFrame` clock.
+Раскрытие новой свечи и необходимое изменение ценовой шкалы выполняются одним
+React commit. `CandlestickTradeChart` не запускает независимую scale-анимацию,
+но сохраняет SVG, plot layer, ценовую ось и уже показанные свечи смонтированными.
+Плавное горизонтальное сопровождение остаётся императивным и меняет React state
+только при переходе границы виртуализированного viewport; его отдельный rAF не
+является data-reveal или scale-reconciliation clock.
+
+### Reason
+
+Commit `2280b793d74367e6e5ef2572558ea50a4952b62f` добавил второй rAF-loop для
+интерполяции шкалы. Один новый экстремум запускал 37 последовательных React
+commits в диагностическом сценарии и на каждом из них переписывал геометрию всех
+48 уже показанных свечей. SVG и candle nodes не перемонтировались, поэтому
+причиной мерцания был не `key`/remount, а повторная полная reconciliation
+динамического SVG между соседними replay frames.
+
+### Consequences
+
+- Один replay frame раскрывает не более одной свечи и не создаёт второй
+  scale-reconciliation loop.
+- Новый экстремум может атомарно изменить вертикальный масштаб один раз; уже
+  смонтированные SVG/candle nodes сохраняют identity.
+- `smoothFollow`, viewport virtualization, SL/TP, markers и replay speed остаются
+  без изменений.
+- Browser visual acceptance на 1x–100x и 20 000 свечей остаётся отдельным gate.
+
 ## 2026-08-13 — Изолировать tracing root frontend-приложения
 
 - **Решение:** для Next.js standalone-сборки явно задать
@@ -194,22 +228,25 @@ trade information and make pause, stop and speed controls inconsistent.
 
 ## 2026-08-22 — Frame-synchronized replay and stable chart layers
 
-Status: accepted for Stage 3.
+Status: accepted for Stage 3; vertical scale interpolation superseded by the
+2026-09-08 decision above. Replay pacing, horizontal follow and stable-layer
+parts remain active.
 
 ### Decision
 
-Animated backtest replay uses one `requestAnimationFrame` clock. A frame may
-reveal at most one candle, and a delayed browser tab never catches up through a
-loop or a multi-candle state update. Speed changes the reveal interval using
-`max(1000 / 60, 1667 / speed)` milliseconds.
+Animated backtest replay uses one data-reveal `requestAnimationFrame` clock. A
+frame may reveal at most one candle, and a delayed browser tab never catches up
+through a loop or a multi-candle state update. Speed changes the reveal interval
+using `max(1000 / 60, 1667 / speed)` milliseconds.
 
 Horizontal follow keeps pixel offsets outside React state and moves the price
 axis through a stable SVG transform. React state changes only when the visible
-candle-index range changes. Vertical price bounds use frame timestamps for
-time-based interpolation, with faster expansion than contraction, and price-axis
-ticks retain stable keys while their values and positions change. The repeating
-background grid is rendered by a separate composited DOM layer underneath a
-transparent SVG instead of being the SVG background.
+candle-index range changes. Vertical price bounds formerly used frame timestamps
+for time-based interpolation; that part is superseded because it caused repeated
+full SVG reconciliation. Price-axis ticks retain stable keys while their values
+and positions change. The repeating background grid is rendered by a separate
+composited DOM layer underneath a transparent SVG instead of being the SVG
+background.
 
 ### Reason
 
@@ -223,7 +260,7 @@ unnecessary reconciliation and remounts during animation.
 - 100x is bounded by the display refresh and still exposes candles one by one.
 - Returning from a suspended tab advances only one candle on the next due frame.
 - Existing candle nodes and price-axis tick nodes remain mounted while viewport
-  and scale animation progresses.
+  movement progresses; price-scale changes are now atomic.
 - Repainting dynamic SVG geometry does not repaint or briefly clear the static
   grid surface below it.
 - Full-history width belongs to a lightweight scroll track. The rendered SVG is

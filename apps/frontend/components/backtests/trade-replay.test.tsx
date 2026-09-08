@@ -187,6 +187,43 @@ describe("TradeReplay", () => {
     expect(screen.getByText("Candle 4 of 500")).toBeInTheDocument();
   });
 
+  it("keeps one replay clock and preserves rendered candles when a new extreme appears", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const candles = [
+      candle("one", "2026-01-01T00:00:00Z"),
+      {
+        ...candle("two", "2026-01-01T01:00:00Z"),
+        close: "108",
+        high: "110",
+      },
+      candle("three", "2026-01-01T02:00:00Z"),
+    ];
+    const { container } = render(
+      <TradeReplay candles={candles} speed={100} trades={[]} />,
+    );
+    const chart = container.querySelector(".candlestick-chart");
+    const plot = container.querySelector(".execution-chart-plot");
+    const staticGrid = container.querySelector(".execution-chart-grid");
+    const firstCandle = container.querySelector('[data-candle-index="0"]');
+
+    act(() => frames.shift()?.(0));
+    act(() => frames.shift()?.(17));
+
+    expect(screen.getByText("Candle 2 of 3")).toBeInTheDocument();
+    expect(container.querySelectorAll(".candle")).toHaveLength(2);
+    expect(container.querySelector(".candlestick-chart")).toBe(chart);
+    expect(container.querySelector(".execution-chart-plot")).toBe(plot);
+    expect(container.querySelector(".execution-chart-grid")).toBe(staticGrid);
+    expect(container.querySelector('[data-candle-index="0"]')).toBe(firstCandle);
+    expect(frames).toHaveLength(1);
+    expect(frames[0]?.name).toBe("advance");
+  });
+
   it("enables vertical ledger scrolling only after the tenth visible order", () => {
     const candles = [candle("one", "2026-01-02T00:00:00Z")];
     const trades = Array.from({ length: 11 }, (_, index) => trade(

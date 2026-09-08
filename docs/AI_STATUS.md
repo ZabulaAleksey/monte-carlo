@@ -36,6 +36,14 @@
   viewport and moves one buffered plot group imperatively. The initial and
   zero-width states remain bounded, while crossing trade connections and SL/TP
   lines stay visible when their endpoint markers are outside the viewport.
+- Execution-map replay uses one data-reveal `requestAnimationFrame` clock. The
+  independent price-scale loop introduced by `2280b79` was removed after a
+  deterministic regression test showed 37 full geometry reconciliations for one new extreme;
+  the SVG, plot layer and existing candle nodes remain mounted. The separate
+  imperative horizontal-follow animation remains outside React state.
+- 2026-09-08 local evidence: targeted replay/chart tests `17 passed`; full
+  frontend suite `91 passed`; ESLint and Next.js production build/typecheck
+  passed. Browser visual interaction was unavailable in the current environment.
 - Virtual execution keeps a stable 360 px panel height while its trade ledger
   scrolls internally with a sticky table header, including empty and animated
   replay states.
@@ -148,9 +156,10 @@
 
 ## Known constraints
 
-- Remaining execution-map flicker is tracked as `TD-UI-001`; the current
-  viewport-SVG implementation reduces repaint scope but is not accepted as a
-  complete visual fix.
+- `TD-UI-001` is `implemented_unverified`: automated component evidence covers
+  one replay data clock, stable SVG/candle identity, atomic scale updates and the
+  20,000-candle viewport. Browser visual acceptance at 1x–100x remains
+  `NOT_RUN / ENVIRONMENT_UNAVAILABLE`, so the debt is not yet closed.
 - Backtest profit/loss mathematics still requires an independent MT5 golden-data
   audit and is tracked as `TD-BT-001`.
 - Canonical stages 3–5 require a reconciliation audit before their status can
@@ -171,9 +180,10 @@
 
 ## Next reasonable checks
 
+- Complete browser visual acceptance for `TD-UI-001` at 1x–100x and the
+  20,000-candle boundary, then close or retain the debt from observed evidence.
 - Complete the reconciliation gate for canonical stages 3–6.
 - Close `TD-BT-001` before relying on backtest output for financial decisions.
-- Close `TD-UI-001` before adding further replay-chart complexity.
 - Prepare the Stage 7 SPEC and CPU Monte Carlo benchmark contract.
 - Keep optional stages 14–28 deferred until the original stages 1–13 and a
   separate user decision allow them.

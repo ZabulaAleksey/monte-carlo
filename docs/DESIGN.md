@@ -31,10 +31,10 @@ count and actual dates; it never appears only below the fold.
   upcoming movement and exit labels have space. Viewport moves toward that
   position continuously between replay frames instead of jumping. The SVG uses
   the full run width from the first frame; replay only reveals candles, so
-  existing candle coordinates do not shift or flash. Price bounds interpolate
-  from frame timestamps inside a paint-contained chart frame. Expansion is
-  faster than contraction, keeping new extrema legible without making the chart
-  breathe. Price-axis nodes keep stable keys and move horizontally through one
+  existing candle coordinates do not shift or flash. Price bounds update once
+  in the same React commit that reveals a new extreme; there is no independent
+  scale-animation loop that repeatedly reconciles all existing candle geometry.
+  Price-axis nodes keep stable keys and move horizontally through one
   SVG transform, so labels are updated rather than remounted. The repeating
   background grid is a separate composited DOM layer below a transparent SVG;
   candle and scale updates therefore do not repaint or replace the grid surface.

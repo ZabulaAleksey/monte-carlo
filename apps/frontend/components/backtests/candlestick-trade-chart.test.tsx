@@ -331,7 +331,7 @@ describe("CandlestickTradeChart", () => {
     );
   });
 
-  it("interpolates price boundaries instead of repainting them in one jump", () => {
+  it("updates a new price extreme without starting a second animation loop", () => {
     const candles = [
       candleAtPrice("low", 0, 100),
       candleAtPrice("high", 1, 1000),
@@ -345,7 +345,6 @@ describe("CandlestickTradeChart", () => {
     const { container, rerender } = render(
       <CandlestickTradeChart
         candles={candles}
-        smoothScale
         trades={[]}
         visibleCandleCount={1}
       />,
@@ -353,36 +352,27 @@ describe("CandlestickTradeChart", () => {
     const chart = container.querySelector(".candlestick-chart") as SVGSVGElement;
     const staticGrid = container.querySelector(".execution-chart-grid");
     const firstPriceTick = container.querySelector(".price-axis text");
-    const initialMaximum = Number(chart.dataset.scaleMax);
+    const firstCandle = container.querySelector('[data-candle-index="0"]');
 
     expect(staticGrid).toHaveAttribute("aria-hidden", "true");
 
     rerender(
       <CandlestickTradeChart
         candles={candles}
-        smoothScale
         trades={[]}
         visibleCandleCount={2}
       />,
     );
 
-    expect(Number(chart.dataset.scaleMax)).toBe(initialMaximum);
-    act(() => frames.shift()?.(0));
-    expect(Number(chart.dataset.scaleMax)).toBeGreaterThan(initialMaximum);
-    expect(Number(chart.dataset.scaleMax)).toBeLessThan(1002);
+    expect(Number(chart.dataset.scaleMax)).toBeCloseTo(1002, 0);
+    expect(frames).toHaveLength(0);
+    expect(container.querySelector('[data-candle-index="0"]')).toBe(firstCandle);
     expect(
       container.querySelector(".price-axis text")?.isSameNode(firstPriceTick),
     ).toBe(true);
     expect(
       container.querySelector(".execution-chart-grid")?.isSameNode(staticGrid),
     ).toBe(true);
-
-    act(() => {
-      for (let index = 0; index < 100 && frames.length > 0; index += 1) {
-        frames.shift()?.((index + 1) * (1000 / 60));
-      }
-    });
-    expect(Number(chart.dataset.scaleMax)).toBeCloseTo(1002, 0);
 
     vi.unstubAllGlobals();
   });

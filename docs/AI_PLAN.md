@@ -35,22 +35,26 @@ CPU». Сам этап 7 не начинается без отдельного �
 
 ### TD-UI-001 — Устранить мигание карты исполнения
 
-Текущее сглаживание и viewport-SVG уменьшают область перерисовки, но визуальное
-мигание при анимированном появлении свечей не считается окончательно
-устранённым.
+Status: `implemented_unverified`.
+
+Regression boundary подтверждена между `35e8589` и `2280b79`. Второй
+`requestAnimationFrame`-loop ценовой шкалы удалён из production replay: новая
+свеча и новый экстремум теперь обрабатываются одним React commit при сохранении
+SVG и существующих candle nodes.
 
 Требуется:
 
-- профилировать browser paint/composite/reconciliation на реальном replay;
-- исключить очистку или перемонтирование полотна, сетки и уже показанных свечей;
-- проверить диапазоны до 20 000 свечей и скорости 1x–100x;
-- если retained SVG не обеспечивает стабильный кадр, перейти на
-  double-buffered Canvas/OffscreenCanvas либо другой retained-rendering подход;
-- добавить воспроизводимую visual/performance regression-проверку.
+- автоматический regression gate для single replay data-reveal clock, stable SVG/candle
+  identity и atomic scale update — `PASS`;
+- component test для viewport до 20 000 свечей — `PASS`;
+- browser visual acceptance на реальном replay при 1x–100x —
+  `NOT_RUN / ENVIRONMENT_UNAVAILABLE`;
+- переходить на Canvas/OffscreenCanvas только если visual evidence после этого
+  исправления всё ещё покажет white frame или полную перерисовку.
 
-Критерий закрытия: при добавлении свечей, движении viewport и изменении
-ценового масштаба нет белого кадра, сброса сетки или полной перерисовки
-компонента.
+NEXT: выполнить browser visual acceptance при добавлении свечей, движении
+viewport и изменении ценового масштаба на скоростях 1x–100x. Критерий закрытия:
+нет белого кадра, сброса сетки или полной перерисовки компонента.
 
 ### TD-BT-001 — Проверить математику прибыли и убытка
 

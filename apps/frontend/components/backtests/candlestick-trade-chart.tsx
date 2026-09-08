@@ -17,7 +17,6 @@ interface CandlestickTradeChartProps {
   followLatest?: boolean;
   priceDigits?: number;
   smoothFollow?: boolean;
-  smoothScale?: boolean;
   trades: VirtualTradeRecord[];
   visibleCandleCount?: number;
   visibleUntil?: string;
@@ -35,11 +34,6 @@ interface ViewportRange {
   width: number;
 }
 
-interface PriceScale {
-  maximum: number;
-  minimum: number;
-}
-
 const MINIMUM_WIDTH = 900;
 const HEIGHT = 320;
 const PADDING = 30;
@@ -51,7 +45,6 @@ export function CandlestickTradeChart({
   followLatest = false,
   priceDigits = 5,
   smoothFollow = false,
-  smoothScale = false,
   trades,
   visibleCandleCount,
   visibleUntil,
@@ -223,85 +216,8 @@ export function CandlestickTradeChart({
   });
   const lows = [...scaleSource.map((item) => Number(item.low)), ...riskLevels];
   const highs = [...scaleSource.map((item) => Number(item.high)), ...riskLevels];
-  const targetMinimum = lows.length > 0 ? Math.min(...lows) : 0;
-  const targetMaximum = highs.length > 0 ? Math.max(...highs) : 1;
-  const scaleTargetRef = useRef<PriceScale>({
-    maximum: targetMaximum,
-    minimum: targetMinimum,
-  });
-  const scaleAnimationFrameRef = useRef<number | null>(null);
-  const scaleAnimationTimestampRef = useRef<number | null>(null);
-  const [displayedScale, setDisplayedScale] = useState<PriceScale>(() => ({
-    maximum: targetMaximum,
-    minimum: targetMinimum,
-  }));
-  const displayedScaleRef = useRef(displayedScale);
-
-  useEffect(() => {
-    const target = { maximum: targetMaximum, minimum: targetMinimum };
-    scaleTargetRef.current = target;
-    if (!smoothScale) {
-      if (scaleAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(scaleAnimationFrameRef.current);
-        scaleAnimationFrameRef.current = null;
-      }
-      scaleAnimationTimestampRef.current = null;
-      displayedScaleRef.current = target;
-      setDisplayedScale(target);
-      return;
-    }
-    const distance = Math.max(
-      Math.abs(target.maximum - displayedScaleRef.current.maximum),
-      Math.abs(target.minimum - displayedScaleRef.current.minimum),
-    );
-    const tolerance = Math.max(Math.abs(target.maximum - target.minimum) * 0.0005, 1e-8);
-    if (distance <= tolerance || scaleAnimationFrameRef.current !== null) return;
-
-    const animate = (timestamp: number): void => {
-      const current = displayedScaleRef.current;
-      const latestTarget = scaleTargetRef.current;
-      const previousTimestamp = scaleAnimationTimestampRef.current;
-      const elapsed = previousTimestamp === null
-        ? 1000 / 60
-        : Math.min(Math.max(timestamp - previousTimestamp, 1), 64);
-      scaleAnimationTimestampRef.current = timestamp;
-      const expanding = latestTarget.maximum > current.maximum ||
-        latestTarget.minimum < current.minimum;
-      const duration = expanding ? 90 : 220;
-      const progress = 1 - Math.exp(-elapsed / duration);
-      const next = {
-        maximum: current.maximum + (latestTarget.maximum - current.maximum) * progress,
-        minimum: current.minimum + (latestTarget.minimum - current.minimum) * progress,
-      };
-      const remaining = Math.max(
-        Math.abs(latestTarget.maximum - next.maximum),
-        Math.abs(latestTarget.minimum - next.minimum),
-      );
-      const latestTolerance = Math.max(
-        Math.abs(latestTarget.maximum - latestTarget.minimum) * 0.0005,
-        1e-8,
-      );
-      const settled = remaining <= latestTolerance;
-      const value = settled ? latestTarget : next;
-      displayedScaleRef.current = value;
-      setDisplayedScale(value);
-      if (settled) scaleAnimationTimestampRef.current = null;
-      scaleAnimationFrameRef.current = settled
-        ? null
-        : window.requestAnimationFrame(animate);
-    };
-    scaleAnimationFrameRef.current = window.requestAnimationFrame(animate);
-  }, [smoothScale, targetMaximum, targetMinimum]);
-
-  useEffect(() => () => {
-    if (scaleAnimationFrameRef.current !== null) {
-      window.cancelAnimationFrame(scaleAnimationFrameRef.current);
-    }
-    scaleAnimationTimestampRef.current = null;
-  }, []);
-
-  const minimum = smoothScale ? displayedScale.minimum : targetMinimum;
-  const maximum = smoothScale ? displayedScale.maximum : targetMaximum;
+  const minimum = lows.length > 0 ? Math.min(...lows) : 0;
+  const maximum = highs.length > 0 ? Math.max(...highs) : 1;
   const range = maximum - minimum || 1;
   const plotHeight = HEIGHT - PADDING * 2;
   const candleWidth = Math.max(Math.min(step * 0.55, 9), 2);
