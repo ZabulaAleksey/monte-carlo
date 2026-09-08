@@ -32,6 +32,13 @@ lifecycle/status, blockers, execution evidence и NEXT. `docs/ROADMAP.md`
 
 Статус: принято 2026-08-24. Frontend использует `pnpm@11.23.0` и `pnpm-lock.yaml`; backend — uv и `uv.lock`. Общие package caches уменьшают дублирование, а `.venv`/`node_modules` остаются воспроизводимыми локальными projections. Для frontend используется project-local virtual store: Docker переносит `node_modules` между stages, поэтому global virtual links сделали бы образ непереносимым.
 
+Датированный security baseline той же миграции: `pnpm audit` сообщил 11
+tooling advisories (1 critical, 5 high, 5 moderate), включая Vitest 2 и
+транзитивные Vite/Sharp/PostCSS. Автоматический major/binary upgrade был
+отклонён как небезопасная часть dependency migration и оставлен отдельным
+security follow-up. Это исторический audit snapshot, а не утверждение о текущем
+составе advisories; актуальный security claim требует нового audit lock-графа.
+
 ## 2026-09-08 — Один data-reveal clock для replay и ценовой шкалы
 
 Status: accepted for the Stage 6 reliability debt `TD-UI-001`.

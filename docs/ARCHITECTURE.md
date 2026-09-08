@@ -73,6 +73,13 @@ commission is a percentage of fill notional, slippage is expressed in quote
 points capped at the sixth informative price digit, and swap is a signed
 percentage of entry notional for each crossed calendar day.
 
+Commission, swap and slippage are explicit inputs of each backtest run. The
+engine does not infer a historical broker cost profile from MT5 deal history:
+stored realized commission/swap observations are not treated as a complete
+instrument-, side- and rollover-aware schedule. Until `TD-BT-001` has external
+golden-data evidence, instruments requiring tick-value or account-currency
+conversion remain outside the proven P&L boundary.
+
 Before loading candles, the engine asks the provider for confirmed historical
 coverage of the complete requested interval. Strict API clients are rejected
 before the first strategy call when any interval is missing. Clients that set
@@ -228,3 +235,7 @@ workflow, которого нельзя надёжно выполнить сущ
 - pnpm content store и uv cache общие; frontend сохраняет project-local virtual store, потому что Docker stage копирует `node_modules` между слоями.
 - `node_modules`, `.venv`, `.next` и tool caches disposable; market fixtures, database/runtime state и секреты dependency cleanup не затрагивает.
 - Локальные gates совпадают с container contract: `pnpm test`, `pnpm lint`, `pnpm build`, `uv run python -m pytest`, `uv run ruff check .`, `uv run mypy app`; Docker-сборка требует отдельного доступного daemon.
+- Последнее зафиксированное environment evidence от 2026-08-24: frozen-restore
+  Dockerfiles были подготовлены, но локальный daemon был недоступен, поэтому
+  image build имеет статус `UNVERIFIED_BY_LOCAL_DOCKER`. Этот статус нельзя
+  повышать до PASS без нового фактического container build.

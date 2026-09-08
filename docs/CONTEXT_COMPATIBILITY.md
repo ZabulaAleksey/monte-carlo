@@ -34,3 +34,14 @@ SPEC/ADR → код и тесты → evidence/status/NEXT в том же select
 - Legacy `docs/AI_PLAN.md` и `docs/AI_STATUS.md` семантически объединены с
   selected record и удалены как competing execution-state owners; их история
   остаётся в Git.
+
+## Известное ограничение validator runtime traversal
+
+На Windows текущий global context validator при рекурсивном обходе может зайти
+в runtime junction `apps/frontend/.next/standalone/node_modules/react` и
+завершиться с `WinError 5`. Для проверок Slice A `.next` временно перемещался за
+пределы Git-root и гарантированно возвращался после запуска validator; tracked
+files при этом не менялись. Это tooling limitation, а не project-state blocker.
+В отдельном global tooling slice следует сделать traversal детерминированным:
+исключать `.next` и другие объявленные disposable runtime/build directories до
+разыменования junction/symlink, чтобы ручное перемещение больше не требовалось.
