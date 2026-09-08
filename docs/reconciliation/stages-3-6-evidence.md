@@ -75,3 +75,44 @@ Canonical source: раздел «Этап 4. Расширение FastAPI API» 
 | VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
 |---:|---:|---:|---:|---:|
 | 7 | 0 | 3 | 1 | 0 |
+
+## Stage 5 — развитие интерфейса терминала
+
+Canonical source: раздел «Этап 5. Развитие интерфейса терминала» в roadmap;
+rows MC5-R09–R13 атомизируют обязательные UI evidence surfaces из Slice B.
+
+| ID | Requirement | Subsystem | Implementation evidence | Test/runtime evidence | Class | Exact gap / dependency | Remediation slice | Before Stage 7 |
+|---|---|---|---|---|---|---|---|---|
+| MC5-R01 | Dashboard | `/` frontend | Dashboard screen composes portfolio, pulse, chart, trades and MT5 status from feature models | Dashboard/model/component tests PASS | IMPLEMENTED_UNVERIFIED | No current production-browser baseline acceptance for loading/error/empty/live data | `MC-REM-UI-01` | yes |
+| MC5-R02 | Market | `/market-data` | Market screen renders quotes/candles, sorting and source states | Market component/model and live-quote hook tests PASS | IMPLEMENTED_UNVERIFIED | No current real-browser/live-refresh acceptance | `MC-REM-UI-01` | yes |
+| MC5-R03 | Strategies | `/strategies` | Workbench provides form, run lifecycle, saved research and replay | Component suite PASS; production Chrome replay acceptance at 1x–100x/20 000 candles is current at `6f71d1a` | VERIFIED | — | — | yes |
+| MC5-R04 | Results | Strategies result workspace | Persisted runs, metrics, equity, execution map and ledger are reachable after run/select | Component and backend API integration tests PASS | IMPLEMENTED_UNVERIFIED | No broad production-browser result-view acceptance beyond replay invariant | `MC-REM-UI-01` | yes |
+| MC5-R05 | Jobs | Strategies job controls | queued/loading/simulating/paused/stopped/completed/failed states and controls exist | Job API plus Strategies fake-timer/component tests PASS | IMPLEMENTED_UNVERIFIED | No real backend/browser pause/resume/stop acceptance | `MC-REM-UI-01` | yes |
+| MC5-R06 | Чётко различать demo/cached/online | Data environment/UI | Source filtering, environment model, badges and connection states prevent demo/MT5 mixing | data-environment, Dashboard, Market, Trades and navigation tests PASS | VERIFIED | — | — | yes |
+| MC5-R07 | Event/WebSocket only where justified | Transport architecture | Current latest-snapshot contract uses route-scoped bounded polling; no server-push requirement is present | Poll cleanup/visibility tests and ADR explain the choice | NOT_APPLICABLE | WebSocket is deliberately inapplicable until a concrete streaming requirement exists | — | no |
+| MC5-R08 | Business logic outside React components | Frontend architecture | Route files compose feature screens; data environment, formatting, sorting and ViewModels are pure modules; shared hooks own polling | Pure model/hook tests plus page tests PASS | VERIFIED | — | — | yes |
+| MC5-R09 | Loading/error/empty states | Shared/UI states | Shared components and per-screen empty/loading/error branches exist | jsdom component assertions PASS | IMPLEMENTED_UNVERIFIED | Visual/accessibility behavior is not accepted in a production browser across core routes | `MC-REM-UI-01` | yes |
+| MC5-R10 | Terminal layout and responsive behavior | CSS/layout | Persistent navigation, panels, grids and breakpoints at 1050/720 px exist | Static CSS and component structure inspected | IMPLEMENTED_UNVERIFIED | No viewport matrix/browser screenshots or keyboard/touch acceptance for baseline routes | `MC-REM-UI-01` | yes |
+| MC5-R11 | Account/trade presentation | Dashboard/Trades | Account-bound portfolio, open positions and closed net-P&L presentation exist | Dashboard/Trades model and page tests plus API tests PASS | IMPLEMENTED_UNVERIFIED | No current live-browser account/trade presentation acceptance | `MC-REM-UI-01` | yes |
+| MC5-R12 | Localization required by current UI | i18n | EN/RU/UA/BE catalogs, locale-first bootstrap, document language and localized date controls exist | i18n/navigation/calendar/title tests PASS | IMPLEMENTED_UNVERIFIED | No production-browser sweep for all locales and responsive overflow | `MC-REM-UI-01` | yes |
+| MC5-R13 | Realtime refresh lifecycle | Polling/hooks | Quotes 500 ms route-local; account/trade and heavier snapshots use bounded cadences with overlap/visibility/unmount guards | hook/page fake-timer tests PASS | IMPLEMENTED_UNVERIFIED | No live backend/browser cadence, reconnect and navigation-cleanup trace | `MC-REM-UI-01` | yes |
+
+`TD-UI-001` is not reclassified here. Its independent regression invariant and
+production-browser evidence remain `VERIFIED/CLOSED`; it does not substitute
+for the broader Stage 5 browser baseline gaps above.
+
+### Stage 5 evidence run
+
+- `node_modules/.bin/vitest.cmd run` — `23 test files, 91 tests passed`.
+- The direct runner required execution outside the filesystem sandbox because
+  esbuild config discovery received `Access denied` while reading an ancestor
+  path. `pnpm test` itself could not open the shared pnpm store database. No
+  lockfile, dependency or product code was changed.
+- Existing production Chrome evidence at commit `6f71d1a` applies only to the
+  real Strategies replay path and the closed candle-flicker invariant.
+
+### Stage 5 totals
+
+| VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
+|---:|---:|---:|---:|---:|
+| 3 | 9 | 0 | 0 | 1 |
