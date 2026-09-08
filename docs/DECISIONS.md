@@ -36,7 +36,10 @@ commits в диагностическом сценарии и на каждом 
   смонтированные SVG/candle nodes сохраняют identity.
 - `smoothFollow`, viewport virtualization, SL/TP, markers и replay speed остаются
   без изменений.
-- Browser visual acceptance на 1x–100x и 20 000 свечей остаётся отдельным gate.
+- Production browser acceptance прошёл на всех поддерживаемых скоростях
+  `1x, 2x, 4x, 5x, 10x, 20x, 50x, 100x` и границе 20 000 свечей: пустых кадров
+  и remount не зарегистрировано, horizontal follow и viewport virtualization
+  сохранены. `TD-UI-001` закрыт.
 
 ## 2026-08-13 — Изолировать tracing root frontend-приложения
 

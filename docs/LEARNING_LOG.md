@@ -1,5 +1,38 @@
 # Learning log
 
+## 2026-09-08 — Flicker без remount из-за второго scale clock
+
+### Проблема и симптом
+
+При replay и появлении новой ценовой экстремальной свечи карта исполнения
+визуально мерцала, хотя SVG и candle nodes не перемонтировались.
+
+### Root cause
+
+Commit `2280b793d74367e6e5ef2572558ea50a4952b62f` отделил интерполяцию ценовой
+шкалы от data reveal: новый `requestAnimationFrame`-loop многократно вызывал
+`setDisplayedScale(...)`. Один экстремум создавал 37 React commits и столько же
+полных обновлений геометрии уже показанных свечей между соседними replay frames.
+Parent `35e85897bf01796f07a19732848c589e3ef7a280` не имел второго scale clock.
+
+### Исправление и предотвращение
+
+Ценовой диапазон снова вычисляется атомарно из текущего видимого набора в том же
+React commit, который раскрывает свечу. Regression tests закрепляют один data
+clock, stable SVG/candle identity и отсутствие повторной geometry reconciliation.
+
+### Проверка
+
+- Production Chrome: `1x, 2x, 4x, 5x, 10x, 20x, 50x, 100x` — ноль пустых
+  кадров, stable chart/plot/grid/first-candle identity, один scale/geometry
+  mutation batch при намеренном новом экстремуме.
+- Реальный `/strategies` backtest/replay: переход `19 → 21` и `21 → 23` свечи
+  сохранил identity, не дал пустого кадра или повторной geometry reconciliation.
+- Граница 20 000 свечей: `20000/20000`, 132 видимых и максимум 198
+  смонтированных candle nodes, horizontal follow дошёл до последней свечи.
+- Targeted component tests, полный frontend suite, ESLint и production build —
+  обязательные gates этого regression fix.
+
 ## 2026-08-13 — Независимый от пути standalone-деплой Next.js
 
 - `outputFileTracingRoot` закреплён за `apps/frontend`, поэтому `next build`

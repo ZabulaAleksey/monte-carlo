@@ -35,7 +35,7 @@ CPU». Сам этап 7 не начинается без отдельного �
 
 ### TD-UI-001 — Устранить мигание карты исполнения
 
-Status: `implemented_unverified`.
+Status: `verified_closed`.
 
 Regression boundary подтверждена между `35e8589` и `2280b79`. Второй
 `requestAnimationFrame`-loop ценовой шкалы удалён из production replay: новая
@@ -47,14 +47,20 @@ SVG и существующих candle nodes.
 - автоматический regression gate для single replay data-reveal clock, stable SVG/candle
   identity и atomic scale update — `PASS`;
 - component test для viewport до 20 000 свечей — `PASS`;
-- browser visual acceptance на реальном replay при 1x–100x —
-  `NOT_RUN / ENVIRONMENT_UNAVAILABLE`;
+- browser visual acceptance на реальном replay при 1x–100x и на границе
+  20 000 свечей — `PASS`;
 - переходить на Canvas/OffscreenCanvas только если visual evidence после этого
   исправления всё ещё покажет white frame или полную перерисовку.
 
-NEXT: выполнить browser visual acceptance при добавлении свечей, движении
-viewport и изменении ценового масштаба на скоростях 1x–100x. Критерий закрытия:
-нет белого кадра, сброса сетки или полной перерисовки компонента.
+Проверка в production browser runtime подтвердила отсутствие пустых кадров и
+remount SVG/plot/grid/candle nodes на всех поддерживаемых скоростях
+`1x, 2x, 4x, 5x, 10x, 20x, 50x, 100x`. Намеренный новый ценовой экстремум
+создаёт один atomic scale/geometry update, а горизонтальное сопровождение и
+виртуализированный viewport продолжают работать. На границе 20 000 свечей
+видимая карта сохранилась при ограниченном количестве DOM-узлов.
+
+NEXT: выполнить reconciliation gate канонического состояния этапов 3–6 и
+устранить outstanding stage-state debt. Этап 7 в этот slice не входит.
 
 ### TD-BT-001 — Проверить математику прибыли и убытка
 

@@ -41,9 +41,13 @@
   deterministic regression test showed 37 full geometry reconciliations for one new extreme;
   the SVG, plot layer and existing candle nodes remain mounted. The separate
   imperative horizontal-follow animation remains outside React state.
-- 2026-09-08 local evidence: targeted replay/chart tests `17 passed`; full
+- 2026-09-08 local evidence: targeted replay/chart tests `18 passed`; full
   frontend suite `91 passed`; ESLint and Next.js production build/typecheck
-  passed. Browser visual interaction was unavailable in the current environment.
+  passed. Production Chrome acceptance passed for every supported speed
+  `1x, 2x, 4x, 5x, 10x, 20x, 50x, 100x` and the 20,000-candle boundary:
+  no empty frame, stable chart/plot/grid/existing-candle identity, one atomic
+  scale/geometry mutation batch for a new price extreme, working horizontal
+  follow and a bounded virtualized candle-node set. `TD-UI-001` is closed.
 - Virtual execution keeps a stable 360 px panel height while its trade ledger
   scrolls internally with a sticky table header, including empty and animated
   replay states.
@@ -156,10 +160,6 @@
 
 ## Known constraints
 
-- `TD-UI-001` is `implemented_unverified`: automated component evidence covers
-  one replay data clock, stable SVG/candle identity, atomic scale updates and the
-  20,000-candle viewport. Browser visual acceptance at 1x–100x remains
-  `NOT_RUN / ENVIRONMENT_UNAVAILABLE`, so the debt is not yet closed.
 - Backtest profit/loss mathematics still requires an independent MT5 golden-data
   audit and is tracked as `TD-BT-001`.
 - Canonical stages 3–5 require a reconciliation audit before their status can
@@ -180,8 +180,6 @@
 
 ## Next reasonable checks
 
-- Complete browser visual acceptance for `TD-UI-001` at 1x–100x and the
-  20,000-candle boundary, then close or retain the debt from observed evidence.
 - Complete the reconciliation gate for canonical stages 3–6.
 - Close `TD-BT-001` before relying on backtest output for financial decisions.
 - Prepare the Stage 7 SPEC and CPU Monte Carlo benchmark contract.
