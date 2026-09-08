@@ -1,5 +1,33 @@
 # Technical decisions
 
+## 2026-09-08 — `prompts/STAGES.md` владеет execution state
+
+Status: accepted.
+
+### Context
+
+Legacy `docs/AI_PLAN.md` и `docs/AI_STATUS.md` одновременно заявляли current
+status/NEXT, а `prompts/STAGES.md` не имел machine-readable selector и содержал
+повреждённый encoding. Router не мог безопасно выбрать текущую работу и
+возвращал `execution_allowed=false`.
+
+### Decision
+
+`prompts/STAGES.md` является единственным владельцем current Stage ID,
+lifecycle/status, blockers, execution evidence и NEXT. `docs/ROADMAP.md`
+остаётся производным кратким описанием долгосрочного порядка, AGENTS/README
+только маршрутизируют к владельцу, а legacy AI plan/status удаляются после
+семантического переноса актуальных фактов и долгов.
+
+### Consequences
+
+- Current stage определяется ровно одной строкой `- Stage ID: <stable-id>` и
+  ровно одним heading, содержащим этот ID как отдельный token.
+- Исторические launchers могут храниться в `STAGES.md` только как reference без
+  собственных selector/status/NEXT.
+- Stage 7 остаётся неактивным до завершения reconciliation этапов 3–6 и нового
+  прямого разрешения диспетчера.
+
 ## ADR-000 — pnpm для frontend и uv для backend
 
 Статус: принято 2026-08-24. Frontend использует `pnpm@11.23.0` и `pnpm-lock.yaml`; backend — uv и `uv.lock`. Общие package caches уменьшают дублирование, а `.venv`/`node_modules` остаются воспроизводимыми локальными projections. Для frontend используется project-local virtual store: Docker переносит `node_modules` между stages, поэтому global virtual links сделали бы образ непереносимым.

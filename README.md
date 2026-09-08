@@ -37,10 +37,10 @@ docker-compose.yml
 ## Дорожная карта и статус
 
 Канонический план содержит 13 исходных этапов и опциональное расширение
-14–28: [полный roadmap](docs/MONTE_CARLO_ROADMAP_13_TO_28.md). Краткий статус и
-правила перехода находятся в [docs/ROADMAP.md](docs/ROADMAP.md), текущая работа
-— в [docs/AI_PLAN.md](docs/AI_PLAN.md), подтверждённое состояние — в
-[docs/AI_STATUS.md](docs/AI_STATUS.md).
+14–28: [полный roadmap](docs/MONTE_CARLO_ROADMAP_13_TO_28.md). Краткий
+долгосрочный порядок находится в [docs/ROADMAP.md](docs/ROADMAP.md), а
+единственные current selector/status/NEXT — в
+[prompts/STAGES.md](prompts/STAGES.md).
 
 Реализованный CPU-бэктест соответствует преимущественно каноническому этапу 6.
 Следующий продуктовый этап — этап 7, эталонный Monte Carlo на CPU, но перед ним

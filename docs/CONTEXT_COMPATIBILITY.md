@@ -7,16 +7,17 @@
 | Workspace/глобальные `AGENTS.md`, skills, hooks, Git workflow | наследуется | Не дублировать локально, кроме проектных уточнений |
 | Корневой `AGENTS.md` проекта | активен | Маршрутизирует к минимальному набору источников истины |
 | `MONTE_CARLO_ROADMAP_13_TO_28.md` | канонический план | 1–13 базовые; 14–28 опциональные |
-| `ROADMAP.md`, `AI_PLAN.md`, `AI_STATUS.md` | производный живой контекст | Не заменяют подробный roadmap и фактический код |
-| `prompts/*.md` | launcher | Ссылаются на раздел roadmap, не копируют требования |
+| `prompts/STAGES.md` | canonical execution state | Единственный current selector/status/blockers/evidence/NEXT |
+| `ROADMAP.md` | производный human summary | Хранит долгосрочный порядок, не отдельную state machine |
+| Исторические секции внутри `STAGES.md` | reference launchers | Сохраняют уникальные ограничения, но не имеют selector/status/NEXT |
 | Промпты из `docs/integrate-future-context` | superseded | Не удаляются из истории; актуальные launchers находятся в текущей ветке |
 | Отдельные project hooks/MCP | не требуются | Существующая автоматизация достаточна |
 | MT5, Broker API, MetaApi | продуктовые адаптеры | Не классифицировать как MCP Codex |
 
 ## Поток контекста
 
-`AGENTS.md` → нужный раздел roadmap → launcher этапа → SPEC/ADR → код и тесты →
-`AI_STATUS.md`/`AI_PLAN.md`.
+`AGENTS.md` → current record в `prompts/STAGES.md` → нужный раздел roadmap →
+SPEC/ADR → код и тесты → evidence/status/NEXT в том же selected record.
 
 Автоматизация контекста обязана различать план и подтверждённое состояние.
 Сканирование всего roadmap не требуется для локальной задачи. При расхождении
@@ -30,3 +31,6 @@
 - Опциональные этапы 14–28 исключены из автоматического выбора следующей задачи.
 - Похожие по назначению промпты сохранены как короткие launchers вместо второго
   независимого набора требований.
+- Legacy `docs/AI_PLAN.md` и `docs/AI_STATUS.md` семантически объединены с
+  selected record и удалены как competing execution-state owners; их история
+  остаётся в Git.
