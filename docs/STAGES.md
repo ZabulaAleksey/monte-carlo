@@ -55,14 +55,12 @@ API/application boundaries, frontend behavior и accepted tests. Не повыш
 
 ### Действия пользователя для STAGES location migration
 
-- `USER-MC-STAGES-INTEGRATION` — `PENDING`, condition: global DEV
-  `docs/STAGES.md` merged and runtime parity passes; this project's
-  `feature/docs-stages-canonical` structural read-back and link check PASS.
-  Approve a conflict-free merge of that branch into `main`; agent then
-  merges, repeats checks and verifies GitHub default-branch paths.
-  Expected evidence: `docs/STAGES.md` present, `prompts/STAGES.md` absent,
-  historical launcher guide retained under `docs/notes`, selector
-  `MC-RECON-3-6` and product NEXT `MC-REM-DB-01` unchanged.
+- `USER-MC-STAGES-INTEGRATION` — `DONE`: user authorized merge of the exact
+  `feature/docs-stages-canonical` branch after global DEV runtime parity;
+  `main` fast-forwarded to `ae92b5d` and pushed. Post-merge backend 63 tests
+  and frontend 91 tests PASS; GitHub `main` tree read-back contains
+  `docs/STAGES.md` only. Historical launcher guide remains in `docs/notes`,
+  selector `MC-RECON-3-6` and product NEXT `MC-REM-DB-01` are unchanged.
 
 ## Исторические stage launchers
 
