@@ -1,5 +1,16 @@
 # Совместимость проектного контекста
 
+## STAGES location migration — 2026-09-15
+
+По прямому решению пользователя `docs/STAGES.md` стал единственным владельцем
+selector/status/blockers/evidence/NEXT. Старый stage catalog с сохранением
+уникального содержимого
+перенесён из `prompts/STAGES.md` в отдельной feature-ветке; retained
+`prompts/README.md` сохранён в `docs/notes/stage-launchers.md` как guide без
+собственного execution state. Legacy AI pair уже отсутствовал на baseline.
+Репозиторий не получает structured DEV bridge механически; project AGENTS
+маршрутизирует к локальному канону.
+
 ## Матрица
 
 | Источник | Статус | Правило |
@@ -7,7 +18,7 @@
 | Workspace/глобальные `AGENTS.md`, skills, hooks, Git workflow | наследуется | Не дублировать локально, кроме проектных уточнений |
 | Корневой `AGENTS.md` проекта | активен | Маршрутизирует к минимальному набору источников истины |
 | `MONTE_CARLO_ROADMAP_13_TO_28.md` | канонический план | 1–13 базовые; 14–28 опциональные |
-| `prompts/STAGES.md` | canonical execution state | Единственный current selector/status/blockers/evidence/NEXT |
+| `docs/STAGES.md` | canonical execution state | Единственный current selector/status/blockers/evidence/NEXT |
 | `ROADMAP.md` | производный human summary | Хранит долгосрочный порядок, не отдельную state machine |
 | Исторические секции внутри `STAGES.md` | reference launchers | Сохраняют уникальные ограничения, но не имеют selector/status/NEXT |
 | Промпты из `docs/integrate-future-context` | superseded | Не удаляются из истории; актуальные launchers находятся в текущей ветке |
@@ -16,7 +27,7 @@
 
 ## Поток контекста
 
-`AGENTS.md` → current record в `prompts/STAGES.md` → нужный раздел roadmap →
+`AGENTS.md` → current record в `docs/STAGES.md` → нужный раздел roadmap →
 SPEC/ADR → код и тесты → evidence/status/NEXT в том же selected record.
 
 Автоматизация контекста обязана различать план и подтверждённое состояние.

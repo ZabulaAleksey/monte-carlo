@@ -1,5 +1,15 @@
 # Technical decisions
 
+## 2026-09-15 — STAGES owner находится в docs
+
+По прямому решению пользователя `docs/STAGES.md` является единственным
+execution-state owner. Текущий selector `MC-RECON-3-6`, selected record,
+historical launchers и evidence перенесены из прежнего
+`prompts/STAGES.md` без изменения статуса; прежняя страница
+`prompts/README.md` сохранена в `docs/notes/stage-launchers.md`.
+Отдельные AI plan/status не возвращаются. Решение 2026-09-08 ниже остаётся
+историческим описанием первого объединения, а не текущим route.
+
 ## 2026-09-08 — `prompts/STAGES.md` владеет execution state
 
 Status: accepted.
