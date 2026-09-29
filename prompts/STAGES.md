@@ -11,7 +11,7 @@ SPEC и `docs/MONTE_CARLO_ROADMAP_13_TO_28.md`; исторические launche
 
 - Status: in_progress
 - NEXT: MC-REM-DB-01
-- Blockers: none
+- Blockers: MC-DB01-DECISION-01 — неопределённые tick consumer, market-event taxonomy, retention budget и Timescale rollout; миграция и запись данных ожидают утверждённый контракт
 - Evidence: 70 atomic requirements classified in `docs/reconciliation/stages-3-6-evidence.md`; totals are 35 VERIFIED, 15 IMPLEMENTED_UNVERIFIED, 8 PARTIAL, 11 MISSING and 1 NOT_APPLICABLE
 - Stage 7: NOT ACTIVE; запрещён до завершения reconciliation и отдельного прямого разрешения диспетчера
 - TD-UI-001: VERIFIED/CLOSED в `0450e94` и `6f71d1a`; повторно не открывать без нового regression evidence
@@ -35,6 +35,22 @@ API/application boundaries, frontend behavior и accepted tests. Не повыш
 - определить provenance, retention и Timescale-compatible partition semantics;
 - реализовать только после отдельного решения диспетчера;
 - не начинать Stage 7 и не использовать его как зависимость remediation.
+
+Черновик контракта: `specs/features/market-data-storage.spec.md` (DRAFT /
+NEEDS_DECISION). Принятый ADR о latest-state quotes остаётся в силе;
+evidence rows `MC3-R01/R03/R07/R10/R11` не повышены. `MC-REM-DB-01` остаётся NEXT.
+
+### User action `MC-DB01-DECISION-01`
+
+- Status/condition: NEEDS_DECISION до утверждения SPEC, миграций и retention.
+- Действие: утвердить или скорректировать `MC-DB01-D1…D4` в черновике SPEC:
+  конкретный replay/audit consumer и предел сбора ticks; типы и версии market
+  events; сроки/бюджет/архив для ticks/events; PostgreSQL-only сейчас или
+  отдельный TimescaleDB rollout. Не передавать реальные рыночные данные или
+  секреты в решение.
+- Evidence: зафиксированное решение в `docs/DECISIONS.md` и утверждённый SPEC.
+- Разблокирует: модели, обратимую миграцию, lifecycle и deterministic tests
+  в `MC-REM-DB-01`; не разблокирует Stage 7.
 
 ### Out of scope
 
