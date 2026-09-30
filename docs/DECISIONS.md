@@ -330,3 +330,13 @@ Status: accepted for Stage 3.
 - Любой успешный защищённый MT5 upload поддерживает online-статус.
 - Пустой batch сделок является корректным состоянием «закрытых сделок нет».
 - Dashboard обновляет account/trades каждые две секунды только пока открыт.
+
+## 2026-09-30 — AUTONOMOUS_DECISION: предрешенческий market-record envelope
+
+- Context: MC-REM-DB-01 draft awaits D1–D4; existing latest-quote ADR prohibits implicit raw-tick collection.
+- Options: wait without code; create tick/event schema with invented retention/taxonomy; add an inactive pure validation envelope.
+- Selected: immutable MarketRecordEnvelope with source identity, time-partition identity, UTC effective/observed clocks, SHA-256 digest and dataset version; no API, ingestion, migration, retention job or enabled feature flag.
+- Why: it tests late-arrival visibility and in-version source conflicts while leaving event taxonomy, collection limits, retention and Timescale rollout open.
+- Reversibility: code/tests/spec addition has no data or runtime side effects; rollback is a single source commit revert.
+- Evidence: 9 focused tests PASS, 72 backend PASS/1 guarded PostgreSQL skip, Ruff check and strict mypy 55 source files PASS; new files Ruff-format PASS. Repository-wide Ruff-format baseline remains 28 pre-existing files unformatted.
+- Affected stages: MC-REM-DB-01 preparation only. MC3-R01/R03/R07/R10/R11 statuses, D1–D4 and Stage 7 are unchanged.

@@ -61,6 +61,18 @@ Status: DRAFT / NEEDS_DECISION. Этот документ ограничивае
 | MC-DB01-D3 | Каков бюджет хранения и сроки для ticks/events? | Утвердить сроки по типу, требования к архиву и восстановлению, reference protection для backtests и владельца удаления. |
 | MC-DB01-D4 | Когда требуется TimescaleDB? | Утвердить PostgreSQL-only схему сейчас или отдельный hypertable rollout с версией расширения и проверкой unique/FK/index semantics. |
 
+## Предрешенческий чистый контракт (NIGHT RUN V2)
+
+До решения D1–D4 разрешён только side-effect-free envelope для будущих tick/event
+records: typed kind, symbol, source identity, UTC effective/observed clocks,
+SHA-256 payload digest и immutable dataset version. Он не задаёт payload,
+таксономию events, срок хранения, сеть, запись или API. Source identity и
+partition identity выдаются раздельно: будущая БД обязана отклонять конфликт
+одного source record с разным payload, а потенциальный time partition key
+включает effective time. `visible_as_of(t)` истинно только когда обе временные
+границы не позже UTC `t`. Невалидные/naive clocks, пустые identity/version и
+неверный digest отвергаются до любого consumer. Этот контракт не повышает
+статус draft и не включает сбор raw ticks.
 ## Терминальные проверки после утверждения
 
 - Migration upgrade/downgrade на чистой и существующей PostgreSQL БД без
