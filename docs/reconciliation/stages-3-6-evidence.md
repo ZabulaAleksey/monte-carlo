@@ -19,14 +19,14 @@ Canonical source: раздел «Этап 3. Схема рыночных дан�
 | ID | Requirement | Subsystem | Implementation evidence | Test/runtime evidence | Class | Exact gap / dependency | Remediation slice | Before Stage 7 |
 |---|---|---|---|---|---|---|---|---|
 | MC3-R01 | Хранить ticks | PostgreSQL market data | `MarketQuoteModel` хранит только последний snapshot на символ; raw-tick entity/table отсутствует | `test_mt5_bridge.py` проверяет quote ingestion, но не tick history | MISSING | Нет tick schema, lifecycle и retention; сначала требуется bounded tick-history contract | `MC-REM-DB-01` | yes |
-| MC3-R02 | Хранить candles | PostgreSQL market data | `CandleModel`, migration `0001`, unique `(symbol_id,timeframe,open_time)`, cascade FK | `test_trading_data.py`, `test_mt5_bridge.py` PASS на SQLite API path | IMPLEMENTED_UNVERIFIED | Нет current PostgreSQL `alembic upgrade head`/schema inspection evidence | `MC-REM-DB-02` | yes |
+| MC3-R02 | Хранить candles | PostgreSQL market data | `CandleModel`, migration `0001`, unique `(symbol_id,timeframe,open_time)`, cascade FK | SQLite API tests plus clean PostgreSQL 17 upgrade and `test_postgres_schema.py`: table, unique constraint, cascade FK and round-trip PASS | VERIFIED | — | — | yes |
 | MC3-R03 | Хранить market events | PostgreSQL market data | Generic market-event entity/table отсутствует | Tests отсутствуют | MISSING | Не определены event taxonomy, payload/version и retention | `MC-REM-DB-01` | yes |
-| MC3-R04 | Явная точность цены | Schema/API | `Numeric(24,8)` для OHLC/quotes и `symbols.digits` | Decimal-string API assertions существуют; PostgreSQL precision не проверена runtime | IMPLEMENTED_UNVERIFIED | Нужен PostgreSQL schema/round-trip boundary test для заявленной точности | `MC-REM-DB-02` | yes |
-| MC3-R05 | Явный timezone | Schema/API | `DateTime(timezone=True)`; API требует offset и нормализует UTC | timezone/future validation покрыта MT5/API tests; DB runtime не проверен | IMPLEMENTED_UNVERIFIED | Нет PostgreSQL timezone round-trip/migration evidence | `MC-REM-DB-02` | yes |
+| MC3-R04 | Явная точность цены | Schema/API | `Numeric(24,8)` для OHLC/quotes и `symbols.digits` | Decimal-string API assertions plus PostgreSQL 17 `NUMERIC(24,8)` introspection and exact `123456789.12345678` round-trip PASS | VERIFIED | — | — | yes |
+| MC3-R05 | Явный timezone | Schema/API | `DateTime(timezone=True)`; API требует offset и нормализует UTC | MT5/API tests plus PostgreSQL 17 `timestamptz` introspection and `+03:00`→UTC round-trip PASS | VERIFIED | — | — | yes |
 | MC3-R06 | Явный source | Domain/schema | Candle/coverage/quote `source`; `CandleSource` различает `demo`, `mt5`, `api` | API/MT5 tests подтверждают source filtering и promotion | VERIFIED | — | — | yes |
 | MC3-R07 | Хранить provenance | Data lineage | Есть source, requested/actual ranges, coverage source и data-complete warnings | Internal tests проверяют ranges/coverage | PARTIAL | Нет dataset/version/hash/transformation lineage для ticks/events/candles | `MC-REM-DB-01` | yes |
-| MC3-R08 | Индексы под доступ | Schema | Candle, quote, coverage, request, trade и backtest indexes объявлены в models/migrations | `alembic heads` → `0009`; PostgreSQL index materialization/query plan не проверены | IMPLEMENTED_UNVERIFIED | Нет real PostgreSQL apply/introspection; отсутствующие tick/event tables не индексированы | `MC-REM-DB-02` | yes |
-| MC3-R09 | Последовательные миграции | Alembic | Linear chain `0001`…`0009`, upgrade/downgrade code присутствует | `alembic heads` → single `0009`; apply/rollback не выполнялся на PostgreSQL | IMPLEMENTED_UNVERIFIED | Нужен clean PostgreSQL upgrade и schema assertions | `MC-REM-DB-02` | yes |
+| MC3-R08 | Индексы под доступ | Schema | Candle, quote, coverage, request, trade и backtest indexes объявлены в models/migrations | PostgreSQL 17 applied 0001–0009; candle and quote indexes materialized in `pg_indexes` | PARTIAL | Query plans and other access paths unverified; tick/event tables are absent | `MC-REM-DB-02` | yes |
+| MC3-R09 | Последовательные миграции | Alembic | Linear chain `0001`…`0009`, upgrade/downgrade code присутствует | Clean PostgreSQL 17 upgrade→0009, `alembic check` no drift, 0009→0008→0009 rehearsal PASS | VERIFIED | — | — | yes |
 | MC3-R10 | Политика хранения | Data lifecycle | Для raw history retention owner/job/config отсутствует | Tests отсутствуют | MISSING | Нужны retention requirements для ticks/events и explicit no-loss boundary для candles/runs | `MC-REM-DB-01` | yes |
 | MC3-R11 | TimescaleDB-compatible структура | PostgreSQL/TimescaleDB | Relational timestamp/range layout не использует запрещающие Timescale types | Нет hypertable/Timescale migration или compatibility run; ticks/events отсутствуют | PARTIAL | Совместимость не доказана и целевая hypertable/partition key policy не определена | `MC-REM-DB-01` | yes |
 | MC3-R12 | Защита от look-ahead/future leakage | Domain/query boundary | Provider сортирует диапазон; `CandleHistory` даёт read-only prefix; future MT5 timestamps отклоняются | `test_strategy_never_receives_future_candles` и MT5 invalid/future tests PASS | VERIFIED | — | — | yes |
@@ -35,6 +35,7 @@ Canonical source: раздел «Этап 3. Схема рыночных дан�
 
 - `uv run --offline python -m pytest tests/test_trading_data.py tests/test_mt5_bridge.py tests/test_historical_data_requests.py tests/test_backtest_engine.py::test_strategy_never_receives_future_candles -q` — `16 passed`.
 - `uv run --offline alembic heads` — single head `0009`.
+- NIGHT RUN V2: disposable PostgreSQL 17.6 clean 0001→0009 upgrade, `alembic check` no drift, 0009→0008→0009 rollback rehearsal PASS. `test_postgres_schema.py` verifies actual numeric/timestamptz columns, candle unique/cascade constraints, candle/quote indexes and exact decimal/UTC round-trip with rolled-back rows. Full backend 64 PASS including real DB; Ruff and strict mypy PASS. No tick/event schema or Timescale claim.
 - Environment used a project-scoped external uv cache because the shared AppData
   cache returned `Access denied`; no product files were changed by the workaround.
 
@@ -42,7 +43,7 @@ Canonical source: раздел «Этап 3. Схема рыночных дан�
 
 | VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
 |---:|---:|---:|---:|---:|
-| 2 | 5 | 2 | 3 | 0 |
+| 6 | 0 | 3 | 3 | 0 |
 
 ## Stage 4 — расширение FastAPI API
 
@@ -153,7 +154,7 @@ financial correctness отдельно оценивается MC6-R30–R34.
 | MC6-R24 | Absolute drawdown | Metrics | Per-point absolute balance/equity gap and maximum absolute gap are exposed | focused unrealized/max-drawdown assertions PASS | VERIFIED | MT5 report-definition parity is not established | `MC-REM-BT-04` | yes |
 | MC6-R25 | Lot volume | API/application | Requested lot is checked against symbol min/step/max and platform cap | min/step/cap API and engine tests PASS | VERIFIED | — | — | yes |
 | MC6-R26 | Contract size | Symbol/application/execution | Positive symbol contract size is persisted and injected into P&L/cost models | focused 0.1-lot × 100000 contract-size test PASS | VERIFIED | Instruments needing tick-value conversion remain unproven | `MC-REM-BT-03` | yes |
-| MC6-R27 | Persistence | PostgreSQL repository | Runs, trades, complete equity curve, settings, parameters, ranges and metrics have models/migrations | API persistence/retrieval/delete tests PASS on SQLite | VERIFIED | PostgreSQL apply evidence remains MC3-R09/`MC-REM-DB-02` | `MC-REM-DB-02` | yes |
+| MC6-R27 | Persistence | PostgreSQL repository | Runs, trades, complete equity curve, settings, parameters, ranges and metrics have models/migrations | SQLite API persistence/retrieval/delete PASS; PostgreSQL schema applies cleanly, but actual run/trade repository round-trip on PostgreSQL not exercised | IMPLEMENTED_UNVERIFIED | Real PostgreSQL application repository path remains unverified | `MC-REM-DB-02` | yes |
 | MC6-R28 | API and replay | Backend/frontend | Typed create/list/get/delete/jobs API and persisted-result replay are reachable | API tests PASS; Strategies replay has production Chrome evidence at `6f71d1a` | VERIFIED | — | — | yes |
 | MC6-R29 | Deterministic fixtures | Test/provenance | Synthetic candle/strategy fixtures cover internal formulas | Internal fixtures are deterministic and tests PASS | PARTIAL | No immutable, provenance-recorded MT5 input/output fixture exists | `MC-REM-BT-04` | yes |
 | MC6-R30 | Tick size | Symbol/financial contract | Symbol exposes digits, not MT5 trade tick size | No contract or test found | MISSING | `SYMBOL_TRADE_TICK_SIZE` is absent | `MC-REM-BT-03` | yes |
@@ -187,17 +188,17 @@ fixture provenance or tolerance is defined. Therefore `TD-BT-001` remains
 
 | VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
 |---:|---:|---:|---:|---:|
-| 23 | 1 | 3 | 7 | 0 |
+| 22 | 2 | 3 | 7 | 0 |
 
 ## Reconciliation summary
 
 | Stage | VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
 |---|---:|---:|---:|---:|---:|
-| 3 | 2 | 5 | 2 | 3 | 0 |
+| 3 | 6 | 0 | 3 | 3 | 0 |
 | 4 | 7 | 0 | 3 | 1 | 0 |
 | 5 | 3 | 9 | 0 | 0 | 1 |
-| 6 | 23 | 1 | 3 | 7 | 0 |
-| **Total** | **35** | **15** | **8** | **11** | **1** |
+| 6 | 22 | 2 | 3 | 7 | 0 |
+| **Total** | **38** | **11** | **9** | **11** | **1** |
 
 All 70 atomic records have one classification. The reconciliation audit is
 complete, but canonical requirements and mandatory evidence remain unresolved.
@@ -205,14 +206,15 @@ complete, but canonical requirements and mandatory evidence remain unresolved.
 
 ## Dependency-safe remediation queue
 
-Queue order follows canonical/dependency order. A later independent slice may
-be scheduled separately by the dispatcher, but must not be used to bypass an
-earlier unresolved prerequisite.
+Queue order follows canonical/dependency order. NIGHT RUN V2 verified the
+existing-schema part of `MC-REM-DB-02` independently while `MC-REM-DB-01`
+remains open: clean migration/round-trip tests do not activate tick/event
+storage or waive its unapproved retention contract.
 
 | ID | Source requirements | Severity / Stage-7 gate | Exact missing evidence or implementation | Dependency | Recommended branch | Expected acceptance evidence |
 |---|---|---|---|---|---|---|
 | MC-REM-DB-01 | MC3-R01, R03, R07, R10, R11 | high / blocking | Canonical tick and market-event storage/lifecycle, complete provenance/retention and an explicit Timescale-compatible partition contract | none | `fix/stage-3-market-data-contract` | Approved SPEC plus migrations/models/constraints/indexes; deterministic lifecycle/retention/provenance tests; Timescale compatibility rationale |
-| MC-REM-DB-02 | MC3-R02, R04, R05, R08, R09; MC6-R27 | high / blocking | Real PostgreSQL clean migration, schema, numeric/timezone round-trip and index evidence | MC-REM-DB-01 | `verify/stage-3-postgres-migrations` | `alembic upgrade head` on clean PostgreSQL; schema/introspection and round-trip assertions; rollback/reapply evidence where policy requires |
+| MC-REM-DB-02 | MC3-R02, R04, R05, R08, R09; MC6-R27 | high / partial | Existing schema: clean PostgreSQL migration, numeric/timezone round-trip, key constraint/index inspection and 0009 rollback/reapply PASS. Remaining: other index access paths/query plans and real PostgreSQL backtest repository round-trip; future tick/event tables depend on DB-01. | Existing-schema proof independent of MC-REM-DB-01; future tables depend on it | `fix/stage-3-market-data-contract` | Repeatable guarded `test_postgres_schema.py` plus remaining repository/query-plan evidence |
 | MC-REM-API-01 | MC4-R05, R06 | high / blocking | Stable cross-endpoint filtering and real pagination/ordering/continuation contract | MC-REM-DB-01, MC-REM-DB-02 | `fix/stage-4-filter-pagination` | SPEC and API integration tests covering boundaries, stable order, continuation and invalid filters |
 | MC-REM-API-02 | MC4-R07 | high / blocking | Idempotency/replay semantics for backtest/job and remaining public mutations | MC-REM-DB-02 | `fix/stage-4-idempotency-contract` | Concurrent/replayed request integration tests, durable uniqueness and conflict response contract |
 | MC-REM-API-03 | MC4-R11 | medium / blocking | Live MT5 reconnect, retry and lease-expiry recovery evidence | MC-REM-DB-02 and available MT5 runtime | `verify/stage-4-mt5-recovery` | Captured terminal→API→DB retry/reconnect/expired-lease scenario with no duplicate or lost completion |

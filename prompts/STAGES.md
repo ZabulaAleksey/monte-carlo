@@ -12,7 +12,8 @@ SPEC и `docs/MONTE_CARLO_ROADMAP_13_TO_28.md`; исторические launche
 - Status: in_progress
 - NEXT: MC-REM-DB-01
 - Blockers: MC-DB01-DECISION-01 — неопределённые tick consumer, market-event taxonomy, retention budget и Timescale rollout; миграция и запись данных ожидают утверждённый контракт
-- Evidence: 70 atomic requirements classified in `docs/reconciliation/stages-3-6-evidence.md`; totals are 35 VERIFIED, 15 IMPLEMENTED_UNVERIFIED, 8 PARTIAL, 11 MISSING and 1 NOT_APPLICABLE
+- Evidence: 70 atomic requirements classified in `docs/reconciliation/stages-3-6-evidence.md`; totals are 38 VERIFIED, 11 IMPLEMENTED_UNVERIFIED, 9 PARTIAL, 11 MISSING and 1 NOT_APPLICABLE after the independent existing-schema PostgreSQL proof below.
+- NIGHT RUN V2 execution-order divergence: the existing-schema portion of `MC-REM-DB-02` does not depend on selecting tick/event consumers or retention. Disposable PostgreSQL 17.6 clean upgrade 0001→0009, `alembic check`, 0009→0008→0009 rehearsal and guarded numeric/UTC/constraint/index round-trip PASS; full backend 64 PASS, Ruff/mypy PASS. No tick/event migration, automatic retention, live MT5 or PostgreSQL backtest repository claim follows. `MC-REM-DB-01` remains the active NEXT for the bounded storage contract.
 - Stage 7: NOT ACTIVE; запрещён до завершения reconciliation и отдельного прямого разрешения диспетчера
 - TD-UI-001: VERIFIED/CLOSED в `0450e94` и `6f71d1a`; повторно не открывать без нового regression evidence
 - TD-BT-001: OPEN; internal engine evidence не заменяет отсутствующую сверку с golden MT5 и блокирует external financial-correctness claim
