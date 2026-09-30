@@ -11,6 +11,7 @@ SPEC и `docs/MONTE_CARLO_ROADMAP_13_TO_28.md`; исторические launche
 
 - Status: in_progress
 - NEXT: MC-REM-DB-01
+- Night recheck 2026-10-01: locked backend restore + 72 tests PASS/1 guarded PostgreSQL skip, Ruff/mypy55 PASS; frontend 91 tests PASS with maxWorkers=1, lint PASS. Full Windows standalone build ENVIRONMENT_BLOCKED by symlink EPERM after successful compile/type/static11 pages. Evidence: docs/notes/night-reproducibility-2026-10-01.md; no fresh DB claim.
 - Blockers: MC-DB01-DECISION-01 — неопределённые tick consumer, market-event taxonomy, retention budget и Timescale rollout; миграция и запись данных ожидают утверждённый контракт
 - Evidence: 70 atomic requirements classified in `docs/reconciliation/stages-3-6-evidence.md`; totals are 38 VERIFIED, 11 IMPLEMENTED_UNVERIFIED, 9 PARTIAL, 11 MISSING and 1 NOT_APPLICABLE after the independent existing-schema PostgreSQL proof below.
 - NIGHT RUN V2 execution-order divergence: the existing-schema portion of `MC-REM-DB-02` does not depend on selecting tick/event consumers or retention. Disposable PostgreSQL 17.6 clean upgrade 0001→0009, `alembic check`, 0009→0008→0009 rehearsal and guarded numeric/UTC/constraint/index round-trip PASS; full backend 64 PASS, Ruff/mypy PASS. No tick/event migration, automatic retention, live MT5 or PostgreSQL backtest repository claim follows. `MC-REM-DB-01` remains the active NEXT for the bounded storage contract.
@@ -45,6 +46,8 @@ NEEDS_DECISION). Принятый ADR о latest-state quotes остаётся в
 evidence rows `MC3-R01/R03/R07/R10/R11` не повышены. `MC-REM-DB-01` остаётся NEXT.
 
 ### User action `MC-DB01-DECISION-01`
+
+Additional user action MC-HOST-SYMLINK-01: PENDING_HOST; repeat pinned frontend build on approved symlink-capable Windows or Linux CI; expected exit0 standalone artifact tied to HEAD; unlocks fresh full-build evidence only.
 
 - Status/condition: NEEDS_DECISION до утверждения SPEC, миграций и retention.
 - Действие: утвердить или скорректировать `MC-DB01-D1…D4` в черновике SPEC:
