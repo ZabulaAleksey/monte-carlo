@@ -19,6 +19,7 @@ import { apiClient } from "@/lib/api/client";
 
 describe("useDashboardData", () => {
   afterEach(() => {
+    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 
