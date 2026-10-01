@@ -1,0 +1,33 @@
+{
+  "baseline_sha": "57ec0c2d631f7e41f2a2d08499febbf1dc330047",
+  "scope": "MC-REM-BT-02 internal synthetic SELL evidence",
+  "new_cases": 10,
+  "backend": {
+    "passed": 82,
+    "skipped": 1,
+    "skip": "MC_TEST_POSTGRES_URL absent; no fresh PostgreSQL claim"
+  },
+  "ruff": "PASS entire backend",
+  "mypy": "PASS 55 source files",
+  "raw_log_sha256": "34e77fcfbdd320cca72d63493957ea321bf1c55ba74c8dda686317c4c8884828",
+  "unchanged": [
+    "accepted tests",
+    "engine",
+    "public API",
+    "lockfiles",
+    "MT5 read-only boundary"
+  ],
+  "not_proven": [
+    "MT5 golden parity",
+    "tick-value/account-currency conversion",
+    "Stage7"
+  ],
+  "documentation_checked_unchanged": [
+    "README.md",
+    "docs/ROADMAP.md",
+    "docs/ARCHITECTURE.md",
+    "docs/DECISIONS.md",
+    "specs/system.spec.md",
+    "specs/features/market-data-storage.spec.md"
+  ]
+}
