@@ -140,10 +140,10 @@ financial correctness отдельно оценивается MC6-R30–R34.
 | MC6-R10 | Benchmark до GPU | Performance evidence | No Stage 6 CPU benchmark harness/result is present | Repository search finds only benchmark requirements | MISSING | Need versioned workload, environment and baseline after correctness contract is fixed | `MC-REM-BT-05` | yes |
 | MC6-R11 | Position lifecycle | Domain/execution | Single-position manager handles open, hold, close, reverse and end-of-data close | Lifecycle/end-of-data tests PASS | VERIFIED | — | — | yes |
 | MC6-R12 | BUY semantics | Domain/execution | BUY opens a long position through the order simulator | next-open, P&L and risk tests exercise BUY | VERIFIED | — | — | yes |
-| MC6-R13 | SELL semantics | Domain/execution | SELL maps to short side, reverse handling and signed P&L code paths | No focused short-position lifecycle/P&L/protective-exit test exists | IMPLEMENTED_UNVERIFIED | Add test-only deterministic short scenarios before relying on SELL parity | `MC-REM-BT-02` | yes |
+| MC6-R13 | SELL semantics | Domain/execution | SELL maps to short side, reverse handling and signed P&L code paths | 10 hand-calculated scenarios in `test_backtest_sell_evidence.py` PASS: next-open, signed P&L, costs, reverse, SL/TP, gaps, drawdown, repeat | VERIFIED | Internal CPU formula only; MT5 parity remains open | `MC-REM-BT-02` | yes |
 | MC6-R14 | Signal exit | Domain/execution | `Signal.CLOSE` closes at next candle open with `ExitReason.SIGNAL` | focused signal-close test PASS | VERIFIED | — | — | yes |
-| MC6-R15 | Stop Loss | Risk/execution | Side-aware level calculation; stop-first intrabar policy is explicit | focused long Stop Loss test PASS | VERIFIED | Short-side proof is coupled to MC6-R13 | `MC-REM-BT-02` | yes |
-| MC6-R16 | Take Profit | Risk/execution | Side-aware level calculation and intrabar trigger | focused long Take Profit test PASS | VERIFIED | Short-side proof is coupled to MC6-R13 | `MC-REM-BT-02` | yes |
+| MC6-R15 | Stop Loss | Risk/execution | Side-aware level calculation; stop-first intrabar policy is explicit | focused long Stop Loss test PASS | VERIFIED | Short-side SL/TP and gap proof PASS in MC-REM-BT-02 | `MC-REM-BT-02` | yes |
+| MC6-R16 | Take Profit | Risk/execution | Side-aware level calculation and intrabar trigger | focused long Take Profit test PASS | VERIFIED | Short-side SL/TP and gap proof PASS in MC-REM-BT-02 | `MC-REM-BT-02` | yes |
 | MC6-R17 | Internal swap semantics | Execution model | Signed daily percentage of entry notional for crossed days | negative and positive swap tests PASS | VERIFIED | No historical MT5 rollover schedule or triple-rollover equivalence | `MC-REM-BT-04` | yes |
 | MC6-R18 | Bankruptcy | Engine | Non-positive equity forces close and stops future strategy calls | focused bankruptcy test PASS | VERIFIED | — | — | yes |
 | MC6-R19 | Balance | Engine/metrics | Entry commission, close proceeds and final balance are updated deterministically | commission, P&L, bankruptcy and persistence assertions PASS | VERIFIED | MT5 monetary parity remains outside this row | `MC-REM-BT-04` | yes |
@@ -165,6 +165,8 @@ financial correctness отдельно оценивается MC6-R30–R34.
 
 ### Stage 6 evidence run
 
+- MC-REM-BT-02 Night 2026-10-02: 10 new SELL cases PASS; full backend 82 PASS/1 explicitly guarded PostgreSQL skip; Ruff PASS, mypy55 PASS. Evidence: `docs/evidence/night-20261002-sell/verification.json`. Existing tests, engine, public API and lockfiles unchanged.
+
 - `uv run --offline python -m pytest tests/test_backtest_engine.py tests/test_backtests_api.py tests/test_backtest_jobs.py -q` — `31 passed`.
 - The suite proves current internal CPU formulas and reachable API persistence on
   the SQLite test repository. It does not prove PostgreSQL deployment or MT5
@@ -177,8 +179,8 @@ financial correctness отдельно оценивается MC6-R30–R34.
 
 Internal BUY execution, lot/contract-size arithmetic, commission, swap,
 slippage, signal exit, long-side SL/TP, bankruptcy, balance/equity,
-realized/unrealized P&L and drawdown have deterministic tests. SELL is
-implemented but lacks a focused short lifecycle/financial test. None of these
+realized/unrealized P&L and drawdown have deterministic tests. SELL now has 10 focused hand-calculated short lifecycle/financial scenarios
+covering entry/exit/reversal, costs, SL/TP/gaps and drawdown. None of these
 tests compare against an independently sourced MT5 result. Tick size/value,
 profit currency and account-currency conversion are absent, and no golden
 fixture provenance or tolerance is defined. Therefore `TD-BT-001` remains
@@ -188,7 +190,7 @@ fixture provenance or tolerance is defined. Therefore `TD-BT-001` remains
 
 | VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
 |---:|---:|---:|---:|---:|
-| 22 | 2 | 3 | 7 | 0 |
+| 23 | 1 | 3 | 7 | 0 |
 
 ## Reconciliation summary
 
@@ -197,8 +199,8 @@ fixture provenance or tolerance is defined. Therefore `TD-BT-001` remains
 | 3 | 6 | 0 | 3 | 3 | 0 |
 | 4 | 7 | 0 | 3 | 1 | 0 |
 | 5 | 3 | 9 | 0 | 0 | 1 |
-| 6 | 22 | 2 | 3 | 7 | 0 |
-| **Total** | **38** | **11** | **9** | **11** | **1** |
+| 6 | 23 | 1 | 3 | 7 | 0 |
+| **Total** | **39** | **10** | **9** | **11** | **1** |
 
 All 70 atomic records have one classification. The reconciliation audit is
 complete, but canonical requirements and mandatory evidence remain unresolved.
@@ -220,7 +222,7 @@ storage or waive its unapproved retention contract.
 | MC-REM-API-03 | MC4-R11 | medium / blocking | Live MT5 reconnect, retry and lease-expiry recovery evidence | MC-REM-DB-02 and available MT5 runtime | `verify/stage-4-mt5-recovery` | Captured terminal→API→DB retry/reconnect/expired-lease scenario with no duplicate or lost completion |
 | MC-REM-UI-01 | MC5-R01, R02, R04, R05, R09–R13 | medium / blocking | Production-browser baseline across core routes, live backend states, responsive/localized layouts and polling cleanup | Stable Stage 4 API/recovery behavior | `verify/stage-5-browser-baseline` | Reproducible browser run/screenshots or trace for loading/error/empty/live flows, viewport/locale matrix and navigation/reconnect lifecycle |
 | MC-REM-BT-01 | MC6-R03, R04, R05, R09 | high / blocking | Dataset hash/version, engine algorithm version and explicit seed in durable provenance | MC-REM-DB-01, MC-REM-DB-02 | `fix/stage-6-reproducibility-provenance` | Schema/API provenance round-trip and repeated-run identity tests showing dataset, versions, parameters and seed |
-| MC-REM-BT-02 | MC6-R13, R15, R16 | high / blocking | Focused SELL lifecycle, reverse, P&L, SL and TP evidence | none; must precede MT5 comparison | `test/stage-6-sell-semantics` | Deterministic short entry/exit/reversal/protective-exit tests that fail on sign/price-direction errors |
+| MC-REM-BT-02 | MC6-R13, R15, R16 | high / blocking | CLOSED: 10 deterministic internal SELL scenarios PASS; no MT5 equivalence claim | none; completed before MT5 comparison | `test/stage-6-sell-semantics` | Deterministic short entry/exit/reversal/protective-exit tests that fail on sign/price-direction errors |
 | MC-REM-BT-03 | MC6-R21, R22, R26, R30–R33 | critical / blocking | Tick size/value, profit currency and account-currency conversion contract and implementation | MC-REM-DB-01, MC-REM-DB-02 | `fix/stage-6-mt5-financial-contract` | Captured symbol/account metadata, conversion-rate provenance and deterministic multi-instrument/cross-currency P&L tests |
 | MC-REM-BT-04 | MC6-R06, R07, R17, R19–R24, R29, R34 | critical / blocking | Independently sourced MT5 golden trades/results, provenance manifest, coverage matrix and explicit monetary/drawdown tolerance | MC-REM-BT-02, MC-REM-BT-03 and available MT5 runtime | `verify/stage-6-mt5-golden` | BUY/SELL golden comparison covering lots, costs, signal/SL/TP, bankruptcy, balance/equity, realized/unrealized P&L and drawdown within approved tolerances |
 | MC-REM-BT-05 | MC6-R10 | medium / blocking | Versioned CPU baseline benchmark before accelerated work | MC-REM-BT-01 and MC-REM-BT-04 | `perf/stage-6-cpu-reference-benchmark` | Reproducible workload/environment manifest, result artifact and documented latency/throughput/memory baseline |
