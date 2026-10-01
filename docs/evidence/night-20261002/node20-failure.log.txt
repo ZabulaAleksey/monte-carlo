@@ -1,0 +1,82 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 966B 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:20-alpine
+#2 ...
+
+#3 [auth] library/node:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:20-alpine
+#2 DONE 1.2s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 92B done
+#4 DONE 0.0s
+
+#5 [dependencies 1/5] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+#5 resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 0.0s done
+#5 DONE 0.0s
+
+#6 [dependencies 2/5] WORKDIR /app
+#6 CACHED
+
+#7 [dependencies 3/5] RUN corepack enable && corepack prepare pnpm@11.23.0 --activate
+#7 CACHED
+
+#8 [internal] load build context
+#8 transferring context: 670.37kB 0.3s done
+#8 DONE 0.3s
+
+#9 [dependencies 4/5] COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+#9 DONE 0.0s
+
+#10 [dependencies 5/5] RUN pnpm install --frozen-lockfile
+#10 0.381 warn: This version of pnpm requires at least Node.js v22.13
+#10 0.381 warn: The current version of Node.js is v20.20.2
+#10 0.381 warn: Visit https://r.pnpm.io/comp to see the list of past pnpm versions with respective Node.js version support.
+#10 0.756 node:internal/modules/cjs/loader:1031
+#10 0.756       throw new ERR_UNKNOWN_BUILTIN_MODULE(request);
+#10 0.756             ^
+#10 0.756
+#10 0.756 Error [ERR_UNKNOWN_BUILTIN_MODULE]: No such built-in module: node:sqlite
+#10 0.756     at Module._load (node:internal/modules/cjs/loader:1031:13)
+#10 0.756     at Module.require (node:internal/modules/cjs/loader:1289:19)
+#10 0.756     at require (node:internal/modules/helpers:182:18)
+#10 0.756     at ../store/index/lib/index.js (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:102526:25)
+#10 0.756     at __init (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:17:58)
+#10 0.756     at ../resolving/npm-resolver/lib/index.js (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:106522:5)
+#10 0.756     at __init (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:17:58)
+#10 0.756     at ../workspace/projects-graph/lib/index.js (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:106675:5)
+#10 0.756     at __init (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:17:58)
+#10 0.756     at ../workspace/projects-filter/lib/index.js (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:108063:5) {
+#10 0.756   code: 'ERR_UNKNOWN_BUILTIN_MODULE'
+#10 0.756 }
+#10 0.756
+#10 0.756 Node.js v20.20.2
+#10 ERROR: process "/bin/sh -c pnpm install --frozen-lockfile" did not complete successfully: exit code: 1
+------
+ > [dependencies 5/5] RUN pnpm install --frozen-lockfile:
+0.756     at __init (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:17:58)
+0.756     at ../resolving/npm-resolver/lib/index.js (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:106522:5)
+0.756     at __init (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:17:58)
+0.756     at ../workspace/projects-graph/lib/index.js (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:106675:5)
+0.756     at __init (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:17:58)
+0.756     at ../workspace/projects-filter/lib/index.js (file:///root/.cache/node/corepack/v1/pnpm/11.23.0/dist/pnpm.mjs:108063:5) {
+0.756   code: 'ERR_UNKNOWN_BUILTIN_MODULE'
+0.756 }
+0.756
+0.756 Node.js v20.20.2
+------
+Dockerfile:5
+--------------------
+   3 |     RUN corepack enable && corepack prepare pnpm@11.23.0 --activate
+   4 |     COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+   5 | >>> RUN pnpm install --frozen-lockfile
+   6 |
+   7 |     FROM node:20-alpine AS builder
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c pnpm install --frozen-lockfile" did not complete successfully: exit code: 1

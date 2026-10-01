@@ -1,0 +1,209 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.17kB 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:22.23.3-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+#2 DONE 1.3s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 92B done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 transferring context: 6.74kB 0.0s done
+#4 DONE 0.0s
+
+#5 [dependencies 1/5] FROM docker.io/library/node:22.23.3-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+#5 resolve docker.io/library/node:22.23.3-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 0.0s done
+#5 DONE 0.1s
+
+#5 [dependencies 1/5] FROM docker.io/library/node:22.23.3-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+#5 sha256:d39db1cf9caa4f49c5a2e67111fbe6e0d5eea8ede550cb82f3dc2b79712688d6 0B / 447B 0.2s
+#5 sha256:d39db1cf9caa4f49c5a2e67111fbe6e0d5eea8ede550cb82f3dc2b79712688d6 447B / 447B 0.2s done
+#5 sha256:e554276b05e6306c5ad33cd85bfa7f0693083e21f6114db5abf60a20fb413039 0B / 1.26MB 0.3s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 0B / 55.59MB 0.2s
+#5 sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5 0B / 3.85MB 0.2s
+#5 sha256:e554276b05e6306c5ad33cd85bfa7f0693083e21f6114db5abf60a20fb413039 1.26MB / 1.26MB 0.5s done
+#5 sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5 1.05MB / 3.85MB 0.8s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 3.15MB / 55.59MB 1.7s
+#5 sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5 3.85MB / 3.85MB 1.5s done
+#5 extracting sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5
+#5 extracting sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5 0.1s done
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 6.29MB / 55.59MB 2.1s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 9.44MB / 55.59MB 2.6s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 12.58MB / 55.59MB 2.9s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 15.73MB / 55.59MB 3.3s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 18.87MB / 55.59MB 3.8s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 22.02MB / 55.59MB 4.2s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 26.21MB / 55.59MB 4.7s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 29.36MB / 55.59MB 5.1s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 32.51MB / 55.59MB 5.6s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 35.65MB / 55.59MB 6.0s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 39.85MB / 55.59MB 6.5s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 42.99MB / 55.59MB 6.9s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 46.14MB / 55.59MB 7.4s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 49.28MB / 55.59MB 7.8s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 52.43MB / 55.59MB 8.3s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 55.59MB / 55.59MB 8.6s
+#5 sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 55.59MB / 55.59MB 8.6s done
+#5 extracting sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937
+#5 extracting sha256:f7f2d304681aaa935c9cfd180850cf616ae843efce7682873d6521ded7268937 1.0s done
+#5 DONE 9.8s
+
+#5 [dependencies 1/5] FROM docker.io/library/node:22.23.3-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+#5 extracting sha256:e554276b05e6306c5ad33cd85bfa7f0693083e21f6114db5abf60a20fb413039 0.0s done
+#5 extracting sha256:d39db1cf9caa4f49c5a2e67111fbe6e0d5eea8ede550cb82f3dc2b79712688d6 0.0s done
+#5 DONE 9.8s
+
+#6 [dependencies 2/5] WORKDIR /app
+#6 DONE 0.2s
+
+#7 [dependencies 3/5] RUN corepack enable && corepack prepare pnpm@11.23.0 --activate
+#7 ...
+
+#8 [runner 3/6] RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+#8 DONE 0.3s
+
+#7 [dependencies 3/5] RUN corepack enable && corepack prepare pnpm@11.23.0 --activate
+#7 0.393 Preparing pnpm@11.23.0 for immediate activation...
+#7 DONE 2.5s
+
+#9 [dependencies 4/5] COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+#9 DONE 0.1s
+
+#10 [dependencies 5/5] RUN pnpm install --frozen-lockfile
+#10 1.114 ? Verifying lockfile against supply-chain policies (556 entries)...
+#10 1.130 Lockfile is up to date, resolution step is skipped
+#10 1.302 Progress: resolved 1, reused 0, downloaded 0, added 0
+#10 1.424 Packages: +447
+#10 1.424 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#10 1.916 Packages are hard linked from the content-addressable store to the virtual store.
+#10 1.916   Content-addressable store is at: /root/.local/share/pnpm/store/v11
+#10 1.916   Virtual store is at:             node_modules/.pnpm
+#10 2.309 Progress: resolved 447, reused 0, downloaded 21, added 20
+#10 2.628
+#10 2.628    ╭──────────────────────────────────────────────╮
+#10 2.628    │                                              │
+#10 2.628    │     Update available! 11.23.0 → 12.8.1.      │
+#10 2.628    │     Changelog: https://pnpm.io/v/12.8.1      │
+#10 2.628    │   To update, run: corepack use pnpm@12.8.1   │
+#10 2.628    │                                              │
+#10 2.628    ╰──────────────────────────────────────────────╯
+#10 2.628
+#10 3.311 Progress: resolved 447, reused 0, downloaded 82, added 81
+#10 4.311 Progress: resolved 447, reused 0, downloaded 120, added 120
+#10 5.312 Progress: resolved 447, reused 0, downloaded 159, added 159
+#10 6.312 Progress: resolved 447, reused 0, downloaded 187, added 187
+#10 7.311 Progress: resolved 447, reused 0, downloaded 241, added 241
+#10 8.311 Progress: resolved 447, reused 0, downloaded 298, added 298
+#10 9.310 Progress: resolved 447, reused 0, downloaded 353, added 353
+#10 10.31 Progress: resolved 447, reused 0, downloaded 438, added 438
+#10 11.31 Progress: resolved 447, reused 0, downloaded 440, added 440
+#10 12.84 Progress: resolved 447, reused 0, downloaded 441, added 440
+#10 13.64 [WARN] Request took 10298ms: https://registry.npmjs.org/@typescript-eslint%2Fparser
+#10 13.83 [WARN] Request took 10497ms: https://registry.npmjs.org/@typescript-eslint%2Feslint-plugin
+#10 13.84 Progress: resolved 447, reused 0, downloaded 442, added 442
+#10 15.15 Progress: resolved 447, reused 0, downloaded 444, added 443
+#10 15.26 ✓ Lockfile passes supply-chain policies (556 entries in 14.1s)
+#10 16.15 Progress: resolved 447, reused 0, downloaded 444, added 444
+#10 17.15 Progress: resolved 447, reused 0, downloaded 445, added 445
+#10 24.61 Progress: resolved 447, reused 0, downloaded 446, added 445
+#10 25.36 Progress: resolved 447, reused 0, downloaded 447, added 447, done
+#10 25.61 .../node_modules/unrs-resolver postinstall$ node postinstall.js
+#10 25.62 .../esbuild@0.25.12/node_modules/esbuild postinstall$ node install.js
+#10 25.68 .../node_modules/unrs-resolver postinstall: Done
+#10 25.68 .../esbuild@0.25.12/node_modules/esbuild postinstall: Done
+#10 25.83
+#10 25.83 dependencies:
+#10 25.83 + lightweight-charts 5.2.0
+#10 25.83 + lucide-react 0.468.0
+#10 25.83 + next 15.5.26
+#10 25.83 + react 19.2.8
+#10 25.83 + react-dom 19.2.8
+#10 25.83
+#10 25.83 devDependencies:
+#10 25.83 + @testing-library/jest-dom 6.9.1
+#10 25.83 + @testing-library/react 16.3.2
+#10 25.83 + @types/node 22.20.1
+#10 25.83 + @types/react 19.2.18
+#10 25.83 + @types/react-dom 19.2.4
+#10 25.83 + @vitejs/plugin-react 4.7.0
+#10 25.83 + eslint 8.57.1
+#10 25.83 + eslint-config-next 15.5.26
+#10 25.83 + jsdom 25.0.1
+#10 25.83 + typescript 5.9.3
+#10 25.83 + vite 6.4.3
+#10 25.83 + vitest 4.1.11
+#10 25.83
+#10 25.88 Done in 25.6s using pnpm v11.23.0
+#10 DONE 26.5s
+
+#11 [builder 4/6] COPY --from=dependencies /app/node_modules ./node_modules
+#11 DONE 2.5s
+
+#12 [builder 5/6] COPY . .
+#12 DONE 0.3s
+
+#13 [builder 6/6] RUN pnpm build
+#13 0.863 $ next build
+#13 1.712 Attention: Next.js now collects completely anonymous telemetry regarding usage.
+#13 1.712 This information is used to shape Next.js' roadmap and prioritize features.
+#13 1.712 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+#13 1.712 https://nextjs.org/telemetry
+#13 1.713
+#13 1.812    ▲ Next.js 15.5.26
+#13 1.812
+#13 1.884    Creating an optimized production build ...
+#13 13.49  ✓ Compiled successfully in 8.9s
+#13 13.50    Linting and checking validity of types ...
+#13 19.74    Collecting page data ...
+#13 21.49    Generating static pages (0/11) ...
+#13 22.18    Generating static pages (2/11)
+#13 22.18    Generating static pages (5/11)
+#13 22.18    Generating static pages (8/11)
+#13 22.23  ✓ Generating static pages (11/11)
+#13 23.10    Finalizing page optimization ...
+#13 23.10    Collecting build traces ...
+#13 43.34
+#13 43.34 Route (app)                                 Size  First Load JS
+#13 43.34 ┌ ○ /                                    9.73 kB         132 kB
+#13 43.34 ├ ○ /_not-found                            991 B         103 kB
+#13 43.34 ├ ○ /api-docs                            2.67 kB         125 kB
+#13 43.34 ├ ○ /database                            3.59 kB         126 kB
+#13 43.34 ├ ○ /guide                               1.15 kB         127 kB
+#13 43.34 ├ ○ /market-data                         4.65 kB         127 kB
+#13 43.34 ├ ○ /settings                            2.52 kB         125 kB
+#13 43.34 ├ ○ /strategies                          16.6 kB         139 kB
+#13 43.34 └ ○ /trades                              4.16 kB         127 kB
+#13 43.34 + First Load JS shared by all             102 kB
+#13 43.34   ├ chunks/1eac57ea-502645f6322bc33e.js  54.2 kB
+#13 43.34   ├ chunks/386-cf059e9bfe0879e2.js       45.8 kB
+#13 43.34   └ other shared chunks (total)          1.92 kB
+#13 43.34
+#13 43.34
+#13 43.34 ○  (Static)  prerendered as static content
+#13 43.34
+#13 DONE 43.4s
+
+#14 [runner 4/6] COPY --from=builder /app/public ./public
+#14 DONE 0.0s
+
+#15 [runner 5/6] COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+#15 DONE 0.3s
+
+#16 [runner 6/6] COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+#16 DONE 0.1s
+
+#17 exporting to image
+#17 exporting layers
+#17 exporting layers 1.8s done
+#17 exporting manifest sha256:2f590bc929dfc2bf706dc70fa1738e26713e492b1246cdcf843fbc592b40ed50 0.0s done
+#17 exporting config sha256:38c0eac69444bf6234a2c766b22807e85bd615921d9097968529f2194c3d79ff done
+#17 exporting attestation manifest sha256:5b307685cde28d5e5ef44866e5e36e35f35c8da6b7d6680156cfc72f633bdc6f 0.0s done
+#17 exporting manifest list sha256:02d9133200546259f741811ecb500e97c16fd7ff6d0e15fddf78cbc06e8970d3 0.0s done
+#17 naming to docker.io/library/montecarlo-frontend:night-20261002-node22 done
+#17 unpacking to docker.io/library/montecarlo-frontend:night-20261002-node22
+#17 unpacking to docker.io/library/montecarlo-frontend:night-20261002-node22 0.6s done
+#17 DONE 2.4s

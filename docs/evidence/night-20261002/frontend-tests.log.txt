@@ -1,0 +1,37 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/app[39m
+
+ [32m✓[39m app/strategies/page.test.tsx [2m([22m[2m16 tests[22m[2m)[22m[33m 2598[2mms[22m[39m
+     [33m[2m✓[22m[39m loads the research form and renders a completed result [33m 361[2mms[22m[39m
+     [33m[2m✓[22m[39m queues an incomplete range and starts only after MT5 completes it [33m 1090[2mms[22m[39m
+ [32m✓[39m components/backtests/candlestick-trade-chart.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 1350[2mms[22m[39m
+     [33m[2m✓[22m[39m renders a bounded viewport while preserving navigation across 20,000 candles [33m 405[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps a 20,000-candle mount bounded while the chart has zero width [33m 345[2mms[22m[39m
+     [33m[2m✓[22m[39m follows the latest candle after a zero-width chart becomes visible [33m 334[2mms[22m[39m
+ [32m✓[39m components/backtests/trade-replay.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 523[2mms[22m[39m
+ [32m✓[39m hooks/use-dashboard-data.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 332[2mms[22m[39m
+ [32m✓[39m app/page.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 320[2mms[22m[39m
+ [32m✓[39m lib/backtests.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 89[2mms[22m[39m
+ [32m✓[39m lib/dashboard.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m app/market-data/page.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 631[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the selected quote sorting during realtime refreshes [33m 525[2mms[22m[39m
+ [32m✓[39m app/trades/page.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 105[2mms[22m[39m
+ [32m✓[39m components/navigation.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 164[2mms[22m[39m
+ [32m✓[39m components/backtests/equity-chart.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 90[2mms[22m[39m
+ [32m✓[39m hooks/use-polling-query.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m components/candlestick-chart.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 61[2mms[22m[39m
+ [32m✓[39m components/localized-date-time-input.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 250[2mms[22m[39m
+ [32m✓[39m lib/i18n.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m hooks/use-live-quotes.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m components/localized-document-title.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m features/market-data/model.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m components/mt5-connection-card.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 93[2mms[22m[39m
+ [32m✓[39m features/trades/model.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m lib/data-environment.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m lib/market-chart.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m lib/mt5-connection.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 6[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m23 passed[39m[22m[90m (23)[39m
+[2m      Tests [22m [1m[32m91 passed[39m[22m[90m (91)[39m
+[2m   Start at [22m 23:30:22
+[2m   Duration [22m 23.02s[2m (transform 645ms, setup 1.27s, import 2.99s, tests 6.77s, environment 9.01s)[22m

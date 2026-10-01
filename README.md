@@ -100,6 +100,13 @@ uv run uvicorn app.main:app --reload
 
 ### Frontend
 
+Node.js >=22.13.0 и exact pnpm11.23.0 обязательны; контейнеры используют
+Node22.23.3 LTS с закреплённым digest. Node20 несовместим с pnpm11
+([official compatibility](https://pnpm.io/installation/#compatibility)).
+Windows standalone copy может требовать symlink privileges; safe equivalent
+gate — существующий frontend Dockerfile на Linux Docker Engine, без изменения
+machine-wide Windows settings. Locked Linux build evidence хранит selected STAGES.
+
 ```bash
 cd apps/frontend
 pnpm install --frozen-lockfile

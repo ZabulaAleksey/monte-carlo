@@ -1,0 +1,31 @@
+{
+  "baseline": "57ec0c2d631f7e41f2a2d08499febbf1dc330047",
+  "image_tag": "montecarlo-frontend:night-20261002-node22",
+  "scope": "standalone frontend runtime HTTP smoke; no live backend/MT5 claim",
+  "image_id": "sha256:02d9133200546259f741811ecb500e97c16fd7ff6d0e15fddf78cbc06e8970d3",
+  "source_candidate_hashes": {
+    "Dockerfile": "36276f8ab6b060aa52b6bd4fd90ff5c75d44a9de0751564ddb48e0e57feb3a5c",
+    "package.json": "a3e1245337e2b9a5dd92e7f401ab55b064c76e962586c960d04190124d1ebc8e",
+    "pnpm-lock.yaml": "88b6788179ffccc4f9978af3262711d4022cd96ce31441bc4733c0a90460452d"
+  },
+  "container_id": "281b2ded7e8db7f53020e6a63b024de2d6172f8900d9f862d4ad791fa7ca5c5a",
+  "config_user": "nextjs",
+  "uid": "1001",
+  "node_version": "v22.23.3",
+  "http_status": 200,
+  "html_bytes": 7232,
+  "result": "PASS",
+  "cleanup": "stopped exact owned container; --rm enabled",
+  "normalized_source_sha256": {
+    "Dockerfile": "36276f8ab6b060aa52b6bd4fd90ff5c75d44a9de0751564ddb48e0e57feb3a5c",
+    "package.json": "a3e1245337e2b9a5dd92e7f401ab55b064c76e962586c960d04190124d1ebc8e",
+    "pnpm-lock.yaml": "55909f59e14059bb6cc0e8fdcbe61246b0cdbe6707435c0495f438e4c383165b"
+  },
+  "source_normalization": "Git subtree archive projected lockfile CRLF; staged canonical Git blobs use LF. Raw context hashes retained; normalized bytes verified identical.",
+  "raw_log_sha256": {
+    "mc-linux-tests.log": "4f1e02a99e6836fa242098b383b1eca2ec6b229ad612364004c18201b6fdc603",
+    "mc-linux-build.log": "347de67564ab44af345e0ad1c10e1e5cfc820a7e89e6138ed1ff1c8cc0782281",
+    "mc-linux-build-node22.log": "0da2ec3bc25464ad9366a8a64556cb0bf0986de1e4ea17f4330ec0ee9277ad1f"
+  },
+  "versioned_log_normalization": "Trailing whitespace/final blank lines removed for Git diff-check; raw logs preserved in task work directory and hashed above."
+}

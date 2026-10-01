@@ -230,7 +230,7 @@ workflow, которого нельзя надёжно выполнить сущ
 ## Контракт зависимостей
 
 - Источник истины (Source of truth): `apps/frontend/package.json` + `pnpm-lock.yaml` + `pnpm-workspace.yaml` для frontend и `apps/backend/pyproject.toml` + `uv.lock` для backend.
-- Канонические менеджеры — `pnpm@11.23.0` и uv; frontend и backend имеют независимые lock-графы.
+- Канонические менеджеры — `pnpm@11.23.0` и uv; frontend и backend имеют независимые lock-графы. Frontend Docker stages закрепляют official Node22.23.3-alpine version/digest, совместимый с pnpm11 (minimum Node22.13); dependency lock не меняется.
 - Чистое восстановление (Clean restore): удалить только `apps/frontend/node_modules` и `apps/backend/.venv`, затем выполнить `pnpm install --frozen-lockfile` во frontend и `uv sync --locked --extra dev` в backend.
 - pnpm content store и uv cache общие; frontend сохраняет project-local virtual store, потому что Docker stage копирует `node_modules` между слоями.
 - `node_modules`, `.venv`, `.next` и tool caches disposable; market fixtures, database/runtime state и секреты dependency cleanup не затрагивает.

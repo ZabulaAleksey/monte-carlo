@@ -11,6 +11,7 @@ SPEC и `docs/MONTE_CARLO_ROADMAP_13_TO_28.md`; исторические launche
 
 - Status: in_progress
 - NEXT: MC-REM-DB-01
+- Night frontend compatibility 2026-10-02: MC-BUILD-001 LOCALLY_VERIFIED; pnpm11/Node20 incompatibility reproduced and repaired with pinned Node22.23.3 image. Frozen Linux build and standalone runtime PASS; frontend91 PASS, lint PASS. Independent ledger MC-REM-BT-02 has no dependency and is next parallel test-only ready slice while D1–D4 remains NEEDS_DECISION. Overall MC-RECON-3-6 remains in_progress; no Stage7 activation.
 - Night recheck 2026-10-01: locked backend restore + 72 tests PASS/1 guarded PostgreSQL skip, Ruff/mypy55 PASS; frontend 91 tests PASS with maxWorkers=1, lint PASS. Full Windows standalone build ENVIRONMENT_BLOCKED by symlink EPERM after successful compile/type/static11 pages. Evidence: docs/notes/night-reproducibility-2026-10-01.md; no fresh DB claim.
 - Blockers: MC-DB01-DECISION-01 — неопределённые tick consumer, market-event taxonomy, retention budget и Timescale rollout; миграция и запись данных ожидают утверждённый контракт
 - Evidence: 70 atomic requirements classified in `docs/reconciliation/stages-3-6-evidence.md`; totals are 38 VERIFIED, 11 IMPLEMENTED_UNVERIFIED, 9 PARTIAL, 11 MISSING and 1 NOT_APPLICABLE after the independent existing-schema PostgreSQL proof below.
@@ -47,7 +48,7 @@ evidence rows `MC3-R01/R03/R07/R10/R11` не повышены. `MC-REM-DB-01` о
 
 ### User action `MC-DB01-DECISION-01`
 
-Additional user action MC-HOST-SYMLINK-01: PENDING_HOST; repeat pinned frontend build on approved symlink-capable Windows or Linux CI; expected exit0 standalone artifact tied to HEAD; unlocks fresh full-build evidence only.
+Additional action MC-HOST-SYMLINK-01: DONE_AUTOMATICALLY 2026-10-02; exact source baseline57ec0c2 plus recorded Docker/package hashes passed frozen Linux Node22.23.3/pnpm11.23.0 install, Next compile/typecheck/static11 pages, standalone image creation and non-root UID1001 loopback HTTP200 smoke. Frontend91 tests PASS and ESLint PASS in network-disabled Linux containers. Existing Node20 Dockerfile defect repaired with immutable official Node22 digest; lock/tests unchanged, host privileges unchanged. Evidence docs/notes/night-linux-frontend-20261002.md and docs/evidence/night-20261002. This closes fresh full-build evidence; Windows symlink capability is not relabeled repaired, and live backend/browser/MT5 gates stay open.
 
 - Status/condition: NEEDS_DECISION до утверждения SPEC, миграций и retention.
 - Действие: утвердить или скорректировать `MC-DB01-D1…D4` в черновике SPEC:

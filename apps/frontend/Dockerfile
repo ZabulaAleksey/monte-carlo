@@ -1,10 +1,10 @@
-FROM node:20-alpine AS dependencies
+FROM node:22.23.3-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS dependencies
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@11.23.0 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
-FROM node:20-alpine AS builder
+FROM node:22.23.3-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS builder
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@11.23.0 --activate
 COPY --from=dependencies /app/node_modules ./node_modules
@@ -13,7 +13,7 @@ ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm build
 
-FROM node:20-alpine AS runner
+FROM node:22.23.3-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000

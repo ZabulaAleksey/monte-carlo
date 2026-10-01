@@ -340,3 +340,17 @@ Status: accepted for Stage 3.
 - Reversibility: code/tests/spec addition has no data or runtime side effects; rollback is a single source commit revert.
 - Evidence: 9 focused tests PASS, 72 backend PASS/1 guarded PostgreSQL skip, Ruff check and strict mypy 55 source files PASS; new files Ruff-format PASS. Repository-wide Ruff-format baseline remains 28 pre-existing files unformatted.
 - Affected stages: MC-REM-DB-01 preparation only. MC3-R01/R03/R07/R10/R11 statuses, D1–D4 and Stage 7 are unchanged.
+
+## 2026-10-02 — AUTONOMOUS_DECISION: pnpm11-compatible Node22 container
+
+- Context: exact committed frontend Docker build failed before install:
+  pnpm11.23.0 requires Node>=22.13, while Dockerfile selected Node20.20.2;
+  node:sqlite was unavailable. This is a toolchain defect, not market policy.
+- Decision: retain pinned pnpm and lock; use official Node22.23.3-alpine image
+  digest0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+  for all three stages; declare minimum Node22.13 in package engines.
+- Source: [pnpm compatibility](https://pnpm.io/installation/#compatibility),
+  [Node release schedule](https://github.com/nodejs/Release); live registry
+  metadata checked for official image identity/digest. Frozen Linux build PASS; standalone image/runtime UID1001 + loopback HTTP200 PASS; frontend91 tests and ESLint PASS. Evidence docs/notes/night-linux-frontend-20261002.md.
+- Reversibility: source-only Docker/runtime metadata delta, no database or host
+  privilege change. Existing tests/fixtures/lockfile preserved.

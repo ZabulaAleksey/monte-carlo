@@ -27,3 +27,14 @@ Monte Carlo — read-only платформа рыночных данных, ис
 - обновлены `docs/ARCHITECTURE.md` и selected record в `prompts/STAGES.md`;
 - подтверждены воспроизводимость, наблюдаемость и отказоустойчивое поведение;
 - следующий этап не начинается автоматически.
+
+## MC-BUILD-001 — Совместимый frontend container toolchain
+
+Night Factory разрешает устранить воспроизведённый setup defect, не меняя
+market/financial behavior. Pinned pnpm11.23.0 требует Node>=22.13.0;
+dependencies/builder/runner Docker stages используют одну проверенную Node22
+LTS image, закреплённую version+digest. pnpm pin и dependency lock сохраняются.
+Acceptance: frozen Linux install → Next compile/typecheck/static generation →
+standalone artifact → non-root runtime HTTP smoke на loopback. Windows symlink
+EPERM не требует изменения host privileges, если equivalent Linux gate прошёл.
+Это не MT5/API/browser correctness, не Stage7 и не deployment.
