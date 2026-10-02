@@ -91,6 +91,10 @@ uv run ruff check .
 uv run mypy app
 ```
 
+MC-REM-DB-02 PostgreSQL query-plan evidence uses a separately guarded,
+synthetic-only disposable database. See [`docs/TESTING.md`](docs/TESTING.md)
+for the opt-in plan-capture contract; it must never target the application DB.
+
 Для запуска backend вне Docker задайте `DATABASE_URL`, примените миграции
 командой `alembic upgrade head` и выполните:
 

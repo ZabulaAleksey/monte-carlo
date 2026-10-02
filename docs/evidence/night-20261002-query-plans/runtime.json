@@ -1,0 +1,63 @@
+{
+  "cleanup": "exact labelled owned container stopped; --rm/tmpfs/no host volume",
+  "container_absence_readback": "docker ps -a exact-run-label returned no entries after stop",
+  "container_id": "d32798f6c8b1e450b4a8657afbfd91a5b322adc67d5755370bba70a961349b6d",
+  "database": "generated *_test database",
+  "finished_at_utc": "2026-10-02T04:45:13.693548+00:00",
+  "image_id": "sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929",
+  "run_id": "cda1ea08bd0b9a5320ef4888",
+  "scope": "isolated query plans, migrations, and full backend suite",
+  "server_version": "17.6 (Debian 17.6-2.pgdg13+1)",
+  "started_at_utc": "2026-10-02T04:44:43.660393+00:00",
+  "status": "PASS",
+  "steps": [
+    {
+      "exit_status": 0,
+      "step": "docker-context"
+    },
+    {
+      "exit_status": 0,
+      "step": "docker-endpoint"
+    },
+    {
+      "exit_status": 0,
+      "step": "image-identity"
+    },
+    {
+      "exit_status": 0,
+      "step": "container-create"
+    },
+    {
+      "exit_status": 0,
+      "step": "published-address"
+    },
+    {
+      "exit_status": 0,
+      "step": "postgres-version"
+    },
+    {
+      "exit_status": 0,
+      "step": "alembic-upgrade"
+    },
+    {
+      "exit_status": 0,
+      "step": "alembic-check"
+    },
+    {
+      "exit_status": 0,
+      "step": "query-plan-test"
+    },
+    {
+      "exit_status": 0,
+      "step": "full-backend"
+    },
+    {
+      "exit_status": 0,
+      "step": "container-owner-readback"
+    },
+    {
+      "exit_status": 0,
+      "step": "container-stop"
+    }
+  ]
+}
