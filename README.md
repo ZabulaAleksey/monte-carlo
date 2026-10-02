@@ -31,7 +31,7 @@ docker-compose.yml
 Подробности слоёв и модели данных: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Канонические требования этапов для продолжения разработки:
 [docs/project-context.md](docs/project-context.md). Промпты для будущих этапов
-собраны в [prompts/README.md](prompts/README.md) и выполняются только по одному,
+сохранены в [порядке запуска](docs/notes/stage-launchers.md) и выполняются только по одному,
 после явного запроса пользователя.
 
 ## Дорожная карта и статус
@@ -40,7 +40,7 @@ docker-compose.yml
 14–28: [полный roadmap](docs/MONTE_CARLO_ROADMAP_13_TO_28.md). Краткий
 долгосрочный порядок находится в [docs/ROADMAP.md](docs/ROADMAP.md), а
 единственные current selector/status/NEXT — в
-[prompts/STAGES.md](prompts/STAGES.md).
+[docs/STAGES.md](docs/STAGES.md).
 
 Реализованный CPU-бэктест соответствует преимущественно каноническому этапу 6.
 Следующий продуктовый этап — этап 7, эталонный Monte Carlo на CPU, но перед ним

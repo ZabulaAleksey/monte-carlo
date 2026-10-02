@@ -1,7 +1,8 @@
 # Lossless migration audit: legacy AI plan/status
 
 Этот документ — evidence-note миграции, а не владелец execution state. Current
-Stage ID/status/NEXT/blockers принадлежат только `prompts/STAGES.md`.
+Stage ID/status/NEXT/blockers теперь принадлежат только `docs/STAGES.md`; этот
+аудит ниже сохраняет исторические пути первой миграции 2026-09-08.
 
 ## Scope и метод
 
