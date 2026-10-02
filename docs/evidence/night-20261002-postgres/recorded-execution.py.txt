@@ -1,0 +1,90 @@
+"""Exact-label-owned disposable local PG proof; generated credentials never logged."""
+from pathlib import Path
+import json
+import os
+import re
+import secrets
+import subprocess
+import time
+from datetime import datetime, timezone
+
+root=Path(r'E:\DEV\projects\monte-carlo')
+backend=root/'apps/backend'
+python=backend/'.venv/Scripts/python.exe'
+run_id=secrets.token_hex(12)
+name='mc-night-pg-'+run_id
+label='codex.night_factory.run_id'
+image='sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929'
+database='night_factory_'+run_id+'_test'
+password=secrets.token_urlsafe(24)
+container=None
+report={'run_id':run_id,'image_id':image,'database':'generated *_test database','scope':'clean existing migrations + actual backtest repository on disposable loopback PG','started_at':datetime.now(timezone.utc).isoformat(),'steps':[],'status':'RUNNING'}
+folder=Path('work')
+env=os.environ.copy()
+
+def call(argv, *, timeout=60, cwd=backend, environment=None, log=None):
+    result=subprocess.run([str(x) for x in argv],cwd=cwd,env=environment,capture_output=True,text=True,encoding='utf-8',errors='replace',timeout=timeout,check=False)
+    combined=result.stdout+result.stderr
+    combined=combined.replace(password,'<disposable-secret>').replace(env.get('DATABASE_URL','<missing-database-url>'),'<disposable-url>')
+    if log:
+        (folder/log).write_text(combined,encoding='utf-8')
+    if result.returncode:
+        raise RuntimeError(f'command failed with exit{result.returncode}; '+combined[-1600:])
+    return result.stdout.strip()
+
+try:
+    context=call(['docker','context','show'])
+    endpoint=json.loads(call(['docker','context','inspect',context]))[0]['Endpoints']['docker']['Host']
+    if not endpoint.startswith('npipe:'):
+        raise RuntimeError('only local Windows Docker Desktop endpoint admitted')
+    call(['docker','image','inspect',image,'--format','{{.Id}}'])
+    container=call(['docker','run','-d','--rm','--name',name,'--label',f'{label}={run_id}',
+                   '--memory','512m','--cpus','1','--pids-limit','128','--read-only',
+                   '--tmpfs','/var/lib/postgresql/data:rw,size=256m','--tmpfs','/var/run/postgresql:rw,size=16m',
+                   '--tmpfs','/tmp:rw,size=16m','-p','127.0.0.1::5432',
+                   '-e',f'POSTGRES_PASSWORD={password}','-e','POSTGRES_USER=night_factory',
+                   '-e',f'POSTGRES_DB={database}',image])
+    if not re.fullmatch('[0-9a-f]{64}',container):
+        raise RuntimeError('invalid owned container identity')
+    report['container_id']=container
+    deadline=time.monotonic()+45
+    while True:
+        ready=subprocess.run(['docker','exec',container,'pg_isready','-U','night_factory','-d',database],capture_output=True,timeout=5,check=False)
+        if ready.returncode==0:
+            break
+        if time.monotonic()>deadline:
+            raise RuntimeError('disposable PostgreSQL readiness deadline exceeded')
+        time.sleep(.5)
+    address=call(['docker','port',container,'5432/tcp'])
+    if not re.fullmatch(r'127\.0\.0\.1:\d+',address):
+        raise RuntimeError('expected loopback-only published DB port')
+    port=address.rsplit(':',1)[1]
+    url=f'postgresql+asyncpg://night_factory:{password}@127.0.0.1:{port}/{database}'
+    env.update(DATABASE_URL=url,MC_TEST_POSTGRES_URL=url,MC_TEST_DISPOSABLE='1',SEED_DEMO_DATA='false')
+    report['server_version']=call(['docker','exec',container,'psql','-U','night_factory','-d',database,'-Atc','SHOW server_version'])
+    for title,args in [('upgrade0001-0009',['upgrade','head']),('schema-check',['check']),('downgrade0009-0008',['downgrade','0008']),('reapply0008-0009',['upgrade','head'])]:
+        call([python,'-m','alembic',*args],environment=env,timeout=90,log='mc-pg-'+title+'.log')
+        report['steps'].append({'step':title,'exit_status':0})
+        print(title+' PASS',flush=True)
+    call([python,'-m','pytest','-q','-p','no:cacheprovider','--basetemp',folder.resolve()/'mc-pg-backend'],environment=env,timeout=120,log='mc-pg-backend.log')
+    report['steps'].append({'step':'full backend including native PostgreSQL schema/repository','exit_status':0})
+    print((folder/'mc-pg-backend.log').read_text(encoding='utf-8').strip(),flush=True)
+    report['status']='PASS'
+except Exception as error:
+    report['status']='FAIL'
+    report['error']=str(error).replace(password,'<disposable-secret>')
+    print(report['error'],flush=True)
+finally:
+    if container:
+        try:
+            actual=call(['docker','inspect','--format',f'{{{{index .Config.Labels "{label}"}}}}',container])
+            if actual!=run_id:
+                raise RuntimeError('container ownership mismatch: preserved, not stopped')
+            call(['docker','stop','--time','10',container],timeout=30)
+            report['cleanup']='exact labelled owned container stopped; --rm/tmpfs no host volume'
+        except Exception as cleanup_error:
+            report['cleanup_error']=str(cleanup_error).replace(password,'<disposable-secret>')
+            report['status']='FAIL'
+    report['finished_at']=datetime.now(timezone.utc).isoformat()
+    (folder/'mc-pg-runtime.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+raise SystemExit(0 if report['status']=='PASS' else 1)

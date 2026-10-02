@@ -154,7 +154,7 @@ financial correctness отдельно оценивается MC6-R30–R34.
 | MC6-R24 | Absolute drawdown | Metrics | Per-point absolute balance/equity gap and maximum absolute gap are exposed | focused unrealized/max-drawdown assertions PASS | VERIFIED | MT5 report-definition parity is not established | `MC-REM-BT-04` | yes |
 | MC6-R25 | Lot volume | API/application | Requested lot is checked against symbol min/step/max and platform cap | min/step/cap API and engine tests PASS | VERIFIED | — | — | yes |
 | MC6-R26 | Contract size | Symbol/application/execution | Positive symbol contract size is persisted and injected into P&L/cost models | focused 0.1-lot × 100000 contract-size test PASS | VERIFIED | Instruments needing tick-value conversion remain unproven | `MC-REM-BT-03` | yes |
-| MC6-R27 | Persistence | PostgreSQL repository | Runs, trades, complete equity curve, settings, parameters, ranges and metrics have models/migrations | SQLite API persistence/retrieval/delete PASS; PostgreSQL schema applies cleanly, but actual run/trade repository round-trip on PostgreSQL not exercised | IMPLEMENTED_UNVERIFIED | Real PostgreSQL application repository path remains unverified | `MC-REM-DB-02` | yes |
+| MC6-R27 | Persistence | PostgreSQL repository | Runs, trades, complete equity curve, settings, parameters, ranges and metrics have models/migrations | Native PostgreSQL17.6 actual application repository add/commit/new-session reload/list/trades/delete and dependent row cascade PASS; complete BUY/SELL result round-trip | VERIFIED | Internal synthetic data only; no live MT5 or whole API E2E claim | `MC-REM-DB-02` | yes |
 | MC6-R28 | API and replay | Backend/frontend | Typed create/list/get/delete/jobs API and persisted-result replay are reachable | API tests PASS; Strategies replay has production Chrome evidence at `6f71d1a` | VERIFIED | — | — | yes |
 | MC6-R29 | Deterministic fixtures | Test/provenance | Synthetic candle/strategy fixtures cover internal formulas | Internal fixtures are deterministic and tests PASS | PARTIAL | No immutable, provenance-recorded MT5 input/output fixture exists | `MC-REM-BT-04` | yes |
 | MC6-R30 | Tick size | Symbol/financial contract | Symbol exposes digits, not MT5 trade tick size | No contract or test found | MISSING | `SYMBOL_TRADE_TICK_SIZE` is absent | `MC-REM-BT-03` | yes |
@@ -164,6 +164,8 @@ financial correctness отдельно оценивается MC6-R30–R34.
 | MC6-R34 | MT5 golden provenance, coverage and tolerance | External reference | No golden trades/export parser/provenance manifest/tolerance comparator exists | No BUY/SELL/cost/exit/P&L/drawdown golden test found | MISSING | `TD-BT-001` remains OPEN; reference values must come from a real captured MT5 dataset | `MC-REM-BT-04` | yes |
 
 ### Stage 6 evidence run
+
+- MC6-R27 Night 2026-10-02: new guarded real PostgreSQL application repository integration PASS. Clean migrations/check/downgrade/reapply and full backend93 PASS/0 skips on exact disposable PostgreSQL17.6 image; container exact-label ownership/absence confirmed. Ruff PASS, mypy55 PASS. Evidence `docs/evidence/night-20261002-postgres/verification.json`; requirement SPEC `specs/features/postgres-backtest-evidence.spec.md`. Application, migrations, locks and accepted tests unchanged. Historical SQLite/guarded skip runs below retain their original scope.
 
 - MC-REM-BT-02 Night 2026-10-02: 10 new SELL cases PASS; full backend 82 PASS/1 explicitly guarded PostgreSQL skip; Ruff PASS, mypy55 PASS. Evidence: `docs/evidence/night-20261002-sell/verification.json`. Existing tests, engine, public API and lockfiles unchanged.
 
@@ -190,7 +192,7 @@ fixture provenance or tolerance is defined. Therefore `TD-BT-001` remains
 
 | VERIFIED | IMPLEMENTED_UNVERIFIED | PARTIAL | MISSING | NOT_APPLICABLE |
 |---:|---:|---:|---:|---:|
-| 23 | 1 | 3 | 7 | 0 |
+| 24 | 0 | 3 | 7 | 0 |
 
 ## Reconciliation summary
 
@@ -199,8 +201,8 @@ fixture provenance or tolerance is defined. Therefore `TD-BT-001` remains
 | 3 | 6 | 0 | 3 | 3 | 0 |
 | 4 | 7 | 0 | 3 | 1 | 0 |
 | 5 | 3 | 9 | 0 | 0 | 1 |
-| 6 | 23 | 1 | 3 | 7 | 0 |
-| **Total** | **39** | **10** | **9** | **11** | **1** |
+| 6 | 24 | 0 | 3 | 7 | 0 |
+| **Total** | **40** | **9** | **9** | **11** | **1** |
 
 All 70 atomic records have one classification. The reconciliation audit is
 complete, but canonical requirements and mandatory evidence remain unresolved.
@@ -216,7 +218,7 @@ storage or waive its unapproved retention contract.
 | ID | Source requirements | Severity / Stage-7 gate | Exact missing evidence or implementation | Dependency | Recommended branch | Expected acceptance evidence |
 |---|---|---|---|---|---|---|
 | MC-REM-DB-01 | MC3-R01, R03, R07, R10, R11 | high / blocking | Canonical tick and market-event storage/lifecycle, complete provenance/retention and an explicit Timescale-compatible partition contract | none | `fix/stage-3-market-data-contract` | Approved SPEC plus migrations/models/constraints/indexes; deterministic lifecycle/retention/provenance tests; Timescale compatibility rationale |
-| MC-REM-DB-02 | MC3-R02, R04, R05, R08, R09; MC6-R27 | high / partial | Existing schema: clean PostgreSQL migration, numeric/timezone round-trip, key constraint/index inspection and 0009 rollback/reapply PASS. Remaining: other index access paths/query plans and real PostgreSQL backtest repository round-trip; future tick/event tables depend on DB-01. | Existing-schema proof independent of MC-REM-DB-01; future tables depend on it | `fix/stage-3-market-data-contract` | Repeatable guarded `test_postgres_schema.py` plus remaining repository/query-plan evidence |
+| MC-REM-DB-02 | MC3-R02, R04, R05, R08, R09; MC6-R27 | high / partial | Existing schema: clean PostgreSQL migration, numeric/timezone round-trip, key constraint/index inspection and 0009 rollback/reapply PASS. Native application backtest repository round-trip now PASS (93 backend tests/0 skips, PostgreSQL17.6). Remaining: other index access paths/query plans; future tick/event tables depend on DB-01. | Existing-schema proof independent of MC-REM-DB-01; future tables depend on it | `fix/stage-3-market-data-contract` | Repeatable guarded `test_postgres_schema.py` plus remaining repository/query-plan evidence |
 | MC-REM-API-01 | MC4-R05, R06 | high / blocking | Stable cross-endpoint filtering and real pagination/ordering/continuation contract | MC-REM-DB-01, MC-REM-DB-02 | `fix/stage-4-filter-pagination` | SPEC and API integration tests covering boundaries, stable order, continuation and invalid filters |
 | MC-REM-API-02 | MC4-R07 | high / blocking | Idempotency/replay semantics for backtest/job and remaining public mutations | MC-REM-DB-02 | `fix/stage-4-idempotency-contract` | Concurrent/replayed request integration tests, durable uniqueness and conflict response contract |
 | MC-REM-API-03 | MC4-R11 | medium / blocking | Live MT5 reconnect, retry and lease-expiry recovery evidence | MC-REM-DB-02 and available MT5 runtime | `verify/stage-4-mt5-recovery` | Captured terminal→API→DB retry/reconnect/expired-lease scenario with no duplicate or lost completion |

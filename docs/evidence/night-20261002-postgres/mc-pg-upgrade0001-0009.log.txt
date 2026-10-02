@@ -1,0 +1,11 @@
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Create trading data tables.
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, Add MetaTrader 5 bridge state and position snapshots.
+INFO  [alembic.runtime.migration] Running upgrade 0002 -> 0003, Identify candle data provenance.
+INFO  [alembic.runtime.migration] Running upgrade 0003 -> 0004, Add persisted backtest runs, virtual trades and equity curves.
+INFO  [alembic.runtime.migration] Running upgrade 0004 -> 0005, Add latest live market quotes.
+INFO  [alembic.runtime.migration] Running upgrade 0005 -> 0006, Add MT5 symbol volume and contract specifications.
+INFO  [alembic.runtime.migration] Running upgrade 0006 -> 0007, Add reusable historical-data coverage cache.
+INFO  [alembic.runtime.migration] Running upgrade 0007 -> 0008, Persist partial-data warnings and absolute drawdown.
+INFO  [alembic.runtime.migration] Running upgrade 0008 -> 0009, Add two-way historical data request queue.
